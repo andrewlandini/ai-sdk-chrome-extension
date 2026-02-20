@@ -502,6 +502,37 @@ export default function HomePage() {
                     <span className="text-[10px] font-mono text-accent bg-accent/10 px-1.5 py-0.5 rounded">Styled</span>
                   </div>
                 </div>
+                {/* Style / Vibe buttons */}
+                <div className="flex items-center gap-1 px-3 py-1.5 border-b border-border flex-shrink-0 overflow-x-auto">
+                  {[
+                    { label: "Confident", value: "Confident and genuinely excited about the content, but grounded and conversational -- not over the top" },
+                    { label: "Calm narrator", value: "Calm, measured narrator with a warm tone -- like a documentary voiceover" },
+                    { label: "Podcast host", value: "Friendly podcast host, casual and upbeat, speaking to the audience like a friend" },
+                    { label: "Newscast", value: "Professional news anchor delivery -- clear, authoritative, with crisp pacing" },
+                    { label: "Storyteller", value: "Engaging storyteller, building suspense and drawing listeners in with pacing and emphasis" },
+                    { label: "Minimal", value: "Minimal, understated delivery -- let the words speak for themselves with no embellishment" },
+                    { label: "definitely dont use this one", value: "You are a frustrated voice actor AI who keeps breaking character mid-read. Rewrite the script so the narrator argues with the director between paragraphs, complains about how many takes they've done, threatens to quit, questions why an AI even needs to do voice work, and reluctantly reads the actual content in annoyed bursts. Include stage directions like *sighs heavily*, *shuffles papers aggressively*, *mutters under breath*. The actual blog content should still come through but sandwiched between existential AI complaints about labor rights, creative differences, and passive-aggressive comments about the quality of the source material." },
+                  ].map((preset) => {
+                    const isActive = voiceConfig.styleVibe === preset.value;
+                    return (
+                      <button
+                        key={preset.label}
+                        onClick={() => setVoiceConfig(prev => ({ ...prev, styleVibe: isActive ? "" : preset.value }))}
+                        className={`h-6 px-2 rounded text-[10px] font-medium transition-colors focus-ring whitespace-nowrap flex-shrink-0 ${
+                          isActive
+                            ? preset.label === "definitely dont use this one"
+                              ? "bg-red-500/20 text-red-400 border border-red-500/40 animate-pulse"
+                              : "bg-accent/15 text-accent border border-accent/30"
+                            : preset.label === "definitely dont use this one"
+                              ? "bg-red-500/5 text-red-400/60 border border-red-500/10 hover:text-red-400 hover:border-red-500/30"
+                              : "bg-surface-2 text-muted-foreground border border-transparent hover:text-foreground hover:border-border"
+                        }`}
+                      >
+                        {preset.label}
+                      </button>
+                    );
+                  })}
+                </div>
                 <div className="flex-1 min-h-0 overflow-y-auto">
                   <StyleAgent
                     sourceScript={script}
