@@ -305,15 +305,16 @@ export default function HomePage() {
         {/* Workspace: generator + voice settings side by side */}
         <div className="flex-1 min-w-0 flex flex-col lg:flex-row overflow-hidden">
 
-          {/* Generator panel */}
-          <div className="flex-1 min-w-0 overflow-y-auto">
-            <div className="w-full px-5 py-4 flex flex-col gap-3">
-              {!scriptUrl ? (
-                <div className="flex items-center justify-center min-h-[80px]">
-                  <p className="text-xs text-muted-foreground">Select a blog post from the sidebar, or paste a URL above</p>
-                </div>
-              ) : (
-                <>
+          {/* Generator panel -- fixed layout: script top, player middle, style bottom */}
+          <div className="flex-1 min-w-0 flex flex-col overflow-hidden">
+            {!scriptUrl ? (
+              <div className="flex-1 flex items-center justify-center">
+                <p className="text-xs text-muted-foreground">Select a blog post from the sidebar, or paste a URL above</p>
+              </div>
+            ) : (
+              <>
+                {/* Top: header + script editor (fixed) */}
+                <div className="flex-shrink-0 px-5 pt-4 pb-2 flex flex-col gap-3 border-b border-border">
                   {/* Selected post header */}
                   <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3">
                     <div className="min-w-0 flex-1">
@@ -364,17 +365,11 @@ export default function HomePage() {
                     onScriptChange={setScript}
                     onGenerate={handleGenerateAudio}
                   />
+                </div>
 
-                  {/* Style Agent */}
-                  <StyleAgent
-                    sourceScript={script}
-                    onUseStyledScript={setScript}
-                    isGeneratingAudio={isGenerating}
-                    onGenerateAudio={handleGenerateFromStyled}
-                  />
-
-                  {/* Player */}
-                  {activeEntry && (
+                {/* Middle: player (scrollable area if needed) */}
+                {activeEntry && (
+                  <div className="flex-shrink-0 px-5 py-3 border-b border-border">
                     <WaveformPlayer
                       key={activeEntry.id}
                       audioUrl={activeEntry.audio_url}
@@ -383,26 +378,38 @@ export default function HomePage() {
                       url={activeEntry.url}
                       autoplay={autoplay}
                     />
-                  )}
+                  </div>
+                )}
 
-                  {/* Versions */}
-                  {scriptUrl && (
-                    <VersionsList
-                      versions={versions}
-                      activeId={activeEntry?.id ?? null}
-                      onSelect={handleSelectVersion}
-                      onDelete={handleDeleteVersion}
-                    />
-                  )}
-                </>
-              )}
-            </div>
+                {/* Bottom: style agent (fixed) */}
+                <div className="flex-shrink-0 px-5 py-3 mt-auto">
+                  <StyleAgent
+                    sourceScript={script}
+                    onUseStyledScript={setScript}
+                    isGeneratingAudio={isGenerating}
+                    onGenerateAudio={handleGenerateFromStyled}
+                  />
+                </div>
+              </>
+            )}
           </div>
 
-          {/* Voice settings panel -- right of generator on desktop, below on mobile */}
+          {/* Voice settings + versions panel */}
           <aside className="w-full lg:w-[380px] flex-shrink-0 border-t lg:border-t-0 lg:border-l border-border overflow-y-auto bg-surface-1">
-            <div className="p-4">
+            <div className="p-4 flex flex-col gap-4">
               <VoiceSettings config={voiceConfig} onChange={setVoiceConfig} />
+
+              {/* Versions list */}
+              {scriptUrl && (
+                <div className="border-t border-border pt-4">
+                  <VersionsList
+                    versions={versions}
+                    activeId={activeEntry?.id ?? null}
+                    onSelect={handleSelectVersion}
+                    onDelete={handleDeleteVersion}
+                  />
+                </div>
+              )}
             </div>
           </aside>
         </div>
