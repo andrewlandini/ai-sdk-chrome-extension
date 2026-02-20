@@ -108,11 +108,13 @@ export function WaveformPlayer({
   useEffect(() => {
     if (idle || !audioUrl || barCount === 0) return;
     let cancelled = false;
+    const controller = new AbortController();
     async function decodeAudio() {
       try {
         if (!audioContextRef.current) audioContextRef.current = new AudioContext();
-        const response = await fetch(audioUrl);
+        const response = await fetch(audioUrl, { signal: controller.signal });
         const arrayBuffer = await response.arrayBuffer();
+        if (cancelled) return;
         const audioBuffer = await audioContextRef.current!.decodeAudioData(arrayBuffer);
         if (!cancelled) {
           setPeaks(extractPeaks(audioBuffer, barCount));
@@ -126,7 +128,7 @@ export function WaveformPlayer({
       }
     }
     decodeAudio();
-    return () => { cancelled = true; };
+    return () => { cancelled = true; controller.abort(); };
   }, [audioUrl, barCount]);
 
   useEffect(() => {

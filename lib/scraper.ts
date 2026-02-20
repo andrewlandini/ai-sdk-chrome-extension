@@ -64,9 +64,15 @@ export async function scrapeBlogPost(url: string): Promise<ScrapedContent> {
   // Clean up whitespace
   text = text.replace(/\s+/g, " ").trim();
 
-  // Truncate to reasonable length for summarization
-  if (text.length > 15000) {
-    text = text.substring(0, 15000);
+  // Truncate to reasonable length for summarization (with paragraph-aware cutoff)
+  const MAX_CONTENT_LENGTH = 40000;
+  if (text.length > MAX_CONTENT_LENGTH) {
+    // Cut at last paragraph break before limit to avoid mid-sentence truncation
+    const cutText = text.substring(0, MAX_CONTENT_LENGTH);
+    const lastBreak = cutText.lastIndexOf(". ");
+    text = lastBreak > MAX_CONTENT_LENGTH * 0.8
+      ? cutText.substring(0, lastBreak + 1)
+      : cutText;
   }
 
   if (!text || text.length < 50) {

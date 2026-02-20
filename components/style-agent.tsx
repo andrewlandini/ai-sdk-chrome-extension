@@ -47,8 +47,10 @@ export function StyleAgent({
   const wordCount = styledScript.trim().split(/\s+/).filter(Boolean).length;
   const charCount = styledScript.length;
 
-  // Load history from DB when post URL changes
+  // Reset styled script and load history when post URL changes
   useEffect(() => {
+    setStyledScript("");
+    setError(null);
     if (!postUrl) { setHistory([]); return; }
     let cancelled = false;
     fetch(`/api/style-history?url=${encodeURIComponent(postUrl)}`)
