@@ -139,13 +139,21 @@ export async function POST(request: Request) {
 
       try {
         await updateGenerationJob(job.id, { status: "generating", message: "Starting generation..." });
-        // Build voice settings (v3 only uses stability)
-        const voiceSettings: Record<string, number> = {};
-        if (stability !== undefined) voiceSettings.stability = stability;
-
-        const providerOpts = Object.keys(voiceSettings).length > 0
-          ? { providerOptions: { elevenlabs: { voiceSettings } } }
-          : {};
+        // Build provider options -- eleven_v3 may not support voiceSettings
+        // so only include them for non-v3 models
+        const isV3 = MODEL === "eleven_v3";
+        const providerOpts = isV3
+          ? {}
+          : {
+              providerOptions: {
+                elevenlabs: {
+                  voiceSettings: {
+                    stability: stability ?? 0.5,
+                    similarityBoost: 0.75,
+                  },
+                },
+              },
+            };
 
         // Split into chunks for v3's character limit
         const chunks = chunkText(summary);
@@ -260,7 +268,8 @@ export async function POST(request: Request) {
 
         controller.close();
       } catch (error) {
-        console.error("Generate error:", error);
+        console.error("[v0] Generate error:", error);
+        console.error("[v0] Generate error details:", JSON.stringify(error, Object.getOwnPropertyNames(error as object)));
         const message =
           error instanceof Error ? error.message : "An unexpected error occurred";
         await updateGenerationJob(job.id, { status: "error", message }).catch(() => {});
