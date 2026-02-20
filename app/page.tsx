@@ -74,6 +74,20 @@ const DEFAULT_VOICE_CONFIG: VoiceConfig = {
   styleVibe: "Confident and genuinely excited about the content, but grounded and conversational -- not over the top",
 };
 
+const SESSION_KEY = "aether-session";
+
+function loadSession() {
+  if (typeof window === "undefined") return null;
+  try {
+    const raw = sessionStorage.getItem(SESSION_KEY);
+    return raw ? JSON.parse(raw) : null;
+  } catch { return null; }
+}
+
+function saveSession(data: Record<string, unknown>) {
+  try { sessionStorage.setItem(SESSION_KEY, JSON.stringify(data)); } catch { /* ignore */ }
+}
+
 export default function HomePage() {
   const { name: productName, fading: nameFading, advance: advanceName } = useProductName();
   const { data: credits } = useSWR<CreditsData>("/api/credits", fetcher, { refreshInterval: 30000 });
@@ -104,6 +118,27 @@ export default function HomePage() {
   const [historyOpen, setHistoryOpen] = useState(false);
   const [selectedHistoryScript, setSelectedHistoryScript] = useState<string | null>(null);
   const historyRef = useRef<HTMLDivElement>(null);
+  const restoredRef = useRef(false);
+
+  // ── Restore session on mount ──
+  useEffect(() => {
+    if (restoredRef.current) return;
+    restoredRef.current = true;
+    const s = loadSession();
+    if (!s) return;
+    if (s.scriptUrl) setScriptUrl(s.scriptUrl);
+    if (s.scriptTitle) setScriptTitle(s.scriptTitle);
+    if (s.script) setScript(s.script);
+    if (s.styledScript) setStyledScript(s.styledScript);
+    if (s.activeTab) setActiveTab(s.activeTab);
+    if (s.voiceConfig) setVoiceConfig({ ...DEFAULT_VOICE_CONFIG, ...s.voiceConfig });
+  }, []);
+
+  // ── Persist session on change ──
+  useEffect(() => {
+    if (!restoredRef.current) return;
+    saveSession({ scriptUrl, scriptTitle, script, styledScript, activeTab, voiceConfig });
+  }, [scriptUrl, scriptTitle, script, styledScript, activeTab, voiceConfig]);
 
   // Data
   const { data: historyData, mutate: mutateHistory } = useSWR<{ entries: BlogAudio[] }>("/api/history", fetcher);
@@ -497,11 +532,11 @@ export default function HomePage() {
               />
             </div>
 
-            {/* Audio Versions */}
+            {/* Versions */}
             <div className="flex-shrink-0 border-t border-border">
               <div className="flex items-center justify-between px-3 py-2 border-b border-border">
                 <div className="flex items-center gap-2">
-                  <span className="text-sm font-semibold tracking-tight">Audio Versions</span>
+                  <span className="text-sm font-semibold tracking-tight">Versions</span>
                   <span className="text-[10px] font-mono text-accent bg-accent/10 px-1.5 py-0.5 rounded">{versions.length}</span>
                 </div>
               </div>
@@ -572,11 +607,11 @@ export default function HomePage() {
             />
           </div>
 
-          {/* Audio Versions */}
+          {/* Versions */}
           <div className="flex-shrink-0 border-t border-border">
             <div className="flex items-center justify-between px-3 py-2 border-b border-border">
               <div className="flex items-center gap-2">
-                <span className="text-sm font-semibold tracking-tight">Audio Versions</span>
+                <span className="text-sm font-semibold tracking-tight">Versions</span>
                 <span className="text-[10px] font-mono text-accent bg-accent/10 px-1.5 py-0.5 rounded">{versions.length}</span>
               </div>
             </div>
@@ -741,7 +776,7 @@ export default function HomePage() {
           {/* Right side: (Voice Over + Versions) | Voice Settings */}
           <div className={`flex-[2] min-w-0 flex-col xl:flex-row overflow-hidden ${activeTab !== "content" ? "flex" : "hidden md:flex"}`}>
 
-            {/* Voice Over column + Audio Versions below */}
+            {/* Voice Over column + Versions below */}
             <div className={`flex-1 min-w-0 flex-col overflow-hidden ${activeTab === "voiceover" ? "flex" : "hidden md:flex"}`}>
               {/* Voice Over header */}
               <div className="flex items-center justify-between px-3 py-2 border-b border-border flex-shrink-0">
