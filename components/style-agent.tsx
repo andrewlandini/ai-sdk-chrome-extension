@@ -108,16 +108,13 @@ export function StyleAgent({
       )}
 
       {/* Footer */}
-      <div className="flex-shrink-0 border-t border-border px-4 py-2 flex items-center justify-between">
-        <p className="text-[11px] text-muted">
-          Styled for ElevenLabs v3 with Audio Tags.
-        </p>
-        {styledScript && (
+      {styledScript && (
+        <div className="flex-shrink-0 border-t border-border px-4 py-2 flex items-center justify-end">
           <span className="text-[10px] text-muted font-mono tabular-nums flex-shrink-0">
             {wordCount}w / {charCount}c
           </span>
-        )}
-      </div>
+        </div>
+      )}
     </div>
   );
 }

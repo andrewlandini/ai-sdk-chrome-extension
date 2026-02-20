@@ -448,9 +448,7 @@ export function PromptEditorModal({ open, onClose }: PromptEditorModalProps) {
                     <p className="text-xs text-muted leading-relaxed">
                       The Style Agent prompt is managed server-side and includes the full Eleven v3 Audio Tags reference. It is not editable here.
                     </p>
-                    <p className="text-xs text-muted leading-relaxed mt-2">
-                      You can change which AI model is used to style scripts using the model selector above.
-                    </p>
+
                   </div>
                 ) : (
                   <textarea
