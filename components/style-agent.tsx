@@ -138,7 +138,7 @@ export function StyleAgent({
           value={styledScript}
           onChange={(e) => { setStyledScript(e.target.value); onStyledScriptChange?.(e.target.value); }}
           aria-label="Styled audio script with Audio Tags"
-          className="flex-1 w-full bg-transparent text-sm font-mono leading-relaxed text-foreground p-4 resize-none border-none focus:outline-none overflow-y-auto"
+          className="flex-1 w-full bg-transparent text-sm font-mono leading-relaxed text-foreground p-4 resize-none border-none focus:outline-none overflow-y-auto transition-opacity duration-300 opacity-30 hover:opacity-100 focus:opacity-100"
         />
       ) : (
         <div className="flex-1 flex items-center justify-center px-4 text-center">
