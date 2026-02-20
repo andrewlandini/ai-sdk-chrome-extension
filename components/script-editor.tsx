@@ -1,7 +1,5 @@
 "use client";
 
-import { useState } from "react";
-
 interface ScriptEditorProps {
   script: string;
   title: string;
@@ -21,71 +19,60 @@ export function ScriptEditor({
   const charCount = script.length;
 
   return (
-    <div className="border border-border rounded-md overflow-hidden">
-      <div className="border-b border-border px-4 py-3 flex items-center justify-between">
-        <div className="flex items-center gap-3">
-          <h3 className="text-sm font-medium text-foreground">Script</h3>
+    <section
+      className="rounded-lg border border-border bg-surface-1 overflow-hidden"
+      aria-labelledby="script-heading"
+    >
+      {/* Header */}
+      <div className="border-b border-border px-4 py-3 flex items-center justify-between gap-4">
+        <div className="flex items-center gap-3 min-w-0">
+          <h2 id="script-heading" className="text-sm font-medium text-foreground flex-shrink-0">
+            Script
+          </h2>
           {title && (
-            <span className="text-xs text-muted font-mono truncate max-w-[300px]">
+            <span className="text-xs text-muted font-mono truncate" title={title}>
               {title}
             </span>
           )}
         </div>
-        <div className="flex items-center gap-3">
-          <span className="text-xs text-muted-foreground font-mono tabular-nums">
-            {wordCount} words / {charCount} chars
-          </span>
-        </div>
+        <span className="text-xs text-muted font-mono tabular-nums flex-shrink-0">
+          {wordCount}w / {charCount}c
+        </span>
       </div>
 
-      <div className="relative">
-        <textarea
-          value={script}
-          onChange={(e) => onScriptChange(e.target.value)}
-          placeholder="Paste a blog URL above or select from the catalog to generate a script..."
-          className="w-full min-h-[200px] max-h-[400px] bg-card text-foreground text-sm font-mono leading-relaxed p-4 resize-y focus:outline-none placeholder:text-muted-foreground/40"
-          disabled={isLoading}
-        />
-      </div>
+      {/* Editor */}
+      <textarea
+        value={script}
+        onChange={(e) => onScriptChange(e.target.value)}
+        placeholder="Paste a blog URL above or select from the catalog to generate a script..."
+        disabled={isLoading}
+        aria-label="Audio script text"
+        className="w-full min-h-[220px] max-h-[440px] bg-transparent text-sm font-mono leading-relaxed text-foreground p-4 resize-y border-none focus:outline-none placeholder:text-muted-foreground/30 disabled:opacity-50"
+      />
 
-      <div className="border-t border-border px-4 py-3 flex items-center justify-between bg-background">
-        <p className="text-xs text-muted-foreground">
-          Edit the script before generating audio. The text will be sent to
-          ElevenLabs as-is.
+      {/* Footer */}
+      <div className="border-t border-border px-4 py-3 flex items-center justify-between gap-4">
+        <p className="text-xs text-muted hidden sm:block">
+          Edit the script before generating. This text is sent directly to ElevenLabs.
         </p>
         <button
           onClick={onGenerate}
           disabled={!script.trim() || isLoading}
-          className="px-4 py-1.5 bg-primary text-primary-foreground text-sm font-medium rounded-md hover:bg-primary/90 transition-colors disabled:opacity-40 disabled:cursor-not-allowed flex items-center gap-2"
+          className="ml-auto flex items-center justify-center gap-2 h-9 rounded-md bg-foreground text-background px-5 text-sm font-medium transition-colors hover:bg-foreground/90 disabled:opacity-40 disabled:cursor-not-allowed focus-ring"
         >
           {isLoading ? (
             <>
-              <svg
-                className="animate-spin h-3.5 w-3.5"
-                viewBox="0 0 24 24"
-                fill="none"
-              >
-                <circle
-                  className="opacity-25"
-                  cx="12"
-                  cy="12"
-                  r="10"
-                  stroke="currentColor"
-                  strokeWidth="4"
-                />
-                <path
-                  className="opacity-75"
-                  fill="currentColor"
-                  d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z"
-                />
+              <svg className="animate-spin" width="14" height="14" viewBox="0 0 24 24" fill="none" aria-hidden="true">
+                <circle cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="2" strokeOpacity="0.2" />
+                <path d="M12 2a10 10 0 0 1 10 10" stroke="currentColor" strokeWidth="2" strokeLinecap="round" />
               </svg>
-              Generating...
+              <span>Generating...</span>
             </>
           ) : (
-            "Generate Audio"
+            <span>Generate Audio</span>
           )}
         </button>
       </div>
-    </div>
+    </section>
   );
 }

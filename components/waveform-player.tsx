@@ -27,19 +27,15 @@ function extractPeaks(audioBuffer: AudioBuffer, barCount: number): number[] {
   const { length, numberOfChannels } = audioBuffer;
   const samplesPerBar = Math.floor(length / barCount);
   const channels: Float32Array[] = [];
-
   for (let c = 0; c < numberOfChannels; c++) {
     channels.push(audioBuffer.getChannelData(c));
   }
-
   const peaks = new Array(barCount).fill(0);
-
   for (let i = 0; i < barCount; i++) {
     const start = i * samplesPerBar;
     const end = i === barCount - 1 ? length : start + samplesPerBar;
     let sumSq = 0;
     let count = 0;
-
     for (let s = start; s < end; s += 64) {
       let v = 0;
       for (let c = 0; c < numberOfChannels; c++) {
@@ -49,14 +45,10 @@ function extractPeaks(audioBuffer: AudioBuffer, barCount: number): number[] {
       sumSq += v * v;
       count++;
     }
-
-    const rms = count ? Math.sqrt(sumSq / count) : 0;
-    peaks[i] = rms;
+    peaks[i] = count ? Math.sqrt(sumSq / count) : 0;
   }
-
   const max = Math.max(1e-6, Math.max(...peaks));
   const normalized = peaks.map((p) => Math.pow(p / max, 0.5));
-
   const smoothed = new Array(normalized.length);
   for (let i = 0; i < normalized.length; i++) {
     const a = normalized[i - 1] ?? normalized[i];
@@ -64,7 +56,6 @@ function extractPeaks(audioBuffer: AudioBuffer, barCount: number): number[] {
     const c = normalized[i + 1] ?? normalized[i];
     smoothed[i] = (a + 2 * b + c) / 4;
   }
-
   return smoothed;
 }
 
@@ -72,8 +63,7 @@ function generatePlaceholderPeaks(count: number): number[] {
   const peaks: number[] = [];
   for (let i = 0; i < count; i++) {
     const t = count <= 1 ? 0 : i / (count - 1);
-    const tri = 1 - Math.abs(2 * t - 1);
-    peaks.push(Math.max(MIN_HEIGHT_PCT / 100, tri));
+    peaks.push(Math.max(MIN_HEIGHT_PCT / 100, 1 - Math.abs(2 * t - 1)));
   }
   return peaks;
 }
@@ -109,10 +99,9 @@ export function WaveformPlayer({
     const el = waveformRef.current;
     if (!el) return;
     const updateBarCount = () => {
-      const rect = el.getBoundingClientRect();
       const count = Math.min(
         MAX_BARS,
-        Math.max(MIN_BARS, Math.floor(rect.width / (BAR_WIDTH + BAR_GAP)))
+        Math.max(MIN_BARS, Math.floor(el.getBoundingClientRect().width / (BAR_WIDTH + BAR_GAP)))
       );
       setBarCount(count);
     };
@@ -127,13 +116,10 @@ export function WaveformPlayer({
     let cancelled = false;
     async function decodeAudio() {
       try {
-        if (!audioContextRef.current) {
-          audioContextRef.current = new AudioContext();
-        }
+        if (!audioContextRef.current) audioContextRef.current = new AudioContext();
         const response = await fetch(audioUrl);
         const arrayBuffer = await response.arrayBuffer();
-        const audioBuffer =
-          await audioContextRef.current!.decodeAudioData(arrayBuffer);
+        const audioBuffer = await audioContextRef.current!.decodeAudioData(arrayBuffer);
         if (!cancelled) {
           setPeaks(extractPeaks(audioBuffer, barCount));
           setIsLoaded(true);
@@ -146,9 +132,7 @@ export function WaveformPlayer({
       }
     }
     decodeAudio();
-    return () => {
-      cancelled = true;
-    };
+    return () => { cancelled = true; };
   }, [audioUrl, barCount]);
 
   useEffect(() => {
@@ -177,18 +161,9 @@ export function WaveformPlayer({
   useEffect(() => {
     const audio = audioRef.current;
     if (!audio) return;
-    const onPlay = () => {
-      setIsPlaying(true);
-      startAnimation();
-    };
-    const onPause = () => {
-      setIsPlaying(false);
-      stopAnimation();
-    };
-    const onEnded = () => {
-      setIsPlaying(false);
-      stopAnimation();
-    };
+    const onPlay = () => { setIsPlaying(true); startAnimation(); };
+    const onPause = () => { setIsPlaying(false); stopAnimation(); };
+    const onEnded = () => { setIsPlaying(false); stopAnimation(); };
     const onMeta = () => setDuration(audio.duration);
     audio.addEventListener("play", onPlay);
     audio.addEventListener("pause", onPause);
@@ -223,10 +198,7 @@ export function WaveformPlayer({
   const skip = (seconds: number) => {
     const audio = audioRef.current;
     if (!audio) return;
-    audio.currentTime = Math.max(
-      0,
-      Math.min(audio.duration, audio.currentTime + seconds)
-    );
+    audio.currentTime = Math.max(0, Math.min(audio.duration, audio.currentTime + seconds));
     setCurrentTime(audio.currentTime);
   };
 
@@ -234,55 +206,54 @@ export function WaveformPlayer({
     const audio = audioRef.current;
     if (!audio || !audio.duration) return;
     const rect = e.currentTarget.getBoundingClientRect();
-    const percent = (e.clientX - rect.left) / rect.width;
-    audio.currentTime = percent * audio.duration;
+    audio.currentTime = ((e.clientX - rect.left) / rect.width) * audio.duration;
     setCurrentTime(audio.currentTime);
   };
 
   const progressPercent = duration > 0 ? (currentTime / duration) * 100 : 0;
-  const displayPeaks =
-    peaks.length > 0 ? peaks : generatePlaceholderPeaks(barCount);
+  const displayPeaks = peaks.length > 0 ? peaks : generatePlaceholderPeaks(barCount);
 
   return (
-    <div className="border border-border rounded-md overflow-hidden">
+    <section
+      className="rounded-lg border border-border bg-surface-1 overflow-hidden"
+      aria-label="Audio player"
+    >
       {/* Header */}
-      <div className="border-b border-border px-5 py-4 flex flex-col gap-1">
-        <div className="flex items-start justify-between gap-4">
-          <h2 className="text-base font-semibold text-foreground leading-snug text-balance">
+      <div className="px-4 py-3 border-b border-border flex items-start justify-between gap-4">
+        <div className="min-w-0">
+          <h3 className="text-sm font-medium text-foreground truncate text-balance">
             {title}
-          </h2>
-          <a
-            href={url}
-            target="_blank"
-            rel="noopener noreferrer"
-            className="flex items-center gap-1 text-xs text-muted hover:text-foreground transition-colors flex-shrink-0 mt-0.5"
-          >
-            <span className="font-mono">{truncateHost(url)}</span>
-            <svg
-              width="12"
-              height="12"
-              viewBox="0 0 24 24"
-              fill="none"
-              stroke="currentColor"
-              strokeWidth="2"
-            >
-              <path d="M18 13v6a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h6" />
-              <polyline points="15 3 21 3 21 9" />
-              <line x1="10" y1="14" x2="21" y2="3" />
-            </svg>
-          </a>
+          </h3>
+          {summary && (
+            <p className="text-xs text-muted mt-0.5 line-clamp-2 leading-relaxed">
+              {summary}
+            </p>
+          )}
         </div>
-        <p className="text-sm text-muted leading-relaxed">{summary}</p>
+        <a
+          href={url}
+          target="_blank"
+          rel="noopener noreferrer"
+          className="flex items-center gap-1 text-[11px] text-muted hover:text-foreground transition-colors flex-shrink-0 mt-0.5 font-mono focus-ring rounded"
+          aria-label={`Open ${truncateHost(url)} in new tab`}
+        >
+          {truncateHost(url)}
+          <svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" aria-hidden="true">
+            <path d="M18 13v6a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h6" />
+            <polyline points="15 3 21 3 21 9" />
+            <line x1="10" y1="14" x2="21" y2="3" />
+          </svg>
+        </a>
       </div>
 
-      {/* Waveform */}
-      <div className="px-5 py-4 bg-card">
+      {/* Waveform + Controls */}
+      <div className="px-4 py-4">
         <audio ref={audioRef} src={audioUrl} preload="auto" />
 
         <div
           ref={waveformRef}
           onClick={handleWaveformClick}
-          className="relative h-16 flex items-end cursor-pointer select-none"
+          className="relative h-14 flex items-end cursor-pointer select-none"
           style={{ gap: `${BAR_GAP}px` }}
           role="slider"
           aria-label="Audio progress"
@@ -292,73 +263,54 @@ export function WaveformPlayer({
           tabIndex={0}
         >
           {/* Base layer */}
-          <div
-            className="absolute inset-0 flex items-end"
-            style={{ gap: `${BAR_GAP}px` }}
-          >
-            {displayPeaks.map((peak, i) => {
-              const pct = Math.max(MIN_HEIGHT_PCT, Math.round(peak * 100));
-              return (
-                <span
-                  key={`base-${i}`}
-                  className="block rounded-[1px] bg-waveform-base"
-                  style={{
-                    flex: `0 0 ${BAR_WIDTH}px`,
-                    width: `${BAR_WIDTH}px`,
-                    height: `${pct}%`,
-                    minHeight: "3px",
-                  }}
-                />
-              );
-            })}
+          <div className="absolute inset-0 flex items-end" style={{ gap: `${BAR_GAP}px` }}>
+            {displayPeaks.map((peak, i) => (
+              <span
+                key={`b-${i}`}
+                className="block rounded-[1px] bg-waveform-base"
+                style={{
+                  flex: `0 0 ${BAR_WIDTH}px`,
+                  width: `${BAR_WIDTH}px`,
+                  height: `${Math.max(MIN_HEIGHT_PCT, Math.round(peak * 100))}%`,
+                  minHeight: "2px",
+                }}
+              />
+            ))}
           </div>
 
           {/* Played overlay */}
           <div
             className="absolute top-0 left-0 h-full overflow-hidden flex items-end"
-            style={{
-              width: `${progressPercent}%`,
-              gap: `${BAR_GAP}px`,
-            }}
+            style={{ width: `${progressPercent}%`, gap: `${BAR_GAP}px` }}
           >
-            {displayPeaks.map((peak, i) => {
-              const pct = Math.max(MIN_HEIGHT_PCT, Math.round(peak * 100));
-              return (
-                <span
-                  key={`overlay-${i}`}
-                  className="block rounded-[1px] bg-waveform-played"
-                  style={{
-                    flex: `0 0 ${BAR_WIDTH}px`,
-                    width: `${BAR_WIDTH}px`,
-                    height: `${pct}%`,
-                    minHeight: "3px",
-                  }}
-                />
-              );
-            })}
+            {displayPeaks.map((peak, i) => (
+              <span
+                key={`p-${i}`}
+                className="block rounded-[1px] bg-waveform-played"
+                style={{
+                  flex: `0 0 ${BAR_WIDTH}px`,
+                  width: `${BAR_WIDTH}px`,
+                  height: `${Math.max(MIN_HEIGHT_PCT, Math.round(peak * 100))}%`,
+                  minHeight: "2px",
+                }}
+              />
+            ))}
           </div>
         </div>
 
-        {/* Time + Controls */}
+        {/* Time + Transport */}
         <div className="mt-3 flex items-center justify-between">
-          <span className="text-xs text-muted font-mono tabular-nums">
+          <span className="text-[11px] text-muted font-mono tabular-nums w-10">
             {formatTime(currentTime)}
           </span>
 
           <div className="flex items-center gap-1">
             <button
               onClick={() => skip(-SKIP_SECONDS)}
-              className="flex items-center justify-center w-8 h-8 rounded-md text-muted hover:text-foreground hover:bg-border-light transition-colors"
+              className="flex items-center justify-center w-8 h-8 rounded-md text-muted hover:text-foreground hover:bg-surface-3 transition-colors focus-ring"
               aria-label={`Rewind ${SKIP_SECONDS} seconds`}
             >
-              <svg
-                width="14"
-                height="14"
-                viewBox="0 0 24 24"
-                fill="none"
-                stroke="currentColor"
-                strokeWidth="2"
-              >
+              <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" aria-hidden="true">
                 <polygon points="11 19 2 12 11 5 11 19" />
                 <polygon points="22 19 13 12 22 5 22 19" />
               </svg>
@@ -366,27 +318,16 @@ export function WaveformPlayer({
 
             <button
               onClick={togglePlayPause}
-              className="flex items-center justify-center w-8 h-8 rounded-md bg-primary text-primary-foreground hover:bg-primary/90 transition-colors"
+              className="flex items-center justify-center w-9 h-9 rounded-full bg-foreground text-background hover:bg-foreground/90 transition-colors focus-ring"
               aria-label={isPlaying ? "Pause" : "Play"}
             >
               {isPlaying ? (
-                <svg
-                  width="12"
-                  height="12"
-                  viewBox="0 0 24 24"
-                  fill="currentColor"
-                >
+                <svg width="14" height="14" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true">
                   <rect x="6" y="4" width="4" height="16" />
                   <rect x="14" y="4" width="4" height="16" />
                 </svg>
               ) : (
-                <svg
-                  width="12"
-                  height="12"
-                  viewBox="0 0 24 24"
-                  fill="currentColor"
-                  className="ml-0.5"
-                >
+                <svg width="14" height="14" viewBox="0 0 24 24" fill="currentColor" className="ml-0.5" aria-hidden="true">
                   <path d="M6 4v16l14-8z" />
                 </svg>
               )}
@@ -394,49 +335,32 @@ export function WaveformPlayer({
 
             <button
               onClick={() => skip(SKIP_SECONDS)}
-              className="flex items-center justify-center w-8 h-8 rounded-md text-muted hover:text-foreground hover:bg-border-light transition-colors"
+              className="flex items-center justify-center w-8 h-8 rounded-md text-muted hover:text-foreground hover:bg-surface-3 transition-colors focus-ring"
               aria-label={`Forward ${SKIP_SECONDS} seconds`}
             >
-              <svg
-                width="14"
-                height="14"
-                viewBox="0 0 24 24"
-                fill="none"
-                stroke="currentColor"
-                strokeWidth="2"
-              >
+              <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" aria-hidden="true">
                 <polygon points="13 19 22 12 13 5 13 19" />
                 <polygon points="2 19 11 12 2 5 2 19" />
               </svg>
             </button>
           </div>
 
-          <span className="text-xs text-muted font-mono tabular-nums">
+          <span className="text-[11px] text-muted font-mono tabular-nums w-10 text-right">
             -{formatTime(Math.max(0, duration - currentTime))}
           </span>
         </div>
       </div>
 
-      {/* Footer with branding */}
-      <div className="border-t border-border px-5 py-2.5 flex items-center justify-between bg-background">
+      {/* Footer */}
+      <div className="border-t border-border px-4 py-2 flex items-center justify-between">
         <span className="flex items-center gap-1.5 text-muted-foreground">
-          <svg
-            fill="currentColor"
-            className="h-3.5 w-auto"
-            viewBox="0 0 56 56"
-          >
+          <svg fill="currentColor" className="h-3 w-auto" viewBox="0 0 56 56" aria-hidden="true">
             <path d="M 26.6875 12.6602 C 26.9687 12.6602 27.1094 12.4961 27.1797 12.2383 C 27.9062 8.3242 27.8594 8.2305 31.9375 7.4570 C 32.2187 7.4102 32.3828 7.2461 32.3828 6.9648 C 32.3828 6.6836 32.2187 6.5195 31.9375 6.4726 C 27.8828 5.6524 28.0000 5.5586 27.1797 1.6914 C 27.1094 1.4336 26.9687 1.2695 26.6875 1.2695 C 26.4062 1.2695 26.2656 1.4336 26.1953 1.6914 C 25.3750 5.5586 25.5156 5.6524 21.4375 6.4726 C 21.1797 6.5195 20.9922 6.6836 20.9922 6.9648 C 20.9922 7.2461 21.1797 7.4102 21.4375 7.4570 C 25.5156 8.2774 25.4687 8.3242 26.1953 12.2383 C 26.2656 12.4961 26.4062 12.6602 26.6875 12.6602 Z M 15.3438 28.7852 C 15.7891 28.7852 16.0938 28.5039 16.1406 28.0821 C 16.9844 21.8242 17.1953 21.8242 23.6641 20.5821 C 24.0860 20.5117 24.3906 20.2305 24.3906 19.7852 C 24.3906 19.3633 24.0860 19.0586 23.6641 18.9883 C 17.1953 18.0977 16.9609 17.8867 16.1406 11.5117 C 16.0938 11.0899 15.7891 10.7852 15.3438 10.7852 C 14.9219 10.7852 14.6172 11.0899 14.5703 11.5352 C 13.7969 17.8164 13.4687 17.7930 7.0469 18.9883 C 6.6250 19.0821 6.3203 19.3633 6.3203 19.7852 C 6.3203 20.2539 6.6250 20.5117 7.1406 20.5821 C 13.5156 21.6133 13.7969 21.7774 14.5703 28.0352 C 14.6172 28.5039 14.9219 28.7852 15.3438 28.7852 Z M 31.2344 54.7305 C 31.8438 54.7305 32.2891 54.2852 32.4062 53.6524 C 34.0703 40.8086 35.8750 38.8633 48.5781 37.4570 C 49.2344 37.3867 49.6797 36.8945 49.6797 36.2852 C 49.6797 35.6758 49.2344 35.2070 48.5781 35.1133 C 35.8750 33.7070 34.0703 31.7617 32.4062 18.9180 C 32.2891 18.2852 31.8438 17.8633 31.2344 17.8633 C 30.6250 17.8633 30.1797 18.2852 30.0860 18.9180 C 28.4219 31.7617 26.5938 33.7070 13.9140 35.1133 C 13.2344 35.2070 12.7891 35.6758 12.7891 36.2852 C 12.7891 36.8945 13.2344 37.3867 13.9140 37.4570 C 26.5703 39.1211 28.3281 40.8321 30.0860 53.6524 C 30.1797 54.2852 30.6250 54.7305 31.2344 54.7305 Z" />
           </svg>
-          <span className="text-xs font-medium">AI SDK</span>
+          <span className="text-[10px] font-medium">AI SDK</span>
         </span>
         <span className="flex items-center text-muted-foreground">
-          <svg
-            viewBox="0 0 694 90"
-            fill="currentColor"
-            className="h-2.5 w-auto"
-            role="img"
-            aria-label="ElevenLabs"
-          >
+          <svg viewBox="0 0 694 90" fill="currentColor" className="h-2 w-auto" role="img" aria-label="ElevenLabs">
             <path d="M248.261 22.1901H230.466L251.968 88.5124H271.123L292.625 22.1901H274.83L261.365 72.1488L248.261 22.1901Z" />
             <path d="M0 0H18.413V88.5124H0V0Z" />
             <path d="M36.5788 0H54.9917V88.5124H36.5788V0Z" />
@@ -452,6 +376,6 @@ export function WaveformPlayer({
           </svg>
         </span>
       </div>
-    </div>
+    </section>
   );
 }

@@ -9,21 +9,21 @@ export interface VoiceConfig {
 }
 
 const VOICES = [
-  { id: "JBFqnCBsd6RMkjVDRZzb", name: "George", desc: "Warm, narrative" },
-  { id: "21m00Tcm4TlvDq8ikWAM", name: "Rachel", desc: "Calm, clear" },
-  { id: "EXAVITQu4vr4xnSDxMaL", name: "Sarah", desc: "Soft, friendly" },
-  { id: "ErXwobaYiN019PkySvjV", name: "Antoni", desc: "Well-rounded" },
-  { id: "pNInz6obpgDQGcFmaJgB", name: "Adam", desc: "Deep, confident" },
-  { id: "yoZ06aMxZJJ28mfd3POQ", name: "Sam", desc: "Dynamic, natural" },
-  { id: "onwK4e9ZLuTAKqWW03F9", name: "Daniel", desc: "Authoritative" },
-  { id: "XB0fDUnXU5powFXDhCwa", name: "Charlotte", desc: "Elegant, warm" },
+  { id: "JBFqnCBsd6RMkjVDRZzb", name: "George" },
+  { id: "21m00Tcm4TlvDq8ikWAM", name: "Rachel" },
+  { id: "EXAVITQu4vr4xnSDxMaL", name: "Sarah" },
+  { id: "ErXwobaYiN019PkySvjV", name: "Antoni" },
+  { id: "pNInz6obpgDQGcFmaJgB", name: "Adam" },
+  { id: "yoZ06aMxZJJ28mfd3POQ", name: "Sam" },
+  { id: "onwK4e9ZLuTAKqWW03F9", name: "Daniel" },
+  { id: "XB0fDUnXU5powFXDhCwa", name: "Charlotte" },
 ];
 
 const MODELS = [
-  { id: "eleven_flash_v2_5", name: "Flash v2.5", desc: "Fast, low latency" },
-  { id: "eleven_multilingual_v2", name: "Multilingual v2", desc: "Best quality" },
-  { id: "eleven_turbo_v2_5", name: "Turbo v2.5", desc: "Balanced" },
-  { id: "eleven_turbo_v2", name: "Turbo v2", desc: "Fast, stable" },
+  { id: "eleven_flash_v2_5", name: "Flash v2.5" },
+  { id: "eleven_multilingual_v2", name: "Multi v2" },
+  { id: "eleven_turbo_v2_5", name: "Turbo v2.5" },
+  { id: "eleven_turbo_v2", name: "Turbo v2" },
 ];
 
 interface VoiceSettingsProps {
@@ -36,112 +36,121 @@ export function VoiceSettings({ config, onChange }: VoiceSettingsProps) {
     onChange({ ...config, ...partial });
 
   return (
-    <div className="border border-border rounded-md overflow-hidden">
+    <section
+      className="rounded-lg border border-border bg-surface-1 overflow-hidden"
+      aria-labelledby="voice-heading"
+    >
       <div className="border-b border-border px-4 py-3">
-        <h3 className="text-sm font-medium text-foreground">Voice Settings</h3>
+        <h2 id="voice-heading" className="text-sm font-medium text-foreground">
+          Voice Settings
+        </h2>
       </div>
 
-      <div className="p-4 flex flex-col gap-5 bg-card">
-        {/* Label */}
-        <div className="flex flex-col gap-1.5">
-          <label className="text-xs text-muted font-medium uppercase tracking-wider">
+      <div className="p-4 flex flex-col gap-5">
+        {/* Version Label */}
+        <fieldset className="flex flex-col gap-1.5">
+          <label htmlFor="version-label" className="text-xs text-muted font-medium">
             Version Label
           </label>
           <input
+            id="version-label"
             type="text"
             value={config.label}
             onChange={(e) => update({ label: e.target.value })}
             placeholder="e.g. v1-warm-slow"
-            className="bg-background border border-border rounded-md px-3 py-2 text-sm text-foreground font-mono focus:outline-none focus:border-accent placeholder:text-muted-foreground/40"
+            className="h-9 bg-background border border-border rounded-md px-3 text-sm text-foreground font-mono placeholder:text-muted-foreground/30 transition-colors focus-ring"
           />
-        </div>
+        </fieldset>
 
         {/* Voice */}
-        <div className="flex flex-col gap-1.5">
-          <label className="text-xs text-muted font-medium uppercase tracking-wider">
-            Voice
-          </label>
-          <div className="grid grid-cols-2 gap-1.5">
-            {VOICES.map((v) => (
-              <button
-                key={v.id}
-                onClick={() => update({ voiceId: v.id })}
-                className={`text-left px-3 py-2 rounded-md border text-sm transition-colors ${
-                  config.voiceId === v.id
-                    ? "border-accent bg-accent/10 text-foreground"
-                    : "border-border-light bg-background text-muted hover:text-foreground hover:border-border"
-                }`}
-              >
-                <span className="font-medium">{v.name}</span>
-                <span className="text-xs text-muted-foreground ml-1.5">
-                  {v.desc}
-                </span>
-              </button>
-            ))}
+        <fieldset className="flex flex-col gap-2">
+          <legend className="text-xs text-muted font-medium">Voice</legend>
+          <div className="flex flex-wrap gap-1.5">
+            {VOICES.map((v) => {
+              const selected = config.voiceId === v.id;
+              return (
+                <button
+                  key={v.id}
+                  onClick={() => update({ voiceId: v.id })}
+                  aria-pressed={selected}
+                  className={`h-8 px-3 rounded-md text-xs font-medium transition-all focus-ring ${
+                    selected
+                      ? "bg-foreground text-background"
+                      : "bg-surface-2 text-muted border border-border hover:text-foreground hover:border-border-hover"
+                  }`}
+                >
+                  {v.name}
+                </button>
+              );
+            })}
           </div>
-        </div>
+        </fieldset>
 
         {/* Model */}
-        <div className="flex flex-col gap-1.5">
-          <label className="text-xs text-muted font-medium uppercase tracking-wider">
-            Model
-          </label>
-          <div className="grid grid-cols-2 gap-1.5">
-            {MODELS.map((m) => (
-              <button
-                key={m.id}
-                onClick={() => update({ modelId: m.id })}
-                className={`text-left px-3 py-2 rounded-md border text-sm transition-colors ${
-                  config.modelId === m.id
-                    ? "border-accent bg-accent/10 text-foreground"
-                    : "border-border-light bg-background text-muted hover:text-foreground hover:border-border"
-                }`}
-              >
-                <span className="font-medium">{m.name}</span>
-                <span className="text-xs text-muted-foreground ml-1.5">
-                  {m.desc}
-                </span>
-              </button>
-            ))}
+        <fieldset className="flex flex-col gap-2">
+          <legend className="text-xs text-muted font-medium">Model</legend>
+          <div className="flex flex-wrap gap-1.5">
+            {MODELS.map((m) => {
+              const selected = config.modelId === m.id;
+              return (
+                <button
+                  key={m.id}
+                  onClick={() => update({ modelId: m.id })}
+                  aria-pressed={selected}
+                  className={`h-8 px-3 rounded-md text-xs font-medium transition-all focus-ring ${
+                    selected
+                      ? "bg-foreground text-background"
+                      : "bg-surface-2 text-muted border border-border hover:text-foreground hover:border-border-hover"
+                  }`}
+                >
+                  {m.name}
+                </button>
+              );
+            })}
           </div>
-        </div>
+        </fieldset>
 
-        {/* Stability slider */}
-        <div className="flex flex-col gap-1.5">
+        {/* Divider */}
+        <hr className="border-border" />
+
+        {/* Stability */}
+        <fieldset className="flex flex-col gap-2">
           <div className="flex items-center justify-between">
-            <label className="text-xs text-muted font-medium uppercase tracking-wider">
+            <label htmlFor="stability" className="text-xs text-muted font-medium">
               Stability
             </label>
-            <span className="text-xs text-muted font-mono tabular-nums">
+            <output className="text-xs text-foreground font-mono tabular-nums" htmlFor="stability">
               {config.stability.toFixed(2)}
-            </span>
+            </output>
           </div>
           <input
+            id="stability"
             type="range"
             min="0"
             max="1"
             step="0.05"
             value={config.stability}
             onChange={(e) => update({ stability: parseFloat(e.target.value) })}
-            className="w-full accent-accent h-1 bg-border rounded-full appearance-none cursor-pointer [&::-webkit-slider-thumb]:appearance-none [&::-webkit-slider-thumb]:w-3 [&::-webkit-slider-thumb]:h-3 [&::-webkit-slider-thumb]:rounded-full [&::-webkit-slider-thumb]:bg-foreground"
+            className="focus-ring rounded"
           />
-          <div className="flex items-center justify-between text-xs text-muted-foreground">
+          <div className="flex justify-between text-[11px] text-muted-foreground">
             <span>Variable</span>
             <span>Stable</span>
           </div>
-        </div>
+        </fieldset>
 
-        {/* Similarity Boost slider */}
-        <div className="flex flex-col gap-1.5">
+        {/* Similarity Boost */}
+        <fieldset className="flex flex-col gap-2">
           <div className="flex items-center justify-between">
-            <label className="text-xs text-muted font-medium uppercase tracking-wider">
+            <label htmlFor="similarity" className="text-xs text-muted font-medium">
               Similarity Boost
             </label>
-            <span className="text-xs text-muted font-mono tabular-nums">
+            <output className="text-xs text-foreground font-mono tabular-nums" htmlFor="similarity">
               {config.similarityBoost.toFixed(2)}
-            </span>
+            </output>
           </div>
           <input
+            id="similarity"
             type="range"
             min="0"
             max="1"
@@ -150,14 +159,14 @@ export function VoiceSettings({ config, onChange }: VoiceSettingsProps) {
             onChange={(e) =>
               update({ similarityBoost: parseFloat(e.target.value) })
             }
-            className="w-full accent-accent h-1 bg-border rounded-full appearance-none cursor-pointer [&::-webkit-slider-thumb]:appearance-none [&::-webkit-slider-thumb]:w-3 [&::-webkit-slider-thumb]:h-3 [&::-webkit-slider-thumb]:rounded-full [&::-webkit-slider-thumb]:bg-foreground"
+            className="focus-ring rounded"
           />
-          <div className="flex items-center justify-between text-xs text-muted-foreground">
+          <div className="flex justify-between text-[11px] text-muted-foreground">
             <span>Low</span>
             <span>High</span>
           </div>
-        </div>
+        </fieldset>
       </div>
-    </div>
+    </section>
   );
 }
