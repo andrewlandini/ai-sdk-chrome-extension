@@ -30,24 +30,23 @@ export function BlogCatalog({ onSelect }: BlogCatalogProps) {
 
   const handleFetchMore = useCallback(async () => {
     setIsFetching(true);
-    setFetchMessage(null);
+    setFetchMessage("Scraping vercel.com/blog (multiple pages + categories)...");
     try {
       const res = await fetch("/api/blog-posts", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ page }),
+        body: JSON.stringify({ maxPages: 10 }),
       });
       const data = await res.json();
       if (!res.ok) throw new Error(data.error);
       setFetchMessage(data.message || `Found ${data.newCount} new posts`);
-      setPage((p) => p + 1);
       mutate();
     } catch (err) {
       setFetchMessage(err instanceof Error ? err.message : "Failed to fetch");
     } finally {
       setIsFetching(false);
     }
-  }, [page, mutate]);
+  }, [mutate]);
 
   const posts = data?.posts ?? [];
   const filtered = search.trim()

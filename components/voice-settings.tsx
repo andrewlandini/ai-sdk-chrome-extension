@@ -1,13 +1,11 @@
 "use client";
 
-import { useState } from "react";
+import { useState, useRef, useCallback } from "react";
 import useSWR from "swr";
 
 export interface VoiceConfig {
   voiceId: string;
-  modelId: string;
   stability: number;
-  similarityBoost: number;
   label: string;
   testMode: boolean;
 }
@@ -16,36 +14,29 @@ interface VoicePreset {
   id: number;
   name: string;
   voice_id: string;
-  model_id: string;
   stability: number;
-  similarity_boost: number;
 }
 
+// Curated v3-optimized voices for blog narration / podcast
 const VOICES = [
-  { id: "JBFqnCBsd6RMkjVDRZzb", name: "George" },
-  { id: "21m00Tcm4TlvDq8ikWAM", name: "Rachel" },
-  { id: "EXAVITQu4vr4xnSDxMaL", name: "Sarah" },
-  { id: "ErXwobaYiN019PkySvjV", name: "Antoni" },
-  { id: "pNInz6obpgDQGcFmaJgB", name: "Adam" },
-  { id: "yoZ06aMxZJJ28mfd3POQ", name: "Sam" },
-  { id: "onwK4e9ZLuTAKqWW03F9", name: "Daniel" },
-  { id: "XB0fDUnXU5powFXDhCwa", name: "Charlotte" },
-];
-
-const MODELS = [
-  { id: "eleven_flash_v2_5", name: "Flash v2.5" },
-  { id: "eleven_multilingual_v2", name: "Multi v2" },
-  { id: "eleven_turbo_v2_5", name: "Turbo v2.5" },
-  { id: "eleven_turbo_v2", name: "Turbo v2" },
+  { id: "TX3LPaxmHKxFdv7VOQHJ", name: "Liam", desc: "Young, articulate" },
+  { id: "nPczCjzI2devNBz1zQrb", name: "Brian", desc: "Deep, narrator" },
+  { id: "JBFqnCBsd6RMkjVDRZzb", name: "George", desc: "British, warm" },
+  { id: "onwK4e9ZLuTAKqWW03F9", name: "Daniel", desc: "British, authoritative" },
+  { id: "pFZP5JQG7iQjIQuC4Bku", name: "Lily", desc: "British, warm" },
+  { id: "21m00Tcm4TlvDq8ikWAM", name: "Rachel", desc: "Calm, professional" },
+  { id: "EXAVITQu4vr4xnSDxMaL", name: "Sarah", desc: "News, clear" },
+  { id: "Xb7hH8MSUJpSbSDYk0k2", name: "Alice", desc: "British, confident" },
+  { id: "IKne3meq5aSn9XLyUdCD", name: "Charlie", desc: "Australian, casual" },
+  { id: "cjVigY5qzO86Huf0OWal", name: "Eric", desc: "American, friendly" },
+  { id: "N2lVS1w4EtoT3dr4eOWO", name: "Callum", desc: "Intense, transatlantic" },
+  { id: "iP95p4xoKVk53GoZ742B", name: "Chris", desc: "Casual, conversational" },
 ];
 
 const fetcher = (url: string) => fetch(url).then((r) => r.json());
 
 function getVoiceName(id: string) {
   return VOICES.find((v) => v.id === id)?.name ?? id;
-}
-function getModelName(id: string) {
-  return MODELS.find((m) => m.id === id)?.name ?? id;
 }
 
 interface VoiceSettingsProps {
@@ -74,6 +65,40 @@ export function VoiceSettings({ config, onChange }: VoiceSettingsProps) {
 
   const presets = presetsData?.presets ?? [];
 
+  // Voice preview playback
+  const { data: voicePreviewData } = useSWR<{ voices: Record<string, string> }>("/api/voices", fetcher);
+  const previewUrls = voicePreviewData?.voices ?? {};
+  const audioRef = useRef<HTMLAudioElement | null>(null);
+  const [playingVoiceId, setPlayingVoiceId] = useState<string | null>(null);
+
+  const handlePreview = useCallback((voiceId: string) => {
+    const url = previewUrls[voiceId];
+    if (!url) return;
+
+    // If already playing this voice, stop it
+    if (playingVoiceId === voiceId && audioRef.current) {
+      audioRef.current.pause();
+      audioRef.current.currentTime = 0;
+      setPlayingVoiceId(null);
+      return;
+    }
+
+    // Stop any currently playing preview
+    if (audioRef.current) {
+      audioRef.current.pause();
+      audioRef.current.currentTime = 0;
+    }
+
+    const audio = new Audio(url);
+    audio.crossOrigin = "anonymous";
+    audioRef.current = audio;
+    setPlayingVoiceId(voiceId);
+
+    audio.play().catch(() => setPlayingVoiceId(null));
+    audio.addEventListener("ended", () => setPlayingVoiceId(null), { once: true });
+    audio.addEventListener("error", () => setPlayingVoiceId(null), { once: true });
+  }, [previewUrls, playingVoiceId]);
+
   const usedPercent = credits
     ? Math.round((credits.characterCount / credits.characterLimit) * 100)
     : 0;
@@ -91,9 +116,9 @@ export function VoiceSettings({ config, onChange }: VoiceSettingsProps) {
         body: JSON.stringify({
           name: presetName.trim(),
           voice_id: config.voiceId,
-          model_id: config.modelId,
+          model_id: "eleven_v3",
           stability: config.stability,
-          similarity_boost: config.similarityBoost,
+          similarity_boost: 0,
         }),
       });
       setPresetName("");
@@ -108,13 +133,12 @@ export function VoiceSettings({ config, onChange }: VoiceSettingsProps) {
     onChange({
       ...config,
       voiceId: preset.voice_id,
-      modelId: preset.model_id,
       stability: preset.stability,
-      similarityBoost: preset.similarity_boost,
     });
   };
 
-  const handleDeletePreset = async (id: number) => {
+  const handleDeletePreset = async (id: number, name: string) => {
+    if (!window.confirm(`Delete voice preset "${name}"? This cannot be undone.`)) return;
     await fetch("/api/presets", {
       method: "DELETE",
       headers: { "Content-Type": "application/json" },
@@ -125,13 +149,18 @@ export function VoiceSettings({ config, onChange }: VoiceSettingsProps) {
 
   return (
     <section
-      className="rounded-lg border border-border bg-surface-1 overflow-hidden"
+      className="flex flex-col gap-0"
       aria-labelledby="voice-heading"
     >
-      <div className="border-b border-border px-4 py-3 flex items-center justify-between">
-        <h2 id="voice-heading" className="text-sm font-medium text-foreground">
-          Voice Settings
-        </h2>
+      <div className="pb-4 flex items-center justify-between">
+        <div className="flex items-center gap-2">
+          <h2 id="voice-heading" className="text-sm font-medium text-foreground">
+            Voice Settings
+          </h2>
+          <span className="text-[10px] font-medium text-accent bg-accent/10 px-1.5 py-0.5 rounded">
+            v3
+          </span>
+        </div>
         <button
           onClick={() => update({ testMode: !config.testMode })}
           aria-pressed={config.testMode}
@@ -150,7 +179,7 @@ export function VoiceSettings({ config, onChange }: VoiceSettingsProps) {
         </button>
       </div>
 
-      <div className="p-4 flex flex-col gap-5">
+      <div className="flex flex-col gap-5">
         {/* Credits bar */}
         {credits && (
           <div className="flex flex-col gap-2">
@@ -189,7 +218,7 @@ export function VoiceSettings({ config, onChange }: VoiceSettingsProps) {
           </div>
         )}
 
-        {/* ── Presets ── */}
+        {/* Presets */}
         <fieldset className="flex flex-col gap-2">
           <div className="flex items-center justify-between">
             <legend className="text-xs text-muted font-medium">Presets</legend>
@@ -203,7 +232,6 @@ export function VoiceSettings({ config, onChange }: VoiceSettingsProps) {
             )}
           </div>
 
-          {/* Save input */}
           {showSaveInput && (
             <div className="flex gap-2 animate-fade-in">
               <input
@@ -234,15 +262,12 @@ export function VoiceSettings({ config, onChange }: VoiceSettingsProps) {
             </div>
           )}
 
-          {/* Preset list */}
           {presets.length > 0 ? (
             <div className="flex flex-col gap-1">
               {presets.map((preset) => {
                 const isActive =
                   config.voiceId === preset.voice_id &&
-                  config.modelId === preset.model_id &&
-                  config.stability === preset.stability &&
-                  config.similarityBoost === preset.similarity_boost;
+                  config.stability === preset.stability;
 
                 return (
                   <div
@@ -261,11 +286,11 @@ export function VoiceSettings({ config, onChange }: VoiceSettingsProps) {
                         {preset.name}
                       </span>
                       <span className="block text-[10px] text-muted font-mono mt-0.5">
-                        {getVoiceName(preset.voice_id)} / {getModelName(preset.model_id)} / {preset.stability.toFixed(2)} / {preset.similarity_boost.toFixed(2)}
+                        {getVoiceName(preset.voice_id)} / stability {preset.stability.toFixed(2)}
                       </span>
                     </button>
                     <button
-                      onClick={() => handleDeletePreset(preset.id)}
+                      onClick={() => handleDeletePreset(preset.id, preset.name)}
                       className="opacity-0 group-hover:opacity-100 h-6 w-6 flex items-center justify-center rounded text-muted hover:text-destructive transition-all focus-ring"
                       aria-label={`Delete preset ${preset.name}`}
                     >
@@ -304,48 +329,63 @@ export function VoiceSettings({ config, onChange }: VoiceSettingsProps) {
         {/* Voice */}
         <fieldset className="flex flex-col gap-2">
           <legend className="text-xs text-muted font-medium">Voice</legend>
-          <div className="flex flex-wrap gap-1.5">
-            {VOICES.map((v) => (
-              <button
-                key={v.id}
-                onClick={() => update({ voiceId: v.id })}
-                aria-pressed={config.voiceId === v.id}
-                className={`h-8 px-3 rounded-md text-xs font-medium transition-all focus-ring ${
-                  config.voiceId === v.id
-                    ? "bg-foreground text-background"
-                    : "bg-surface-2 text-muted border border-border hover:text-foreground hover:border-border-hover"
-                }`}
-              >
-                {v.name}
-              </button>
-            ))}
-          </div>
-        </fieldset>
+          <div className="flex flex-col gap-1">
+            {VOICES.map((v) => {
+              const isSelected = config.voiceId === v.id;
+              const isPlaying = playingVoiceId === v.id;
+              const hasPreview = !!previewUrls[v.id];
 
-        {/* Model */}
-        <fieldset className="flex flex-col gap-2">
-          <legend className="text-xs text-muted font-medium">Model</legend>
-          <div className="flex flex-wrap gap-1.5">
-            {MODELS.map((m) => (
-              <button
-                key={m.id}
-                onClick={() => update({ modelId: m.id })}
-                aria-pressed={config.modelId === m.id}
-                className={`h-8 px-3 rounded-md text-xs font-medium transition-all focus-ring ${
-                  config.modelId === m.id
-                    ? "bg-foreground text-background"
-                    : "bg-surface-2 text-muted border border-border hover:text-foreground hover:border-border-hover"
-                }`}
-              >
-                {m.name}
-              </button>
-            ))}
+              return (
+                <div
+                  key={v.id}
+                  className={`group flex items-center rounded-md transition-all ${
+                    isSelected
+                      ? "bg-foreground text-background"
+                      : "bg-surface-2 text-muted border border-transparent hover:text-foreground hover:border-border-hover"
+                  }`}
+                >
+                  <button
+                    onClick={() => update({ voiceId: v.id })}
+                    aria-pressed={isSelected}
+                    className="flex-1 flex items-center justify-between px-3 py-2 text-left focus-ring rounded-l-md"
+                  >
+                    <span className="text-xs font-medium">{v.name}</span>
+                    <span className={`text-[10px] ${isSelected ? "text-background/60" : "text-muted-foreground"}`}>{v.desc}</span>
+                  </button>
+                  {hasPreview && (
+                    <button
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        handlePreview(v.id);
+                      }}
+                      aria-label={isPlaying ? `Stop ${v.name} preview` : `Preview ${v.name}`}
+                      className={`flex items-center justify-center w-8 h-full rounded-r-md transition-colors focus-ring ${
+                        isPlaying
+                          ? isSelected ? "text-background" : "text-accent"
+                          : isSelected ? "text-background/50 hover:text-background" : "text-muted-foreground/50 hover:text-foreground opacity-0 group-hover:opacity-100"
+                      }`}
+                    >
+                      {isPlaying ? (
+                        <svg width="12" height="12" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true">
+                          <rect x="6" y="4" width="4" height="16" rx="1" />
+                          <rect x="14" y="4" width="4" height="16" rx="1" />
+                        </svg>
+                      ) : (
+                        <svg width="12" height="12" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true">
+                          <polygon points="5 3 19 12 5 21 5 3" />
+                        </svg>
+                      )}
+                    </button>
+                  )}
+                </div>
+              );
+            })}
           </div>
         </fieldset>
 
         <hr className="border-border" />
 
-        {/* Stability */}
+        {/* Stability - Creative to Robust */}
         <fieldset className="flex flex-col gap-2">
           <div className="flex items-center justify-between">
             <label htmlFor="stability" className="text-xs text-muted font-medium">Stability</label>
@@ -364,34 +404,15 @@ export function VoiceSettings({ config, onChange }: VoiceSettingsProps) {
             className="focus-ring rounded"
           />
           <div className="flex justify-between text-[11px] text-muted-foreground">
-            <span>Variable</span>
-            <span>Stable</span>
+            <span>Creative</span>
+            <span>Robust</span>
           </div>
         </fieldset>
 
-        {/* Similarity Boost */}
-        <fieldset className="flex flex-col gap-2">
-          <div className="flex items-center justify-between">
-            <label htmlFor="similarity" className="text-xs text-muted font-medium">Similarity Boost</label>
-            <output className="text-xs text-foreground font-mono tabular-nums" htmlFor="similarity">
-              {config.similarityBoost.toFixed(2)}
-            </output>
-          </div>
-          <input
-            id="similarity"
-            type="range"
-            min="0"
-            max="1"
-            step="0.05"
-            value={config.similarityBoost}
-            onChange={(e) => update({ similarityBoost: parseFloat(e.target.value) })}
-            className="focus-ring rounded"
-          />
-          <div className="flex justify-between text-[11px] text-muted-foreground">
-            <span>Low</span>
-            <span>High</span>
-          </div>
-        </fieldset>
+        {/* v3 info */}
+        <div className="text-[11px] text-muted bg-surface-2 rounded-md px-3 py-2 leading-relaxed">
+          Eleven v3 includes built-in text normalization. 5,000 char limit per chunk — longer scripts are automatically split and concatenated.
+        </div>
       </div>
     </section>
   );

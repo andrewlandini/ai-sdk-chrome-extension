@@ -19,14 +19,18 @@ function formatDate(dateStr: string): string {
 }
 
 const VOICE_NAMES: Record<string, string> = {
+  TX3LPaxmHKxFdv7VOQHJ: "Liam",
+  nPczCjzI2devNBz1zQrb: "Brian",
   JBFqnCBsd6RMkjVDRZzb: "George",
+  onwK4e9ZLuTAKqWW03F9: "Daniel",
+  pFZP5JQG7iQjIQuC4Bku: "Lily",
   "21m00Tcm4TlvDq8ikWAM": "Rachel",
   EXAVITQu4vr4xnSDxMaL: "Sarah",
-  ErXwobaYiN019PkySvjV: "Antoni",
-  pNInz6obpgDQGcFmaJgB: "Adam",
-  yoZ06aMxZJJ28mfd3POQ: "Sam",
-  onwK4e9ZLuTAKqWW03F9: "Daniel",
-  XB0fDUnXU5powFXDhCwa: "Charlotte",
+  Xb7hH8MSUJpSbSDYk0k2: "Alice",
+  IKne3meq5aSn9XLyUdCD: "Charlie",
+  cjVigY5qzO86Huf0OWal: "Eric",
+  N2lVS1w4EtoT3dr4eOWO: "Callum",
+  iP95p4xoKVk53GoZ742B: "Chris",
 };
 
 export function VersionsList({
@@ -95,21 +99,32 @@ export function VersionsList({
                     S:{v.stability.toFixed(1)}
                   </span>
                 )}
-                {v.similarity_boost !== null && (
-                  <span className="text-[11px] text-muted-foreground bg-surface-3 rounded px-1.5 py-0.5 font-mono flex-shrink-0">
-                    SB:{v.similarity_boost.toFixed(1)}
-                  </span>
-                )}
+
               </div>
 
               <span className="text-[11px] text-muted-foreground font-mono tabular-nums flex-shrink-0 hidden sm:block">
                 {formatDate(v.created_at)}
               </span>
 
+              <a
+                href={v.audio_url}
+                download={`${(v.title || "audio").toLowerCase().replace(/[^a-z0-9]+/g, "-").replace(/(^-|-$)/g, "")}--${voiceName.toLowerCase()}--${(v.label || `v${v.id}`).toLowerCase().replace(/[^a-z0-9]+/g, "-").replace(/(^-|-$)/g, "")}.mp3`}
+                onClick={(e) => e.stopPropagation()}
+                className="opacity-0 group-hover:opacity-100 transition-opacity p-1 text-muted-foreground hover:text-foreground flex-shrink-0 focus-ring rounded"
+                aria-label="Download version"
+              >
+                <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" aria-hidden="true">
+                  <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4" />
+                  <polyline points="7 10 12 15 17 10" />
+                  <line x1="12" y1="15" x2="12" y2="3" />
+                </svg>
+              </a>
               <span
                 onClick={(e) => {
                   e.stopPropagation();
-                  onDelete(v);
+                  if (window.confirm(`Delete "${v.label || `version #${v.id}`}"? This cannot be undone.`)) {
+                    onDelete(v);
+                  }
                 }}
                 role="button"
                 tabIndex={0}
@@ -117,7 +132,9 @@ export function VersionsList({
                   if (e.key === "Enter" || e.key === " ") {
                     e.stopPropagation();
                     e.preventDefault();
-                    onDelete(v);
+                    if (window.confirm(`Delete "${v.label || `version #${v.id}`}"? This cannot be undone.`)) {
+                      onDelete(v);
+                    }
                   }
                 }}
                 className="opacity-0 group-hover:opacity-100 transition-opacity p-1 text-muted-foreground hover:text-destructive flex-shrink-0 focus-ring rounded"
