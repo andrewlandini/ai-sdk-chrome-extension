@@ -1,7 +1,7 @@
 import { experimental_generateSpeech as generateSpeech } from "ai";
 import { elevenlabs } from "@ai-sdk/elevenlabs";
 import { put, del } from "@vercel/blob";
-import { insertBlogAudio, getAudioIdByUrl, getGenerationCountByUrl } from "@/lib/db";
+import { insertBlogAudio, getAudioIdByUrl, getGenerationCountByUrl, createGenerationJob, updateGenerationJob } from "@/lib/db";
 
 export const maxDuration = 300;
 
@@ -115,6 +115,9 @@ export async function POST(request: Request) {
     );
   }
 
+  // Create a job record so the client can poll for status after refresh
+  const job = await createGenerationJob(url, title || "Untitled");
+
   const encoder = new TextEncoder();
 
   const stream = new ReadableStream({
@@ -123,7 +126,11 @@ export async function POST(request: Request) {
         controller.enqueue(encoder.encode(JSON.stringify(data) + "\n"));
       };
 
+      // Send the job ID immediately so client can poll
+      send({ type: "job", jobId: job.id });
+
       try {
+        await updateGenerationJob(job.id, { status: "generating", message: "Starting generation..." });
         // Build voice settings (v3 only uses stability)
         const voiceSettings: Record<string, number> = {};
         if (stability !== undefined) voiceSettings.stability = stability;
@@ -174,6 +181,7 @@ export async function POST(request: Request) {
         const finalAudio = concatMp3Buffers(audioBuffers);
 
         // Upload to Vercel Blob
+        await updateGenerationJob(job.id, { status: "uploading", message: "Uploading to storage..." });
         send({ type: "status", step: "uploading", message: "Uploading to storage..." });
 
         const postSlug = await getAudioIdByUrl(url);
@@ -214,6 +222,8 @@ export async function POST(request: Request) {
           throw dbErr;
         }
 
+        await updateGenerationJob(job.id, { status: "done", message: "Complete", result_entry_id: entry.id });
+
         send({
           type: "done",
           entry,
@@ -226,6 +236,7 @@ export async function POST(request: Request) {
         console.error("Generate error:", error);
         const message =
           error instanceof Error ? error.message : "An unexpected error occurred";
+        await updateGenerationJob(job.id, { status: "error", message }).catch(() => {});
         send({ type: "error", error: message });
         controller.close();
       }

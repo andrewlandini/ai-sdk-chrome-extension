@@ -262,3 +262,57 @@ export async function insertStyleHistory(data: {
 export async function deleteStyleHistory(id: number): Promise<void> {
   await sql`DELETE FROM style_history WHERE id = ${id}`;
 }
+
+// ── Generation Jobs ──
+
+export interface GenerationJob {
+  id: number;
+  url: string;
+  title: string;
+  status: "pending" | "generating" | "uploading" | "done" | "error";
+  message: string | null;
+  result_entry_id: number | null;
+  created_at: string;
+  updated_at: string;
+}
+
+export async function createGenerationJob(url: string, title: string): Promise<GenerationJob> {
+  const rows = await sql`
+    INSERT INTO generation_jobs (url, title, status, message)
+    VALUES (${url}, ${title}, 'pending', 'Starting generation...')
+    RETURNING *
+  `;
+  return rows[0] as GenerationJob;
+}
+
+export async function updateGenerationJob(id: number, data: { status: string; message?: string; result_entry_id?: number }): Promise<void> {
+  await sql`
+    UPDATE generation_jobs
+    SET status = ${data.status}, message = ${data.message ?? null}, result_entry_id = ${data.result_entry_id ?? null}, updated_at = NOW()
+    WHERE id = ${id}
+  `;
+}
+
+export async function getPendingJobsByUrl(url: string): Promise<GenerationJob[]> {
+  const rows = await sql`
+    SELECT * FROM generation_jobs
+    WHERE url = ${url} AND status NOT IN ('done', 'error')
+    ORDER BY created_at DESC
+  `;
+  return rows as GenerationJob[];
+}
+
+export async function getJobById(id: number): Promise<GenerationJob | null> {
+  const rows = await sql`SELECT * FROM generation_jobs WHERE id = ${id}`;
+  return rows.length > 0 ? (rows[0] as GenerationJob) : null;
+}
+
+export async function cleanupOldJobs(): Promise<void> {
+  // Mark stale jobs (older than 10 minutes and still pending/generating) as error
+  await sql`
+    UPDATE generation_jobs
+    SET status = 'error', message = 'Timed out', updated_at = NOW()
+    WHERE status NOT IN ('done', 'error')
+    AND created_at < NOW() - INTERVAL '10 minutes'
+  `;
+}

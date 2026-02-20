@@ -137,6 +137,8 @@ function HomePage() {
   const [styledScript, setStyledScript] = useState("");
   const [isGenerating, setIsGenerating] = useState(false);
   const [generateStatus, setGenerateStatus] = useState("");
+  const [activeJobId, setActiveJobId] = useState<number | null>(null);
+  const jobPollRef = useRef<ReturnType<typeof setInterval> | null>(null);
   const [isSummarizing, setIsSummarizing] = useState(false);
   const summarizeAbortRef = useRef<AbortController | null>(null);
   const [error, setError] = useState<string | null>(null);
@@ -180,14 +182,69 @@ function HomePage() {
     if (!restoredRef.current) return;
     if (saveTimerRef.current) clearTimeout(saveTimerRef.current);
     saveTimerRef.current = setTimeout(() => {
-      saveSession({ scriptUrl, scriptTitle, script, styledScript, activeTab, voiceConfig });
+      saveSession({ scriptUrl, scriptTitle, script, styledScript, activeTab, voiceConfig, activeJobId });
     }, 500);
     return () => { if (saveTimerRef.current) clearTimeout(saveTimerRef.current); };
-  }, [scriptUrl, scriptTitle, script, styledScript, activeTab, voiceConfig]);
+  }, [scriptUrl, scriptTitle, script, styledScript, activeTab, voiceConfig, activeJobId]);
 
   // Data
   const { data: historyData, mutate: mutateHistory } = useSWR<{ entries: BlogAudio[] }>("/api/history", fetcher);
   const entries = historyData?.entries ?? [];
+
+  // ── Poll for active generation job ──
+  const startJobPoll = useCallback((jobId: number) => {
+    if (jobPollRef.current) clearInterval(jobPollRef.current);
+    setIsGenerating(true);
+    setActiveJobId(jobId);
+
+    jobPollRef.current = setInterval(async () => {
+      try {
+        const res = await fetch(`/api/generation-jobs?jobId=${jobId}`);
+        const data = await res.json();
+        const job = data.job;
+        if (!job) return;
+
+        setGenerateStatus(job.message || "Generating...");
+
+        if (job.status === "done") {
+          clearInterval(jobPollRef.current!);
+          jobPollRef.current = null;
+          setIsGenerating(false);
+          setGenerateStatus("");
+          setActiveJobId(null);
+          mutateHistory();
+          mutateVersions();
+          // If the job produced an entry, auto-select it
+          if (job.result_entry_id) {
+            const histData = await fetch("/api/history").then((r) => r.json());
+            const entry = histData.entries?.find((e: BlogAudio) => e.id === job.result_entry_id);
+            if (entry) {
+              setActiveEntry(entry);
+              setAutoplay(true);
+            }
+          }
+        } else if (job.status === "error") {
+          clearInterval(jobPollRef.current!);
+          jobPollRef.current = null;
+          setIsGenerating(false);
+          setGenerateStatus("");
+          setActiveJobId(null);
+          setError(job.message || "Generation failed");
+        }
+      } catch {
+        // Ignore poll errors, keep trying
+      }
+    }, 2000);
+  }, [mutateHistory, mutateVersions]);
+
+  // Restore active job on mount
+  useEffect(() => {
+    const s = loadSession();
+    if (s?.activeJobId) {
+      startJobPoll(s.activeJobId);
+    }
+    return () => { if (jobPollRef.current) clearInterval(jobPollRef.current); };
+  }, [startJobPoll]);
 
   // ── Restore from URL ?post=slug ──
   const urlRestoredRef = useRef(false);
@@ -334,6 +391,7 @@ function HomePage() {
       const decoder = new TextDecoder();
       let buffer = "";
       let finalEntry = null;
+      let jobId: number | null = null;
 
       if (reader) {
         while (true) {
@@ -348,7 +406,10 @@ function HomePage() {
             if (!line.trim()) continue;
             try {
               const event = JSON.parse(line);
-              if (event.type === "status") {
+              if (event.type === "job") {
+                jobId = event.jobId;
+                setActiveJobId(jobId);
+              } else if (event.type === "status") {
                 setGenerateStatus(event.message);
               } else if (event.type === "done") {
                 finalEntry = event.entry;
@@ -369,11 +430,13 @@ function HomePage() {
         mutateHistory();
         mutateVersions();
       }
-    } catch (err) {
-      setError(err instanceof Error ? err.message : "An unexpected error occurred");
-    } finally {
-      setIsGenerating(false);
-      setGenerateStatus("");
+      setActiveJobId(null);
+  } catch (err) {
+  setError(err instanceof Error ? err.message : "An unexpected error occurred");
+  } finally {
+  setIsGenerating(false);
+  setGenerateStatus("");
+  setActiveJobId(null);
     }
   }, [scriptUrl, scriptTitle, voiceConfig, mutateHistory, mutateVersions, isGenerating]);
 
