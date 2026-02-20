@@ -246,10 +246,10 @@ export default function HomePage() {
           <span className="text-sm font-medium truncate">{scriptTitle || "Blog Audio"}</span>
         </div>
 
-        {/* URL paste input */}
-        <AddPostInput mutateHistory={mutateHistory} />
+        {/* Spacer to push right items */}
+        <div className="flex-1" />
 
-        <div className="flex items-center gap-1 flex-shrink-0">
+        <div className="flex items-center gap-2 flex-shrink-0">
           <button
             onClick={() => setPromptEditorOpen(true)}
             className="flex items-center gap-1.5 text-xs text-muted hover:text-foreground transition-colors focus-ring rounded px-2 py-1.5 hover:bg-surface-2"
@@ -259,6 +259,9 @@ export default function HomePage() {
             </svg>
             <span>Prompts</span>
           </button>
+
+          {/* URL paste input */}
+          <AddPostInput mutateHistory={mutateHistory} />
         </div>
       </header>
 
@@ -463,7 +466,7 @@ function AddPostInput({ mutateHistory }: { mutateHistory: () => void }) {
   };
 
   return (
-    <form onSubmit={handleAdd} className="flex-1 flex items-center gap-2 max-w-xl">
+    <form onSubmit={handleAdd} className="flex items-center gap-2 w-72">
       <div className="relative flex-1">
         <svg
           width="14"
