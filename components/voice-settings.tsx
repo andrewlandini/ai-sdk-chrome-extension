@@ -347,7 +347,7 @@ export function VoiceSettings({ config, onChange }: VoiceSettingsProps) {
       </fieldset>
 
       {/* Stability */}
-      <fieldset className="flex flex-col gap-1.5">
+      <fieldset className="flex flex-col gap-1.5 pt-3 pb-2">
         <div className="flex items-center justify-between">
           <legend className="text-xs text-muted font-medium">Stability</legend>
           <output className="text-xs text-foreground font-mono tabular-nums">
