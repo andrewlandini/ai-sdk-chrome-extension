@@ -4,7 +4,7 @@ import { useState, useMemo, useCallback, useRef } from "react";
 import type { BlogAudio } from "@/lib/db";
 
 /* ── Column definitions ── */
-type ColumnId = "title" | "slug" | "gens";
+type ColumnId = "title" | "gens";
 
 interface ColumnDef {
   id: ColumnId;
@@ -15,7 +15,6 @@ interface ColumnDef {
 
 const DEFAULT_COLUMNS: ColumnDef[] = [
   { id: "title", label: "Title", width: "flex-1 min-w-0", align: "left" },
-  { id: "slug", label: "Slug", width: "w-[140px] flex-shrink-0 hidden sm:block", align: "left" },
   { id: "gens", label: "Gens", width: "w-12 flex-shrink-0", align: "center" },
 ];
 
@@ -206,12 +205,7 @@ export function PostsList({ entries, selectedUrl, activeId, onSelect, onPlay, on
                             {group.title}
                           </span>
                         );
-                      case "slug":
-                        return (
-                          <span key={col.id} className={`${col.width} text-left text-[10px] text-muted-foreground font-mono truncate`} title={group.url}>
-                            {slugFromUrl(group.url)}
-                          </span>
-                        );
+
                       case "gens":
                         return (
                           <span key={col.id} className={`${col.width} text-center font-mono tabular-nums ${genCount > 0 ? "text-foreground" : "text-muted-foreground/40"}`}>

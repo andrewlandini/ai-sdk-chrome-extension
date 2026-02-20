@@ -103,19 +103,30 @@ export async function getCachedBlogPosts(): Promise<CachedBlogPost[]> {
   return rows as CachedBlogPost[];
 }
 
+function slugFromUrl(url: string): string {
+  try {
+    const path = new URL(url).pathname;
+    const last = path.split("/").filter(Boolean).pop();
+    return last || "untitled";
+  } catch {
+    return "untitled";
+  }
+}
+
 export async function upsertBlogPosts(posts: { url: string; title: string; description?: string; date?: string; category?: string }[]): Promise<number> {
   let inserted = 0;
   for (const post of posts) {
-    const result = await sql`
-      INSERT INTO blog_posts_cache (url, title, description, date, category)
-      VALUES (${post.url}, ${post.title}, ${post.description ?? null}, ${post.date ?? null}, ${post.category ?? null})
-      ON CONFLICT (url) DO UPDATE SET title = EXCLUDED.title, description = COALESCE(EXCLUDED.description, blog_posts_cache.description)
-      RETURNING id
-    `;
-    if (result.length > 0) inserted++;
+  const audioId = slugFromUrl(post.url);
+  const result = await sql`
+  INSERT INTO blog_posts_cache (url, title, description, date, category, audio_id)
+  VALUES (${post.url}, ${post.title}, ${post.description ?? null}, ${post.date ?? null}, ${post.category ?? null}, ${audioId})
+  ON CONFLICT (url) DO UPDATE SET title = EXCLUDED.title, description = COALESCE(EXCLUDED.description, blog_posts_cache.description), audio_id = COALESCE(blog_posts_cache.audio_id, EXCLUDED.audio_id)
+  RETURNING id
+  `;
+  if (result.length > 0) inserted++;
   }
   return inserted;
-}
+  }
 
 export async function getAudioIdByUrl(url: string): Promise<string | null> {
   const rows = await sql`SELECT audio_id FROM blog_posts_cache WHERE url = ${url} LIMIT 1`;
