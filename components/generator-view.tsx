@@ -90,12 +90,16 @@ export function GeneratorView({
     [mutateVersions, voiceConfig.testMode, onScriptChange, onScriptTitleChange, onScriptUrlChange]
   );
 
+  // Catalog select only populates the URL/title -- user must click Generate Script
+  const [pendingUrl, setPendingUrl] = useState<string | null>(null);
+
   const handleCatalogSelect = useCallback(
     (url: string, title: string) => {
       onScriptTitleChange(title);
-      handleSummarize(url);
+      onScriptUrlChange(url);
+      setPendingUrl(url);
     },
-    [handleSummarize, onScriptTitleChange]
+    [onScriptTitleChange, onScriptUrlChange]
   );
 
   const handleGenerate = useCallback(async () => {
@@ -236,7 +240,25 @@ export function GeneratorView({
                 <UrlInput onSubmit={handleSummarize} isLoading={isSummarizing} />
               )}
               {sourceTab === "catalog" && (
-                <BlogCatalog onSelect={handleCatalogSelect} />
+                <div className="flex flex-col gap-3">
+                  <BlogCatalog onSelect={handleCatalogSelect} />
+                  {pendingUrl && !isSummarizing && (
+                    <div className="flex items-center gap-3 border border-border rounded-md bg-surface-2 px-3 py-2">
+                      <span className="flex-1 text-xs font-mono text-muted truncate" title={pendingUrl}>
+                        {pendingUrl}
+                      </span>
+                      <button
+                        onClick={() => {
+                          handleSummarize(pendingUrl);
+                          setPendingUrl(null);
+                        }}
+                        className="flex items-center justify-center gap-2 h-8 rounded-md bg-foreground text-background px-4 text-xs font-medium transition-colors hover:bg-foreground/90 focus-ring flex-shrink-0"
+                      >
+                        Generate Script
+                      </button>
+                    </div>
+                  )}
+                </div>
               )}
             </div>
           </section>

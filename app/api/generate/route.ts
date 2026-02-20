@@ -72,17 +72,37 @@ function chunkText(text: string): string[] {
 }
 
 /**
- * Concatenate multiple audio buffers into one.
+ * Find the first MP3 sync frame (0xFF 0xE0+) in a buffer, skipping any
+ * ID3 tags or other non-frame data at the start.
  */
-function concatAudioBuffers(buffers: Buffer[]): Buffer {
-  const totalLength = buffers.reduce((sum, b) => sum + b.length, 0);
-  const result = Buffer.alloc(totalLength);
-  let offset = 0;
-  for (const buf of buffers) {
-    buf.copy(result, offset);
-    offset += buf.length;
+function findFirstFrame(buf: Buffer): number {
+  for (let i = 0; i < buf.length - 1; i++) {
+    // MP3 frame sync: 11 set bits = 0xFF followed by byte with top 3 bits set (0xE0+)
+    if (buf[i] === 0xff && (buf[i + 1] & 0xe0) === 0xe0) {
+      return i;
+    }
   }
-  return result;
+  return 0;
+}
+
+/**
+ * Concatenate multiple MP3 buffers into one continuous stream.
+ * The first buffer is kept as-is (with its headers). Subsequent buffers
+ * have their ID3/metadata headers stripped so only raw MP3 frames remain,
+ * preventing the player from restarting or duplicating audio at stitch points.
+ */
+function concatMp3Buffers(buffers: Buffer[]): Buffer {
+  if (buffers.length === 0) return Buffer.alloc(0);
+  if (buffers.length === 1) return buffers[0];
+
+  const parts: Buffer[] = [buffers[0]];
+
+  for (let i = 1; i < buffers.length; i++) {
+    const frameStart = findFirstFrame(buffers[i]);
+    parts.push(buffers[i].subarray(frameStart));
+  }
+
+  return Buffer.concat(parts);
 }
 
 export async function POST(request: Request) {
@@ -126,8 +146,8 @@ export async function POST(request: Request) {
       audioBuffers.push(Buffer.from(audio.uint8Array));
     }
 
-    // Concatenate all chunks
-    const finalAudio = concatAudioBuffers(audioBuffers);
+    // Concatenate chunks, stripping duplicate MP3 headers from chunks 2+
+    const finalAudio = concatMp3Buffers(audioBuffers);
 
     // Upload to Vercel Blob with human-readable filenames
     const date = new Date().toISOString().slice(0, 10); // 2026-02-19
