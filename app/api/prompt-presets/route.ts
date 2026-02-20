@@ -18,11 +18,11 @@ export async function GET() {
 
 export async function POST(request: Request) {
   try {
-    const { name, system_prompt, test_prompt, model, is_default } = await request.json();
+    const { name, system_prompt, test_prompt, blog_fetch_prompt, model, is_default } = await request.json();
     if (!name || !system_prompt || !test_prompt) {
       return Response.json({ error: "name, system_prompt, and test_prompt are required" }, { status: 400 });
     }
-    const preset = await insertPromptPreset({ name, system_prompt, test_prompt, model, is_default });
+    const preset = await insertPromptPreset({ name, system_prompt, test_prompt, blog_fetch_prompt, model, is_default });
     return Response.json({ preset });
   } catch (error) {
     console.error("Prompt preset create error:", error);
@@ -32,7 +32,7 @@ export async function POST(request: Request) {
 
 export async function PUT(request: Request) {
   try {
-    const { id, name, system_prompt, test_prompt, model, setDefault } = await request.json();
+    const { id, name, system_prompt, test_prompt, blog_fetch_prompt, model, setDefault } = await request.json();
     if (!id) return Response.json({ error: "id is required" }, { status: 400 });
 
     if (setDefault) {
@@ -44,7 +44,7 @@ export async function PUT(request: Request) {
     if (!name || !system_prompt || !test_prompt) {
       return Response.json({ error: "name, system_prompt, and test_prompt required" }, { status: 400 });
     }
-    const preset = await updatePromptPreset(id, { name, system_prompt, test_prompt, model: model || "openai/gpt-4o-mini" });
+    const preset = await updatePromptPreset(id, { name, system_prompt, test_prompt, blog_fetch_prompt, model: model || "openai/gpt-4o" });
     return Response.json({ preset });
   } catch (error) {
     console.error("Prompt preset update error:", error);
