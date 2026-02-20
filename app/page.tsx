@@ -303,8 +303,31 @@ export default function HomePage() {
         <div className="flex-1" />
 
         <button
+          onClick={handleLoadScripts}
+          disabled={loadingScripts}
+          className="flex items-center gap-1.5 text-xs text-muted hover:text-foreground transition-colors focus-ring rounded px-2 py-1.5 disabled:opacity-50 disabled:cursor-not-allowed flex-shrink-0"
+        >
+          {loadingScripts ? (
+            <>
+              <svg className="animate-spin" width="13" height="13" viewBox="0 0 24 24" fill="none" aria-hidden="true">
+                <circle cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="2" strokeOpacity="0.2" />
+                <path d="M12 2a10 10 0 0 1 10 10" stroke="currentColor" strokeWidth="2" strokeLinecap="round" />
+              </svg>
+              <span>{scriptProgress.done}/{scriptProgress.total}</span>
+            </>
+          ) : (
+            <>
+              <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" aria-hidden="true">
+                <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4M7 10l5 5 5-5M12 15V3" />
+              </svg>
+              <span>Load Scripts</span>
+            </>
+          )}
+        </button>
+
+        <button
           onClick={() => setPromptEditorOpen(true)}
-          className="flex items-center gap-1.5 text-xs text-muted hover:text-foreground transition-colors focus-ring rounded px-2 py-1.5 hover:bg-surface-2 flex-shrink-0"
+          className="flex items-center gap-1.5 text-xs text-muted hover:text-foreground transition-colors focus-ring rounded px-2 py-1.5 flex-shrink-0"
         >
           <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" aria-hidden="true">
             <path d="M12 20h9M16.5 3.5a2.121 2.121 0 0 1 3 3L7 19l-4 1 1-4L16.5 3.5z" />
@@ -323,23 +346,6 @@ export default function HomePage() {
               <span className="text-xs font-medium">Blog Posts</span>
               <span className="text-[10px] text-muted font-mono tabular-nums">{entries.length}</span>
             </div>
-            <button
-              onClick={handleLoadScripts}
-              disabled={loadingScripts}
-              className="flex items-center gap-1.5 h-6 px-2 rounded-md bg-surface-2 border border-border text-[10px] font-medium text-muted hover:text-foreground hover:bg-surface-3 disabled:opacity-50 disabled:cursor-not-allowed transition-colors focus-ring"
-            >
-              {loadingScripts ? (
-                <>
-                  <svg className="animate-spin" width="10" height="10" viewBox="0 0 24 24" fill="none" aria-hidden="true">
-                    <circle cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="2" strokeOpacity="0.2" />
-                    <path d="M12 2a10 10 0 0 1 10 10" stroke="currentColor" strokeWidth="2" strokeLinecap="round" />
-                  </svg>
-                  <span>{scriptProgress.done}/{scriptProgress.total}</span>
-                </>
-              ) : (
-                <span>Load Scripts</span>
-              )}
-            </button>
           </div>
           <div className="flex-1 min-h-0 overflow-hidden">
             <PostsList
