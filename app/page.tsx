@@ -72,7 +72,7 @@ export default function HomePage() {
   const { name: productName, fading: nameFading, advance: advanceName } = useProductName();
   const [promptEditorOpen, setPromptEditorOpen] = useState(false);
   const [loadingScripts, setLoadingScripts] = useState(false);
-  const [scriptProgress, setScriptProgress] = useState({ done: 0, total: 0 });
+  const [scriptProgress, setScriptProgress] = useState<{ done: number; total: number; currentTitle?: string }>({ done: 0, total: 0 });
 
   // Active selection
   const [activeEntry, setActiveEntry] = useState<BlogAudio | null>(null);
@@ -113,28 +113,61 @@ export default function HomePage() {
     setScript(cachedScript || "");
   }, [entries, advanceName]);
 
+  // Helper: stream summarize API and progressively build script text
+  const streamSummarize = useCallback(async (
+    url: string,
+    options: { testMode?: boolean; onDelta?: (accumulated: string) => void } = {}
+  ): Promise<{ title: string; summary: string; url: string }> => {
+    const response = await fetch("/api/summarize", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ url, testMode: options.testMode }),
+    });
+
+    if (!response.ok) {
+      const data = await response.json();
+      throw new Error(data.error || "Failed to summarize");
+    }
+
+    const title = decodeURIComponent(response.headers.get("X-Title") || "");
+    const resolvedUrl = decodeURIComponent(response.headers.get("X-Url") || url);
+
+    const reader = response.body?.getReader();
+    const decoder = new TextDecoder();
+    let accumulated = "";
+
+    if (reader) {
+      while (true) {
+        const { done, value } = await reader.read();
+        if (done) break;
+        accumulated += decoder.decode(value, { stream: true });
+        options.onDelta?.(accumulated);
+      }
+    }
+
+    return { title, summary: accumulated, url: resolvedUrl };
+  }, []);
+
   const handleGenerateScript = useCallback(async () => {
     if (!scriptUrl) return;
     setIsSummarizing(true);
+    setScript("");
     setError(null);
     try {
-      const response = await fetch("/api/summarize", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ url: scriptUrl, testMode: voiceConfig.testMode }),
+      const result = await streamSummarize(scriptUrl, {
+        testMode: voiceConfig.testMode,
+        onDelta: (text) => setScript(text),
       });
-      const data = await response.json();
-      if (!response.ok) throw new Error(data.error || "Failed to summarize");
-      setScript(data.summary);
-      setScriptTitle(data.title);
-      setScriptUrl(data.url);
+      setScript(result.summary);
+      setScriptTitle(result.title);
+      setScriptUrl(result.url);
       mutateVersions();
     } catch (err) {
       setError(err instanceof Error ? err.message : "An unexpected error occurred");
     } finally {
       setIsSummarizing(false);
     }
-  }, [scriptUrl, voiceConfig.testMode, mutateVersions]);
+  }, [scriptUrl, voiceConfig.testMode, mutateVersions, streamSummarize]);
 
   const handleGenerateFromStyled = useCallback(async (styledScript: string) => {
     if (!styledScript.trim() || !scriptUrl) return;
@@ -213,38 +246,45 @@ export default function HomePage() {
     // Get all cached posts without scripts
     const res = await fetch("/api/history");
     const data = await res.json();
-    const allEntries: BlogAudio[] = data.entries ?? [];
+    const allEntries: (BlogAudio & { cached_script?: string | null })[] = data.entries ?? [];
 
-    // Unique URLs from cached posts (id === -1 means no audio, just cached post)
-    // We want all unique URLs that don't already have a script loaded
+    // Only process posts that don't already have a cached script
     const uniqueUrls = new Map<string, string>();
     for (const entry of allEntries) {
-      if (!uniqueUrls.has(entry.url)) {
+      if (!uniqueUrls.has(entry.url) && !entry.cached_script) {
         uniqueUrls.set(entry.url, entry.title || "Untitled");
       }
     }
 
     const urlList = Array.from(uniqueUrls.entries());
+    if (urlList.length === 0) return;
+
     setLoadingScripts(true);
     setScriptProgress({ done: 0, total: urlList.length });
 
     for (let i = 0; i < urlList.length; i++) {
-      const [url] = urlList[i];
+      const [url, title] = urlList[i];
+      setScriptProgress({ done: i, total: urlList.length, currentTitle: title });
+
+      // Select this post so the user sees it streaming in real-time
+      setScriptUrl(url);
+      setScriptTitle(title);
+      setScript("");
+
       try {
-        const sumRes = await fetch("/api/summarize", {
+        const result = await streamSummarize(url, {
+          onDelta: (text) => setScript(text),
+        });
+
+        // Save script to blog_posts_cache
+        await fetch("/api/save-script", {
           method: "POST",
           headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ url }),
+          body: JSON.stringify({ url, script: result.summary }),
         });
-        if (sumRes.ok) {
-          const sumData = await sumRes.json();
-          // Save script to blog_posts_cache
-          await fetch("/api/save-script", {
-            method: "POST",
-            headers: { "Content-Type": "application/json" },
-            body: JSON.stringify({ url, script: sumData.summary }),
-          });
-        }
+
+        setScript(result.summary);
+        mutateHistory();
       } catch (err) {
         console.error(`Failed to load script for ${url}:`, err);
       }
@@ -253,7 +293,7 @@ export default function HomePage() {
 
     setLoadingScripts(false);
     mutateHistory();
-  }, [mutateHistory]);
+  }, [mutateHistory, streamSummarize]);
 
   return (
     <div className="h-screen flex flex-col overflow-hidden">
@@ -285,7 +325,10 @@ export default function HomePage() {
                 <circle cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="2" strokeOpacity="0.2" />
                 <path d="M12 2a10 10 0 0 1 10 10" stroke="currentColor" strokeWidth="2" strokeLinecap="round" />
               </svg>
-              <span>{scriptProgress.done}/{scriptProgress.total}</span>
+              <span className="font-mono tabular-nums">{scriptProgress.done}/{scriptProgress.total}</span>
+              {scriptProgress.currentTitle && (
+                <span className="text-muted truncate max-w-[200px]">{scriptProgress.currentTitle}</span>
+              )}
             </>
           ) : (
             <>
@@ -335,143 +378,207 @@ export default function HomePage() {
           </div>
         </aside>
 
-        {/* Workspace: content + voice over + voice settings, versions at bottom */}
-        <div className="flex-1 min-w-0 flex flex-col overflow-hidden">
+        {/* Workspace: content | (voice over + voice settings + versions) */}
+        <div className="flex-1 min-w-0 flex flex-col lg:flex-row overflow-hidden">
 
-          {/* Top: 3-column row */}
-          <div className="flex-1 min-h-0 flex flex-col lg:flex-row overflow-hidden">
-
-            {/* Content column -- verbatim blog script */}
-            <div className="flex-1 min-w-0 flex flex-col overflow-hidden border-r border-border">
-              <div className="flex items-center justify-between px-3 py-2 border-b border-border flex-shrink-0">
-                <div className="flex items-center gap-2">
-                  <span className="text-sm font-semibold tracking-tight">Content</span>
-                  <span className="text-[10px] font-mono text-accent bg-accent/10 px-1.5 py-0.5 rounded">Source</span>
+          {/* Content column -- full height, verbatim blog script */}
+          <div className="flex-1 min-w-0 flex flex-col overflow-hidden border-r border-border">
+            <div className="flex items-center justify-between px-3 py-2 border-b border-border flex-shrink-0">
+              <div className="flex items-center gap-2">
+                <span className="text-sm font-semibold tracking-tight">Content</span>
+                <span className="text-[10px] font-mono text-accent bg-accent/10 px-1.5 py-0.5 rounded">Source</span>
+              </div>
+              {script && scriptUrl && (
+                <button
+                  onClick={handleGenerateScript}
+                  disabled={isSummarizing}
+                  className="flex items-center gap-1.5 text-xs text-muted hover:text-foreground transition-colors focus-ring rounded px-2 py-1 disabled:opacity-50 disabled:cursor-not-allowed flex-shrink-0"
+                >
+                  {isSummarizing ? (
+                    <>
+                      <svg className="animate-spin" width="11" height="11" viewBox="0 0 24 24" fill="none" aria-hidden="true">
+                        <circle cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="2" strokeOpacity="0.2" />
+                        <path d="M12 2a10 10 0 0 1 10 10" stroke="currentColor" strokeWidth="2" strokeLinecap="round" />
+                      </svg>
+                      <span>Regenerating...</span>
+                    </>
+                  ) : (
+                    <span>Regenerate</span>
+                  )}
+                </button>
+              )}
+            </div>
+            <div className="flex-1 min-h-0 overflow-y-auto">
+              {error && (
+                <div className="mx-4 mt-3 flex items-center gap-2 text-xs text-destructive border border-destructive/20 bg-destructive/5 rounded-md px-3 py-2" role="alert">
+                  <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" aria-hidden="true">
+                    <circle cx="12" cy="12" r="10" /><path d="M12 8v4m0 4h.01" />
+                  </svg>
+                  <span>{error}</span>
                 </div>
-                {scriptUrl && (
+              )}
+
+              {/* Centered Generate Script CTA when no script yet */}
+              {!script && scriptUrl && !isSummarizing && !loadingScripts && (
+                <div className="flex-1 flex flex-col items-center justify-center h-full px-8 py-12 gap-4">
+                  <div className="w-12 h-12 rounded-full bg-accent/10 flex items-center justify-center">
+                    <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" className="text-accent" aria-hidden="true">
+                      <path d="M12 3c.132 0 .263 0 .393 0a7.5 7.5 0 0 0 7.92 12.446A9 9 0 1 1 12 3Z" />
+                      <path d="M17 4a2 2 0 0 1 2 2" />
+                      <path d="M21 8a6 6 0 0 1-6 6" />
+                    </svg>
+                  </div>
+                  <div className="text-center">
+                    <p className="text-sm font-medium text-foreground mb-1">Ready to generate</p>
+                    <p className="text-xs text-muted max-w-[240px]">Extract an audio-ready script from the selected blog post.</p>
+                  </div>
                   <button
                     onClick={handleGenerateScript}
-                    disabled={isSummarizing}
-                    className="flex items-center gap-1.5 text-xs text-muted hover:text-foreground transition-colors focus-ring rounded px-2 py-1 disabled:opacity-50 disabled:cursor-not-allowed flex-shrink-0"
+                    className="flex items-center justify-center gap-2 h-11 rounded-lg bg-accent text-primary-foreground px-6 text-sm font-semibold transition-colors hover:bg-accent-hover focus-ring"
                   >
-                    {isSummarizing ? (
-                      <>
-                        <svg className="animate-spin" width="11" height="11" viewBox="0 0 24 24" fill="none" aria-hidden="true">
-                          <circle cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="2" strokeOpacity="0.2" />
-                          <path d="M12 2a10 10 0 0 1 10 10" stroke="currentColor" strokeWidth="2" strokeLinecap="round" />
-                        </svg>
-                        <span>Generating...</span>
-                      </>
-                    ) : (
-                      <span>{script ? "Regenerate" : "Generate Script"}</span>
-                    )}
-                  </button>
-                )}
-              </div>
-              <div className="flex-1 min-h-0 overflow-y-auto">
-                {error && (
-                  <div className="mx-4 mt-3 flex items-center gap-2 text-xs text-destructive border border-destructive/20 bg-destructive/5 rounded-md px-3 py-2" role="alert">
-                    <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" aria-hidden="true">
-                      <circle cx="12" cy="12" r="10" /><path d="M12 8v4m0 4h.01" />
+                    <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" aria-hidden="true">
+                      <path d="M5 12h14M12 5l7 7-7 7" />
                     </svg>
-                    <span>{error}</span>
+                    Generate Script
+                  </button>
+                </div>
+              )}
+
+              {/* Summarizing / batch loading spinner (before first chunk arrives) */}
+              {!script && (isSummarizing || loadingScripts) && (
+                <div className="flex-1 flex flex-col items-center justify-center h-full px-8 py-12 gap-4">
+                  <div className="w-12 h-12 rounded-full bg-accent/10 flex items-center justify-center">
+                    <svg className="animate-spin text-accent" width="24" height="24" viewBox="0 0 24 24" fill="none" aria-hidden="true">
+                      <circle cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="2" strokeOpacity="0.2" />
+                      <path d="M12 2a10 10 0 0 1 10 10" stroke="currentColor" strokeWidth="2" strokeLinecap="round" />
+                    </svg>
                   </div>
-                )}
+                  <p className="text-sm text-muted">
+                    {loadingScripts && scriptProgress.currentTitle
+                      ? `Generating script for "${scriptProgress.currentTitle}"...`
+                      : "Generating script from blog post..."}
+                  </p>
+                </div>
+              )}
+
+              {/* No post selected */}
+              {!script && !scriptUrl && !isSummarizing && (
+                <div className="flex-1 flex flex-col items-center justify-center h-full px-8 py-12 gap-3">
+                  <div className="w-12 h-12 rounded-full bg-surface-2 flex items-center justify-center">
+                    <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" className="text-muted" aria-hidden="true">
+                      <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8Z" />
+                      <path d="M14 2v6h6" />
+                      <path d="M16 13H8M16 17H8M10 9H8" />
+                    </svg>
+                  </div>
+                  <p className="text-sm text-muted">Select a blog post to get started</p>
+                </div>
+              )}
+
+              {/* Script editor when script exists */}
+              {script && (
                 <ScriptEditor
                   script={script}
                   title={scriptTitle}
                   isLoading={isGenerating}
+                  isStreaming={isSummarizing || loadingScripts}
                   onScriptChange={setScript}
                 />
-              </div>
+              )}
             </div>
-
-            {/* Voice Over column -- styled script for ElevenLabs */}
-            <div className="flex-1 min-w-0 flex flex-col overflow-hidden">
-              <div className="flex items-center justify-between px-3 py-2 border-b border-border flex-shrink-0">
-                <div className="flex items-center gap-2">
-                  <span className="text-sm font-semibold tracking-tight">Voice Over</span>
-                  <span className="text-[10px] font-mono text-accent bg-accent/10 px-1.5 py-0.5 rounded">Styled</span>
-                </div>
-              </div>
-              <div className="flex-1 min-h-0 overflow-y-auto">
-                <StyleAgent
-                  sourceScript={script}
-                  onUseStyledScript={setScript}
-                  isGeneratingAudio={isGenerating}
-                  onGenerateAudio={handleGenerateFromStyled}
-                  onStyledScriptChange={setStyledScript}
-                  styleVibe={voiceConfig.styleVibe}
-                />
-              </div>
-            </div>
-
-            {/* Voice settings panel */}
-            <aside className="w-full lg:w-[380px] flex-shrink-0 border-t lg:border-t-0 lg:border-l border-border flex flex-col overflow-hidden bg-surface-1">
-              <div className="flex items-center justify-between px-3 py-2 border-b border-border flex-shrink-0">
-                <div className="flex items-center gap-2">
-                  <span className="text-sm font-semibold tracking-tight">Voice Settings</span>
-                  <span className="text-[10px] font-mono text-accent bg-accent/10 px-1.5 py-0.5 rounded">v3</span>
-                </div>
-              </div>
-              <div className="flex-1 overflow-y-auto p-4">
-                <VoiceSettings config={voiceConfig} onChange={setVoiceConfig} />
-              </div>
-              {/* Generate button -- pinned to bottom */}
-              <div className="flex-shrink-0 border-t border-border p-4">
-                <button
-                  onClick={() => {
-                    if (styledScript.trim()) {
-                      handleGenerateFromStyled(styledScript);
-                    }
-                  }}
-                  disabled={isGenerating || !styledScript.trim()}
-                  className={`relative w-full h-12 rounded-lg text-sm font-semibold transition-all focus-ring overflow-hidden ${
-                    isGenerating
-                      ? "animate-shimmer text-white"
-                      : "bg-foreground text-background hover:bg-foreground/90 disabled:opacity-40"
-                  } disabled:cursor-not-allowed`}
-                >
-                  {isGenerating ? (
-                    <span className="relative z-10 flex items-center justify-center gap-2">
-                      <svg className="animate-spin" width="16" height="16" viewBox="0 0 24 24" fill="none" aria-hidden="true">
-                        <circle cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="2" strokeOpacity="0.3" />
-                        <path d="M12 2a10 10 0 0 1 10 10" stroke="currentColor" strokeWidth="2" strokeLinecap="round" />
-                      </svg>
-                      Generating Audio...
-                    </span>
-                  ) : (
-                    <span className="relative z-10">Generate Audio</span>
-                  )}
-                </button>
-              </div>
-            </aside>
           </div>
 
-          {/* Bottom: player + versions spanning all 3 right columns */}
-          <div className="flex-shrink-0 border-t border-border">
-            {/* Player */}
-            {activeEntry && (
-              <div className="px-4 py-3 border-b border-border">
-                <WaveformPlayer
-                  key={activeEntry.id}
-                  audioUrl={activeEntry.audio_url}
-                  title={activeEntry.title || "Untitled"}
-                  summary={activeEntry.summary || ""}
-                  url={activeEntry.url}
-                  autoplay={autoplay}
-                />
-              </div>
-            )}
+          {/* Right side: Voice Over + Voice Settings (top), Versions (bottom) */}
+          <div className="flex-[2] min-w-0 flex flex-col overflow-hidden">
 
-            {/* Versions header + list */}
-            <div className="flex items-center justify-between px-3 py-2 border-b border-border">
-              <div className="flex items-center gap-2">
-                <span className="text-sm font-semibold tracking-tight">Audio Versions</span>
-                <span className="text-[10px] font-mono text-accent bg-accent/10 px-1.5 py-0.5 rounded">{versions.length}</span>
+            {/* Top row: Voice Over + Voice Settings */}
+            <div className="flex-1 min-h-0 flex flex-col lg:flex-row overflow-hidden">
+
+              {/* Voice Over column */}
+              <div className="flex-1 min-w-0 flex flex-col overflow-hidden">
+                <div className="flex items-center justify-between px-3 py-2 border-b border-border flex-shrink-0">
+                  <div className="flex items-center gap-2">
+                    <span className="text-sm font-semibold tracking-tight">Voice Over</span>
+                    <span className="text-[10px] font-mono text-accent bg-accent/10 px-1.5 py-0.5 rounded">Styled</span>
+                  </div>
+                </div>
+                <div className="flex-1 min-h-0 overflow-y-auto">
+                  <StyleAgent
+                    sourceScript={script}
+                    onUseStyledScript={setScript}
+                    isGeneratingAudio={isGenerating}
+                    onGenerateAudio={handleGenerateFromStyled}
+                    onStyledScriptChange={setStyledScript}
+                    styleVibe={voiceConfig.styleVibe}
+                  />
+                </div>
               </div>
+
+              {/* Voice Settings panel */}
+              <aside className="w-full lg:w-[380px] flex-shrink-0 border-t lg:border-t-0 lg:border-l border-border flex flex-col overflow-hidden bg-surface-1">
+                <div className="flex items-center justify-between px-3 py-2 border-b border-border flex-shrink-0">
+                  <div className="flex items-center gap-2">
+                    <span className="text-sm font-semibold tracking-tight">Voice Settings</span>
+                    <span className="text-[10px] font-mono text-accent bg-accent/10 px-1.5 py-0.5 rounded">v3</span>
+                  </div>
+                </div>
+                <div className="flex-1 overflow-y-auto p-4">
+                  <VoiceSettings config={voiceConfig} onChange={setVoiceConfig} />
+                </div>
+                {/* Generate button -- pinned to bottom */}
+                <div className="flex-shrink-0 border-t border-border p-4">
+                  <button
+                    onClick={() => {
+                      if (styledScript.trim()) {
+                        handleGenerateFromStyled(styledScript);
+                      }
+                    }}
+                    disabled={isGenerating || !styledScript.trim()}
+                    className={`relative w-full h-12 rounded-lg text-sm font-semibold transition-all focus-ring overflow-hidden ${
+                      isGenerating
+                        ? "animate-shimmer text-white"
+                        : "bg-foreground text-background hover:bg-foreground/90 disabled:opacity-40"
+                    } disabled:cursor-not-allowed`}
+                  >
+                    {isGenerating ? (
+                      <span className="relative z-10 flex items-center justify-center gap-2">
+                        <svg className="animate-spin" width="16" height="16" viewBox="0 0 24 24" fill="none" aria-hidden="true">
+                          <circle cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="2" strokeOpacity="0.3" />
+                          <path d="M12 2a10 10 0 0 1 10 10" stroke="currentColor" strokeWidth="2" strokeLinecap="round" />
+                        </svg>
+                        Generating Audio...
+                      </span>
+                    ) : (
+                      <span className="relative z-10">Generate Audio</span>
+                    )}
+                  </button>
+                </div>
+              </aside>
             </div>
-            <div className="max-h-[280px] overflow-y-auto">
+
+            {/* Bottom: player + versions spanning columns 2-3 */}
+            <div className="flex-shrink-0 border-t border-border">
+              {/* Player */}
+              {activeEntry && (
+                <div className="px-4 py-3 border-b border-border">
+                  <WaveformPlayer
+                    key={activeEntry.id}
+                    audioUrl={activeEntry.audio_url}
+                    title={activeEntry.title || "Untitled"}
+                    summary={activeEntry.summary || ""}
+                    url={activeEntry.url}
+                    autoplay={autoplay}
+                  />
+                </div>
+              )}
+
+              {/* Versions header + table */}
+              <div className="flex items-center justify-between px-3 py-2 border-b border-border">
+                <div className="flex items-center gap-2">
+                  <span className="text-sm font-semibold tracking-tight">Audio Versions</span>
+                  <span className="text-[10px] font-mono text-accent bg-accent/10 px-1.5 py-0.5 rounded">{versions.length}</span>
+                </div>
+              </div>
               <VersionsList
                 versions={versions}
                 activeId={activeEntry?.id ?? null}

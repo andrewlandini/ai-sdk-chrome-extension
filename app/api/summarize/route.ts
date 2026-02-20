@@ -1,4 +1,4 @@
-import { generateText } from "ai";
+import { streamText } from "ai";
 import { scrapeBlogPost } from "@/lib/scraper";
 import { getActivePromptPreset } from "@/lib/db";
 
@@ -21,10 +21,7 @@ export async function POST(request: Request) {
     // Scrape the blog post
     const scraped = await scrapeBlogPost(url);
 
-    // Determine which prompt to use:
-    // 1. Custom prompts passed from the client (prompt editor)
-    // 2. Active preset from the database
-    // 3. Hardcoded fallback
+    // Determine which prompt to use
     let systemPrompt: string;
     let selectedModel: string = requestModel || "openai/gpt-4o";
 
@@ -44,7 +41,7 @@ export async function POST(request: Request) {
       }
     }
 
-    const { text: summary } = await generateText({
+    const result = streamText({
       model: selectedModel,
       system: systemPrompt,
       prompt: JSON.stringify({
@@ -54,10 +51,14 @@ export async function POST(request: Request) {
       }),
     });
 
-    return Response.json({
-      title: scraped.title,
-      summary,
-      url: scraped.url,
+    // Stream as plain text with metadata in custom headers
+    return new Response(result.textStream, {
+      headers: {
+        "Content-Type": "text/plain; charset=utf-8",
+        "Transfer-Encoding": "chunked",
+        "X-Title": encodeURIComponent(scraped.title || ""),
+        "X-Url": encodeURIComponent(scraped.url || url),
+      },
     });
   } catch (error) {
     console.error("Summarize error:", error);

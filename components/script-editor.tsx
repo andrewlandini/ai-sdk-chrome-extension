@@ -4,12 +4,14 @@ interface ScriptEditorProps {
   script: string;
   title: string;
   isLoading: boolean;
+  isStreaming?: boolean;
   onScriptChange: (script: string) => void;
 }
 
 export function ScriptEditor({
   script,
   isLoading,
+  isStreaming,
   onScriptChange,
 }: ScriptEditorProps) {
   const wordCount = script.trim().split(/\s+/).filter(Boolean).length;
@@ -29,9 +31,19 @@ export function ScriptEditor({
 
       {/* Footer */}
       <div className="flex-shrink-0 border-t border-border px-4 py-2 flex items-center justify-between">
-        <p className="text-[11px] text-muted">
-          Verbatim source script from the blog post.
-        </p>
+        {isStreaming ? (
+          <div className="flex items-center gap-2">
+            <svg className="animate-spin text-accent" width="12" height="12" viewBox="0 0 24 24" fill="none" aria-hidden="true">
+              <circle cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="2" strokeOpacity="0.2" />
+              <path d="M12 2a10 10 0 0 1 10 10" stroke="currentColor" strokeWidth="2" strokeLinecap="round" />
+            </svg>
+            <p className="text-[11px] text-accent font-medium">Streaming script...</p>
+          </div>
+        ) : (
+          <p className="text-[11px] text-muted">
+            Verbatim source script from the blog post.
+          </p>
+        )}
         <span className="text-[10px] text-muted font-mono tabular-nums flex-shrink-0">
           {wordCount}w / {charCount}c
         </span>
