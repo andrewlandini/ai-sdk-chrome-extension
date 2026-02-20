@@ -243,7 +243,7 @@ export default function HomePage() {
             <path d="M37.5274 0L75.0548 65H0L37.5274 0Z" />
           </svg>
           <span className="text-border select-none" aria-hidden="true">/</span>
-          <span className="text-sm font-medium truncate">{scriptTitle || "Blog Audio"}</span>
+          <span className="text-sm font-medium">Blog Audio</span>
         </div>
 
         {/* Spacer to push right items */}
