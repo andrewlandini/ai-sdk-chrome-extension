@@ -354,45 +354,48 @@ export function VoiceSettings({ config, onChange }: VoiceSettingsProps) {
               return (
                 <div
                   key={v.id}
-                  className={`group flex items-center rounded-md transition-all ${
+                  className={`group flex items-center h-9 rounded-md transition-all ${
                     isSelected
                       ? "bg-foreground text-background"
                       : "bg-surface-2 text-muted border border-transparent hover:text-foreground hover:border-border-hover"
                   }`}
                 >
+                  {/* Preview button on the left */}
+                  <button
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      if (hasPreview) handlePreview(v.id);
+                    }}
+                    aria-label={isPlaying ? `Stop ${v.name} preview` : `Preview ${v.name}`}
+                    disabled={!hasPreview}
+                    className={`flex items-center justify-center w-8 h-full flex-shrink-0 rounded-l-md transition-colors focus-ring ${
+                      !hasPreview
+                        ? "opacity-0 cursor-default"
+                        : isPlaying
+                          ? isSelected ? "text-background" : "text-accent"
+                          : isSelected ? "text-background/50 hover:text-background" : "text-muted-foreground/40 hover:text-foreground opacity-0 group-hover:opacity-100"
+                    }`}
+                  >
+                    {isPlaying ? (
+                      <svg width="10" height="10" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true">
+                        <rect x="6" y="4" width="4" height="16" rx="1" />
+                        <rect x="14" y="4" width="4" height="16" rx="1" />
+                      </svg>
+                    ) : (
+                      <svg width="10" height="10" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true">
+                        <polygon points="5 3 19 12 5 21 5 3" />
+                      </svg>
+                    )}
+                  </button>
+                  {/* Voice select button */}
                   <button
                     onClick={() => update({ voiceId: v.id })}
                     aria-pressed={isSelected}
-                    className="flex-1 flex items-center justify-between px-3 py-2 text-left focus-ring rounded-l-md"
+                    className="flex-1 min-w-0 flex items-center justify-between pr-3 py-1.5 text-left focus-ring rounded-r-md h-full"
                   >
-                    <span className="text-xs font-medium">{v.name}</span>
-                    <span className={`text-[10px] ${isSelected ? "text-background/60" : "text-muted-foreground"}`}>{v.desc}</span>
+                    <span className="text-xs font-medium truncate">{v.name}</span>
+                    <span className={`text-[10px] flex-shrink-0 ml-2 ${isSelected ? "text-background/60" : "text-muted-foreground"}`}>{v.desc}</span>
                   </button>
-                  {hasPreview && (
-                    <button
-                      onClick={(e) => {
-                        e.stopPropagation();
-                        handlePreview(v.id);
-                      }}
-                      aria-label={isPlaying ? `Stop ${v.name} preview` : `Preview ${v.name}`}
-                      className={`flex items-center justify-center w-8 h-full rounded-r-md transition-colors focus-ring ${
-                        isPlaying
-                          ? isSelected ? "text-background" : "text-accent"
-                          : isSelected ? "text-background/50 hover:text-background" : "text-muted-foreground/50 hover:text-foreground opacity-0 group-hover:opacity-100"
-                      }`}
-                    >
-                      {isPlaying ? (
-                        <svg width="12" height="12" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true">
-                          <rect x="6" y="4" width="4" height="16" rx="1" />
-                          <rect x="14" y="4" width="4" height="16" rx="1" />
-                        </svg>
-                      ) : (
-                        <svg width="12" height="12" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true">
-                          <polygon points="5 3 19 12 5 21 5 3" />
-                        </svg>
-                      )}
-                    </button>
-                  )}
                 </div>
               );
             })}
