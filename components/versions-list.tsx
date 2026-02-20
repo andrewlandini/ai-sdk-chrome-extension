@@ -95,17 +95,26 @@ export function VersionsList({
                     S:{v.stability.toFixed(1)}
                   </span>
                 )}
-                {v.similarity_boost !== null && (
-                  <span className="text-[11px] text-muted-foreground bg-surface-3 rounded px-1.5 py-0.5 font-mono flex-shrink-0">
-                    SB:{v.similarity_boost.toFixed(1)}
-                  </span>
-                )}
+
               </div>
 
               <span className="text-[11px] text-muted-foreground font-mono tabular-nums flex-shrink-0 hidden sm:block">
                 {formatDate(v.created_at)}
               </span>
 
+              <a
+                href={v.audio_url}
+                download={`${(v.label || v.title || `version-${v.id}`).replace(/[^a-zA-Z0-9-_ ]/g, "").trim()}.mp3`}
+                onClick={(e) => e.stopPropagation()}
+                className="opacity-0 group-hover:opacity-100 transition-opacity p-1 text-muted-foreground hover:text-foreground flex-shrink-0 focus-ring rounded"
+                aria-label="Download version"
+              >
+                <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" aria-hidden="true">
+                  <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4" />
+                  <polyline points="7 10 12 15 17 10" />
+                  <line x1="12" y1="15" x2="12" y2="3" />
+                </svg>
+              </a>
               <span
                 onClick={(e) => {
                   e.stopPropagation();
