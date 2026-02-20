@@ -7,6 +7,7 @@ interface StyleAgentProps {
   onUseStyledScript: (styledScript: string) => void;
   isGeneratingAudio: boolean;
   onGenerateAudio: (styledScript: string) => void;
+  styleVibe?: string;
 }
 
 export function StyleAgent({
@@ -14,8 +15,9 @@ export function StyleAgent({
   onUseStyledScript,
   isGeneratingAudio,
   onGenerateAudio,
+  styleVibe = "",
 }: StyleAgentProps) {
-  const [styleInstructions, setStyleInstructions] = useState("Confident and genuinely excited about the content, but grounded and conversational -- not over the top");
+  const styleInstructions = styleVibe;
   const [styledScript, setStyledScript] = useState("");
   const [isRunning, setIsRunning] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -91,45 +93,30 @@ export function StyleAgent({
         </button>
       </div>
 
-      {/* Style instructions input */}
-      <div className="border-b border-border px-4 py-3">
-        <label className="block text-xs text-muted mb-1.5">
-          Style / vibe instructions (optional -- leave blank for natural performance)
-        </label>
-        <div className="flex gap-2">
-          <input
-            type="text"
-            value={styleInstructions}
-            onChange={(e) => setStyleInstructions(e.target.value)}
-            placeholder="e.g. warm and excited podcast host, dramatic movie trailer, calm bedtime story..."
-            className="flex-1 h-9 bg-surface-2 border border-border rounded-md px-3 text-sm text-foreground font-mono placeholder:text-muted-foreground/30 focus:outline-none focus:border-accent transition-colors"
-            onKeyDown={(e) => {
-              if (e.key === "Enter" && !isRunning && sourceScript.trim()) {
-                handleRunAgent();
-              }
-            }}
-          />
-          <button
-            onClick={handleRunAgent}
-            disabled={isRunning || !sourceScript.trim()}
-            className="flex items-center justify-center gap-2 h-9 rounded-md bg-accent text-primary-foreground px-4 text-sm font-medium transition-colors hover:bg-accent-hover disabled:opacity-40 disabled:cursor-not-allowed focus-ring flex-shrink-0"
-          >
-            {isRunning ? (
-              <>
-                <svg className="animate-spin" width="14" height="14" viewBox="0 0 24 24" fill="none" aria-hidden="true">
-                  <circle cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="2" strokeOpacity="0.2" />
-                  <path d="M12 2a10 10 0 0 1 10 10" stroke="currentColor" strokeWidth="2" strokeLinecap="round" />
-                </svg>
-                <span>Styling...</span>
-              </>
-            ) : (
-              <span>Run</span>
-            )}
-          </button>
-        </div>
-        <p className="text-[11px] text-muted mt-1.5">
-          The agent will add [emotion], [pause], [whispering], and other Audio Tags to the original script.
+      {/* Run bar */}
+      <div className="border-b border-border px-4 py-2 flex items-center justify-between gap-3">
+        <p className="text-[11px] text-muted">
+          {styleInstructions
+            ? <span>Vibe: <span className="text-muted-foreground">{styleInstructions}</span></span>
+            : "Adds [emotion], [pause], [whispering] and other Audio Tags to the script."}
         </p>
+        <button
+          onClick={handleRunAgent}
+          disabled={isRunning || !sourceScript.trim()}
+          className="flex items-center justify-center gap-2 h-7 rounded-md bg-accent text-primary-foreground px-3 text-xs font-medium transition-colors hover:bg-accent-hover disabled:opacity-40 disabled:cursor-not-allowed focus-ring flex-shrink-0"
+        >
+          {isRunning ? (
+            <>
+              <svg className="animate-spin" width="12" height="12" viewBox="0 0 24 24" fill="none" aria-hidden="true">
+                <circle cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="2" strokeOpacity="0.2" />
+                <path d="M12 2a10 10 0 0 1 10 10" stroke="currentColor" strokeWidth="2" strokeLinecap="round" />
+              </svg>
+              <span>Styling...</span>
+            </>
+          ) : (
+            <span>Run</span>
+          )}
+        </button>
       </div>
 
       {/* Error */}

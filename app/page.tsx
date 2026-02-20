@@ -65,6 +65,7 @@ const DEFAULT_VOICE_CONFIG: VoiceConfig = {
   stability: 0,
   label: "",
   testMode: false,
+  styleVibe: "Confident and genuinely excited about the content, but grounded and conversational -- not over the top",
 };
 
 export default function HomePage() {
@@ -429,6 +430,7 @@ export default function HomePage() {
                 onUseStyledScript={setScript}
                 isGeneratingAudio={isGenerating}
                 onGenerateAudio={handleGenerateFromStyled}
+                styleVibe={voiceConfig.styleVibe}
               />
             </div>
 
