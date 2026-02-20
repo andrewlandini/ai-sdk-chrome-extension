@@ -402,10 +402,6 @@ export function VoiceSettings({ config, onChange }: VoiceSettingsProps) {
           </div>
         </fieldset>
 
-        {/* v3 info */}
-        <p className="text-[10px] text-muted-foreground leading-relaxed">
-          Eleven v3 with built-in text normalization. 5,000 char limit per chunk, auto-split.
-        </p>
       </div>
     </section>
   );
