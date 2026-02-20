@@ -192,13 +192,10 @@ function HomePage() {
   const entries = historyData?.entries ?? [];
 
   // ── Poll for active generation job ──
-  // Use refs for SWR mutators to keep startJobPoll stable
-  const mutateHistoryRef = useRef(mutateHistory);
-  const mutateVersionsRef = useRef(mutateVersions);
-  const mutateCreditsRef = useRef(mutateCredits);
-  useEffect(() => { mutateHistoryRef.current = mutateHistory; }, [mutateHistory]);
-  useEffect(() => { mutateVersionsRef.current = mutateVersions; }, [mutateVersions]);
-  useEffect(() => { mutateCreditsRef.current = mutateCredits; }, [mutateCredits]);
+  // Use refs for SWR mutators to keep startJobPoll stable (initialized in effects below)
+  const mutateHistoryRef = useRef<(() => void) | null>(null);
+  const mutateVersionsRef = useRef<(() => void) | null>(null);
+  const mutateCreditsRef = useRef<(() => void) | null>(null);
 
   const startJobPoll = useCallback((jobId: number) => {
     if (jobPollRef.current) clearInterval(jobPollRef.current);
@@ -221,9 +218,9 @@ function HomePage() {
           setIsGenerating(false);
           setGenerateStatus("");
           setActiveJobId(null);
-          mutateHistoryRef.current();
-          mutateVersionsRef.current();
-          mutateCreditsRef.current();
+          mutateHistoryRef.current?.();
+          mutateVersionsRef.current?.();
+          mutateCreditsRef.current?.();
           // If the job produced an entry, auto-select it
           if (job.result_entry_id) {
             const histData = await fetch("/api/history").then((r) => r.json());
@@ -278,6 +275,11 @@ function HomePage() {
     fetcher
   );
   const versions = versionsData?.versions ?? [];
+
+  // Sync mutator refs (declared above, populated here after all SWR hooks)
+  useEffect(() => { mutateHistoryRef.current = mutateHistory; }, [mutateHistory]);
+  useEffect(() => { mutateVersionsRef.current = mutateVersions; }, [mutateVersions]);
+  useEffect(() => { mutateCreditsRef.current = mutateCredits; }, [mutateCredits]);
 
   // ── Handlers ──
 
