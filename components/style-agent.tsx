@@ -19,7 +19,7 @@ export function StyleAgent({
   const [styledScript, setStyledScript] = useState("");
   const [isRunning, setIsRunning] = useState(false);
   const [error, setError] = useState<string | null>(null);
-  const [isOpen, setIsOpen] = useState(false);
+  const [isOpen, setIsOpen] = useState(true);
 
   const wordCount = styledScript.trim().split(/\s+/).filter(Boolean).length;
   const charCount = styledScript.length;
