@@ -514,7 +514,7 @@ export default function HomePage() {
             </div>
 
             {/* Player -- always visible */}
-            <div className="flex-shrink-0 border-t border-border px-4 py-3">
+            <div className="flex-shrink-0 border-t border-border">
               <WaveformPlayer
                 key={activeEntry?.id ?? "idle"}
                 audioUrl={activeEntry?.audio_url}
@@ -596,7 +596,7 @@ export default function HomePage() {
           </div>
 
           {/* Player -- always visible */}
-          <div className="flex-shrink-0 border-t border-border px-4 py-3">
+          <div className="flex-shrink-0 border-t border-border">
             <WaveformPlayer
               key={activeEntry?.id ?? "idle"}
               audioUrl={activeEntry?.audio_url}

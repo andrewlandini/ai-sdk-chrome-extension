@@ -219,7 +219,7 @@ export function WaveformPlayer({
 
   return (
     <section
-      className="rounded-lg border border-border bg-surface-1 overflow-hidden"
+      className="overflow-hidden"
       aria-label="Audio player"
     >
       {/* Header */}
