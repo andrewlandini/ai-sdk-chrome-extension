@@ -216,10 +216,11 @@ export function WaveformPlayer({
       aria-label="Audio player"
     >
       {/* Header */}
-      <div className="px-4 py-2 border-b border-border flex items-center">
-        <h3 className={`text-xs font-medium truncate min-w-0 ${idle ? "text-muted" : "text-foreground"}`}>
-          {idle ? "No audio loaded" : title}
-        </h3>
+      <div className="px-3 py-2 border-b border-border">
+        <span className="text-sm font-semibold tracking-tight">Audio Player</span>
+        <p className={`text-[11px] truncate mt-0.5 ${idle ? "text-muted" : "text-foreground"}`}>
+          {idle ? "No file loaded" : title}
+        </p>
       </div>
 
       {/* Waveform + Controls */}
