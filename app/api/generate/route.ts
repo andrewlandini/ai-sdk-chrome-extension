@@ -8,6 +8,22 @@ export const maxDuration = 300;
 const MODEL = "eleven_v3";
 const MAX_CHARS = 4800; // leave headroom under 5000 limit
 
+// Map voice IDs to human-readable names for filenames
+const VOICE_MAP: Record<string, string> = {
+  TX3LPaxmHKxFdv7VOQHJ: "Liam",
+  nPczCjzI2devNBz1zQrb: "Brian",
+  JBFqnCBsd6RMkjVDRZzb: "George",
+  onwK4e9ZLuTAKqWW03F9: "Daniel",
+  pFZP5JQG7iQjIQuC4Bku: "Lily",
+  "21m00Tcm4TlvDq8ikWAM": "Rachel",
+  EXAVITQu4vr4xnSDxMaL: "Sarah",
+  Xb7hH8MSUJpSbSDYk0k2: "Alice",
+  IKne3meq5aSn9XLyUdCD: "Charlie",
+  cjVigY5qzO86Huf0OWal: "Eric",
+  N2lVS1w4EtoT3dr4eOWO: "Callum",
+  iP95p4xoKVk53GoZ742B: "Chris",
+};
+
 /**
  * Split text into chunks at sentence boundaries, each under MAX_CHARS.
  */
@@ -113,11 +129,17 @@ export async function POST(request: Request) {
     // Concatenate all chunks
     const finalAudio = concatAudioBuffers(audioBuffers);
 
-    // Upload to Vercel Blob
-    const timestamp = Date.now();
-    const slug = (title || "audio").substring(0, 50).replace(/[^a-zA-Z0-9]/g, "-");
-    const versionLabel = label || `v${timestamp}`;
-    const filename = `blog-audio/${timestamp}-${slug}-${versionLabel}.mp3`;
+    // Upload to Vercel Blob with human-readable filenames
+    const date = new Date().toISOString().slice(0, 10); // 2026-02-19
+    const slug = (title || "untitled")
+      .toLowerCase()
+      .substring(0, 60)
+      .replace(/[^a-z0-9]+/g, "-")
+      .replace(/(^-|-$)/g, "");
+    const voiceName = (VOICE_MAP[voiceId] || "unknown").toLowerCase();
+    const versionLabel = label || `v${Date.now()}`;
+    const safeLabelSlug = versionLabel.toLowerCase().replace(/[^a-z0-9]+/g, "-").replace(/(^-|-$)/g, "");
+    const filename = `blog-audio/${date}/${slug}--${voiceName}--${safeLabelSlug}.mp3`;
     const blob = await put(filename, finalAudio, {
       access: "public",
       contentType: "audio/mpeg",

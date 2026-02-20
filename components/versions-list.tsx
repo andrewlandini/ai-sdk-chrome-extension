@@ -19,14 +19,18 @@ function formatDate(dateStr: string): string {
 }
 
 const VOICE_NAMES: Record<string, string> = {
+  TX3LPaxmHKxFdv7VOQHJ: "Liam",
+  nPczCjzI2devNBz1zQrb: "Brian",
   JBFqnCBsd6RMkjVDRZzb: "George",
+  onwK4e9ZLuTAKqWW03F9: "Daniel",
+  pFZP5JQG7iQjIQuC4Bku: "Lily",
   "21m00Tcm4TlvDq8ikWAM": "Rachel",
   EXAVITQu4vr4xnSDxMaL: "Sarah",
-  ErXwobaYiN019PkySvjV: "Antoni",
-  pNInz6obpgDQGcFmaJgB: "Adam",
-  yoZ06aMxZJJ28mfd3POQ: "Sam",
-  onwK4e9ZLuTAKqWW03F9: "Daniel",
-  XB0fDUnXU5powFXDhCwa: "Charlotte",
+  Xb7hH8MSUJpSbSDYk0k2: "Alice",
+  IKne3meq5aSn9XLyUdCD: "Charlie",
+  cjVigY5qzO86Huf0OWal: "Eric",
+  N2lVS1w4EtoT3dr4eOWO: "Callum",
+  iP95p4xoKVk53GoZ742B: "Chris",
 };
 
 export function VersionsList({
@@ -104,7 +108,7 @@ export function VersionsList({
 
               <a
                 href={v.audio_url}
-                download={`${(v.label || v.title || `version-${v.id}`).replace(/[^a-zA-Z0-9-_ ]/g, "").trim()}.mp3`}
+                download={`${(v.title || "audio").toLowerCase().replace(/[^a-z0-9]+/g, "-").replace(/(^-|-$)/g, "")}--${voiceName.toLowerCase()}--${(v.label || `v${v.id}`).toLowerCase().replace(/[^a-z0-9]+/g, "-").replace(/(^-|-$)/g, "")}.mp3`}
                 onClick={(e) => e.stopPropagation()}
                 className="opacity-0 group-hover:opacity-100 transition-opacity p-1 text-muted-foreground hover:text-foreground flex-shrink-0 focus-ring rounded"
                 aria-label="Download version"

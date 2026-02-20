@@ -17,16 +17,20 @@ interface VoicePreset {
   stability: number;
 }
 
+// Curated v3-optimized voices for blog narration / podcast
 const VOICES = [
-  { id: "TX3LPaxmHKxFdv7VOQHJ", name: "Liam" },
-  { id: "JBFqnCBsd6RMkjVDRZzb", name: "George" },
-  { id: "21m00Tcm4TlvDq8ikWAM", name: "Rachel" },
-  { id: "EXAVITQu4vr4xnSDxMaL", name: "Sarah" },
-  { id: "ErXwobaYiN019PkySvjV", name: "Antoni" },
-  { id: "pNInz6obpgDQGcFmaJgB", name: "Adam" },
-  { id: "yoZ06aMxZJJ28mfd3POQ", name: "Sam" },
-  { id: "onwK4e9ZLuTAKqWW03F9", name: "Daniel" },
-  { id: "XB0fDUnXU5powFXDhCwa", name: "Charlotte" },
+  { id: "TX3LPaxmHKxFdv7VOQHJ", name: "Liam", desc: "Young, articulate" },
+  { id: "nPczCjzI2devNBz1zQrb", name: "Brian", desc: "Deep, narrator" },
+  { id: "JBFqnCBsd6RMkjVDRZzb", name: "George", desc: "British, warm" },
+  { id: "onwK4e9ZLuTAKqWW03F9", name: "Daniel", desc: "British, authoritative" },
+  { id: "pFZP5JQG7iQjIQuC4Bku", name: "Lily", desc: "British, warm" },
+  { id: "21m00Tcm4TlvDq8ikWAM", name: "Rachel", desc: "Calm, professional" },
+  { id: "EXAVITQu4vr4xnSDxMaL", name: "Sarah", desc: "News, clear" },
+  { id: "Xb7hH8MSUJpSbSDYk0k2", name: "Alice", desc: "British, confident" },
+  { id: "IKne3meq5aSn9XLyUdCD", name: "Charlie", desc: "Australian, casual" },
+  { id: "cjVigY5qzO86Huf0OWal", name: "Eric", desc: "American, friendly" },
+  { id: "N2lVS1w4EtoT3dr4eOWO", name: "Callum", desc: "Intense, transatlantic" },
+  { id: "iP95p4xoKVk53GoZ742B", name: "Chris", desc: "Casual, conversational" },
 ];
 
 const fetcher = (url: string) => fetch(url).then((r) => r.json());
@@ -290,19 +294,20 @@ export function VoiceSettings({ config, onChange }: VoiceSettingsProps) {
         {/* Voice */}
         <fieldset className="flex flex-col gap-2">
           <legend className="text-xs text-muted font-medium">Voice</legend>
-          <div className="flex flex-wrap gap-1.5">
+          <div className="flex flex-col gap-1">
             {VOICES.map((v) => (
               <button
                 key={v.id}
                 onClick={() => update({ voiceId: v.id })}
                 aria-pressed={config.voiceId === v.id}
-                className={`h-8 px-3 rounded-md text-xs font-medium transition-all focus-ring ${
+                className={`flex items-center justify-between rounded-md px-3 py-2 text-left transition-all focus-ring ${
                   config.voiceId === v.id
                     ? "bg-foreground text-background"
-                    : "bg-surface-2 text-muted border border-border hover:text-foreground hover:border-border-hover"
+                    : "bg-surface-2 text-muted border border-transparent hover:text-foreground hover:border-border-hover"
                 }`}
               >
-                {v.name}
+                <span className="text-xs font-medium">{v.name}</span>
+                <span className={`text-[10px] ${config.voiceId === v.id ? "text-background/60" : "text-muted-foreground"}`}>{v.desc}</span>
               </button>
             ))}
           </div>

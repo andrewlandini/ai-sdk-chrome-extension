@@ -355,7 +355,7 @@ export function WaveformPlayer({
       <div className="border-t border-border px-4 py-2 flex items-center justify-between">
         <a
           href={audioUrl}
-          download={`${title.replace(/[^a-zA-Z0-9-_ ]/g, "").trim() || "audio"}.mp3`}
+          download={`${title.toLowerCase().replace(/[^a-z0-9]+/g, "-").replace(/(^-|-$)/g, "") || "audio"}.mp3`}
           className="flex items-center gap-1.5 text-xs text-muted hover:text-foreground transition-colors focus-ring rounded px-2 py-1"
           aria-label="Download audio"
         >

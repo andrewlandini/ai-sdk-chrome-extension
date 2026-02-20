@@ -6,14 +6,17 @@ import type { BlogAudio } from "@/lib/db";
 
 const VOICE_NAMES: Record<string, string> = {
   TX3LPaxmHKxFdv7VOQHJ: "Liam",
+  nPczCjzI2devNBz1zQrb: "Brian",
   JBFqnCBsd6RMkjVDRZzb: "George",
+  onwK4e9ZLuTAKqWW03F9: "Daniel",
+  pFZP5JQG7iQjIQuC4Bku: "Lily",
   "21m00Tcm4TlvDq8ikWAM": "Rachel",
   EXAVITQu4vr4xnSDxMaL: "Sarah",
-  ErXwobaYiN019PkySvjV: "Antoni",
-  pNInz6obpgDQGcFmaJgB: "Adam",
-  yoZ06aMxZJJ28mfd3POQ: "Sam",
-  onwK4e9ZLuTAKqWW03F9: "Daniel",
-  XB0fDUnXU5powFXDhCwa: "Charlotte",
+  Xb7hH8MSUJpSbSDYk0k2: "Alice",
+  IKne3meq5aSn9XLyUdCD: "Charlie",
+  cjVigY5qzO86Huf0OWal: "Eric",
+  N2lVS1w4EtoT3dr4eOWO: "Callum",
+  iP95p4xoKVk53GoZ742B: "Chris",
 };
 
 type SortField = "created_at" | "title" | "voice";
@@ -351,7 +354,7 @@ export function LibraryView({
                       </button>
                       <a
                         href={entry.audio_url}
-                        download={`${(entry.label || entry.title || `audio-${entry.id}`).replace(/[^a-zA-Z0-9-_ ]/g, "").trim()}.mp3`}
+                        download={`${(entry.title || "audio").toLowerCase().replace(/[^a-z0-9]+/g, "-").replace(/(^-|-$)/g, "")}--${voiceName.toLowerCase()}--${(entry.label || `v${entry.id}`).toLowerCase().replace(/[^a-z0-9]+/g, "-").replace(/(^-|-$)/g, "")}.mp3`}
                         onClick={(e) => e.stopPropagation()}
                         className="opacity-0 group-hover:opacity-100 p-1.5 text-muted hover:text-foreground transition-all focus-ring rounded"
                         aria-label="Download"

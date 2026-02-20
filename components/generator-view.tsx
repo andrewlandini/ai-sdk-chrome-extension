@@ -17,7 +17,7 @@ type SourceTab = "url" | "catalog";
 
 const DEFAULT_VOICE_CONFIG: VoiceConfig = {
   voiceId: "TX3LPaxmHKxFdv7VOQHJ",
-  stability: 0.5,
+  stability: 0,
   label: "",
   testMode: false,
 };
