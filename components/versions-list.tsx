@@ -9,6 +9,8 @@ interface VersionsListProps {
   onDelete: (version: BlogAudio) => void;
 }
 
+const VISIBLE_ROWS = 5;
+
 function formatRelative(dateStr: string): string {
   const diff = Date.now() - new Date(dateStr).getTime();
   const mins = Math.floor(diff / 60000);
@@ -42,27 +44,23 @@ export function VersionsList({
   onSelect,
   onDelete,
 }: VersionsListProps) {
-  if (versions.length === 0) {
-    return (
-      <div className="flex items-center justify-center h-8">
-        <p className="text-[10px] text-muted-foreground">No audio versions yet</p>
-      </div>
-    );
-  }
+  // Pad to always show VISIBLE_ROWS
+  const emptyCount = Math.max(0, VISIBLE_ROWS - versions.length);
 
   return (
     <div className="flex flex-col overflow-hidden">
       {/* Column headers -- matching PostsList style */}
       <div className="flex items-center h-7 px-3 border-b border-border text-[10px] text-muted-foreground uppercase tracking-wider font-medium select-none bg-surface-2/50">
-        <span className="w-4 flex-shrink-0" />
+        <span className="w-5 flex-shrink-0" />
         <span className="flex-1 min-w-0">Label</span>
         <span className="w-16 flex-shrink-0 text-center">Voice</span>
-        <span className="w-10 flex-shrink-0 text-center">Stab</span>
+        <span className="w-12 flex-shrink-0 text-center">Stability</span>
+        <span className="w-12 flex-shrink-0 text-center">Vibe</span>
         <span className="w-10 flex-shrink-0 text-right">Age</span>
         <span className="w-14 flex-shrink-0" />
       </div>
 
-      {/* Rows */}
+      {/* Data rows */}
       <div role="list">
         {versions.map((v) => {
           const isActive = v.id === activeId;
@@ -84,7 +82,7 @@ export function VersionsList({
               }`}
             >
               {/* Status dot */}
-              <span className="w-4 flex-shrink-0 flex items-center justify-center">
+              <span className="w-5 flex-shrink-0 flex items-center justify-center">
                 <span className={`w-1.5 h-1.5 rounded-full ${isActive ? "bg-accent" : "bg-border/50"}`} />
               </span>
 
@@ -99,8 +97,13 @@ export function VersionsList({
               </span>
 
               {/* Stability */}
-              <span className="w-10 flex-shrink-0 text-center text-[10px] text-muted-foreground font-mono tabular-nums">
-                {v.stability !== null ? v.stability.toFixed(1) : "--"}
+              <span className="w-12 flex-shrink-0 text-center text-[10px] text-muted-foreground font-mono tabular-nums">
+                {v.stability !== null ? v.stability.toFixed(2) : "--"}
+              </span>
+
+              {/* Vibe */}
+              <span className="w-12 flex-shrink-0 text-center text-[10px] text-muted-foreground truncate" title={v.label?.includes("styled") ? "Styled" : ""}>
+                {v.label?.includes("styled") ? "Yes" : "--"}
               </span>
 
               {/* Age */}
@@ -141,6 +144,24 @@ export function VersionsList({
             </div>
           );
         })}
+
+        {/* Empty placeholder rows */}
+        {Array.from({ length: emptyCount }).map((_, i) => (
+          <div
+            key={`empty-${i}`}
+            className="flex items-center h-8 px-3 border-b border-border/30 text-xs border-l-2 border-l-transparent"
+          >
+            <span className="w-5 flex-shrink-0 flex items-center justify-center">
+              <span className="w-1.5 h-1.5 rounded-full bg-border/20" />
+            </span>
+            <span className="flex-1 min-w-0 text-muted-foreground/20 font-mono">--</span>
+            <span className="w-16 flex-shrink-0 text-center text-[10px] text-muted-foreground/20 font-mono">--</span>
+            <span className="w-12 flex-shrink-0 text-center text-[10px] text-muted-foreground/20 font-mono">--</span>
+            <span className="w-12 flex-shrink-0 text-center text-[10px] text-muted-foreground/20 font-mono">--</span>
+            <span className="w-10 flex-shrink-0 text-right text-[10px] text-muted-foreground/20 font-mono">--</span>
+            <span className="w-14 flex-shrink-0" />
+          </div>
+        ))}
       </div>
     </div>
   );
