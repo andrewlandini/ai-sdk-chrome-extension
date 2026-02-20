@@ -41,11 +41,8 @@ export function VersionsList({
 }: VersionsListProps) {
   if (versions.length === 0) {
     return (
-      <div className="rounded-lg border border-border bg-surface-1 px-4 py-10 text-center">
-        <p className="text-sm text-muted">No versions yet</p>
-        <p className="text-xs text-muted-foreground mt-1">
-          Adjust settings and click Generate Audio to create versions
-        </p>
+      <div className="rounded-md border border-dashed border-border px-4 py-3 text-center">
+        <p className="text-xs text-muted-foreground">No audio versions yet</p>
       </div>
     );
   }
