@@ -138,21 +138,29 @@ function HomePage() {
   const historyRef = useRef<HTMLDivElement>(null);
   const restoredRef = useRef(false);
 
-  // ── Restore session on mount (skip post selection if URL has ?post= param) ──
+  // ── Restore session on mount ──
   useEffect(() => {
     if (restoredRef.current) return;
     restoredRef.current = true;
     const s = loadSession();
     if (!s) return;
     const hasUrlParam = searchParams.get("post");
-    // Only restore post-specific state if there's no URL param (URL takes priority)
+    // URL param takes priority for post identity (scriptUrl/scriptTitle/script are set by the URL restore effect below).
+    // styledScript is only valid if the session's post matches the URL param post.
     if (!hasUrlParam) {
-      if (s.scriptUrl) setScriptUrl(s.scriptUrl);
+      if (s.scriptUrl) {
+        setScriptUrl(s.scriptUrl);
+        // Sync URL bar to match restored post
+        router.replace(`?post=${encodeURIComponent(slugFromUrl(s.scriptUrl))}`, { scroll: false });
+      }
       if (s.scriptTitle) setScriptTitle(s.scriptTitle);
       if (s.script) setScript(s.script);
       if (s.styledScript) setStyledScript(s.styledScript);
+    } else {
+      // Only restore styledScript if it belongs to the same post
+      const sessionSlug = s.scriptUrl ? slugFromUrl(s.scriptUrl) : null;
+      if (sessionSlug === hasUrlParam && s.styledScript) setStyledScript(s.styledScript);
     }
-    // Always restore non-post state
     if (s.activeTab) setActiveTab(s.activeTab);
     if (s.voiceConfig) setVoiceConfig({ ...DEFAULT_VOICE_CONFIG, ...s.voiceConfig });
   }, [searchParams]);
