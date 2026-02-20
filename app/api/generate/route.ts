@@ -26,24 +26,21 @@ export async function POST(request: Request) {
       );
     }
 
-    // Build provider options for ElevenLabs voice settings
-    const providerOptions: Record<string, Record<string, unknown>> = {
-      elevenlabs: {},
-    };
-
-    if (stability !== undefined || similarityBoost !== undefined) {
-      providerOptions.elevenlabs.voiceSettings = {
-        ...(stability !== undefined && { stability }),
-        ...(similarityBoost !== undefined && { similarity_boost: similarityBoost }),
-      };
-    }
+    // Build ElevenLabs voice settings
+    const voiceSettings: Record<string, number> = {};
+    if (stability !== undefined) voiceSettings.stability = stability;
+    if (similarityBoost !== undefined) voiceSettings.similarity_boost = similarityBoost;
 
     // Generate speech with ElevenLabs
     const { audio } = await generateSpeech({
       model: elevenlabs.speech(modelId),
       text: summary,
       voice: voiceId,
-      providerOptions,
+      ...(Object.keys(voiceSettings).length > 0 && {
+        providerOptions: {
+          elevenlabs: { voiceSettings },
+        },
+      }),
     });
 
     // Upload to Vercel Blob
