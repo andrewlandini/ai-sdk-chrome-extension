@@ -120,12 +120,49 @@ export function GeneratorView({
             label: voiceConfig.label ? `${voiceConfig.label} (styled)` : "styled",
           }),
         });
-        const data = await response.json();
-        if (!response.ok) throw new Error(data.error || "Failed to generate audio");
-        onActiveEntryChange(data.entry);
-        onAutoplayChange(true);
-        mutateHistory();
-        mutateVersions();
+
+        if (!response.ok) {
+          let errorMsg = "Failed to generate audio";
+          try { const data = await response.json(); errorMsg = data.error || errorMsg; } catch { /* not JSON */ }
+          throw new Error(errorMsg);
+        }
+
+        // Read NDJSON stream
+        const reader = response.body?.getReader();
+        const decoder = new TextDecoder();
+        let buffer = "";
+        let finalEntry = null;
+
+        if (reader) {
+          while (true) {
+            const { done, value } = await reader.read();
+            if (done) break;
+            buffer += decoder.decode(value, { stream: true });
+            const lines = buffer.split("\n");
+            buffer = lines.pop() || "";
+            for (const line of lines) {
+              if (!line.trim()) continue;
+              try {
+                const event = JSON.parse(line);
+                if (event.type === "done") {
+                  finalEntry = event.entry;
+                } else if (event.type === "error") {
+                  throw new Error(event.error);
+                }
+              } catch (parseErr) {
+                if (parseErr instanceof SyntaxError) continue;
+                throw parseErr;
+              }
+            }
+          }
+        }
+
+        if (finalEntry) {
+          onActiveEntryChange(finalEntry);
+          onAutoplayChange(true);
+          mutateHistory();
+          mutateVersions();
+        }
       } catch (err) {
         setError(err instanceof Error ? err.message : "An unexpected error occurred");
       } finally {

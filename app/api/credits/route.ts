@@ -36,9 +36,9 @@ export async function GET(request: Request) {
     }
   }
 
-  // Otherwise read from Neon cache
+  // Read from Neon cache
   const cached = await getCachedCredits();
-  if (cached) {
+  if (cached && cached.characterLimit > 0) {
     return Response.json({
       tier: cached.tier,
       characterCount: cached.characterCount,
@@ -47,10 +47,10 @@ export async function GET(request: Request) {
     });
   }
 
-  // First load fallback: fetch from ElevenLabs and seed the cache
+  // Cache is empty/placeholder -- fetch from ElevenLabs and seed the cache
   const live = await fetchFromElevenLabs();
   if (live) {
-    await upsertCachedCredits(live);
+    await upsertCachedCredits(live).catch(() => {});
     return Response.json(live);
   }
 
