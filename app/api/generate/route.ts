@@ -1,7 +1,7 @@
 import { experimental_generateSpeech as generateSpeech } from "ai";
 import { elevenlabs } from "@ai-sdk/elevenlabs";
 import { put } from "@vercel/blob";
-import { insertBlogAudio } from "@/lib/db";
+import { insertBlogAudio, getAudioIdByUrl, getGenerationCountByUrl } from "@/lib/db";
 
 export const maxDuration = 300;
 
@@ -149,17 +149,16 @@ export async function POST(request: Request) {
     // Concatenate chunks, stripping duplicate MP3 headers from chunks 2+
     const finalAudio = concatMp3Buffers(audioBuffers);
 
-    // Upload to Vercel Blob with human-readable filenames
-    const date = new Date().toISOString().slice(0, 10); // 2026-02-19
-    const slug = (title || "untitled")
+    // Upload to Vercel Blob with slug-based filenames
+    const postSlug = await getAudioIdByUrl(url);
+    const genCount = await getGenerationCountByUrl(url);
+    const genNum = String(genCount + 1).padStart(3, "0"); // 001, 002, etc.
+    const slug = postSlug || (title || "untitled")
       .toLowerCase()
       .substring(0, 60)
       .replace(/[^a-z0-9]+/g, "-")
       .replace(/(^-|-$)/g, "");
-    const voiceName = (VOICE_MAP[voiceId] || "unknown").toLowerCase();
-    const versionLabel = label || `v${Date.now()}`;
-    const safeLabelSlug = versionLabel.toLowerCase().replace(/[^a-z0-9]+/g, "-").replace(/(^-|-$)/g, "");
-    const filename = `blog-audio/${date}/${slug}--${voiceName}--${safeLabelSlug}.mp3`;
+    const filename = `blog-audio/${slug}-gen-${genNum}.mp3`;
     const blob = await put(filename, finalAudio, {
       access: "public",
       contentType: "audio/mpeg",

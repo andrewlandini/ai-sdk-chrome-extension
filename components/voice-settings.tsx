@@ -345,7 +345,7 @@ export function VoiceSettings({ config, onChange }: VoiceSettingsProps) {
         {/* Voice */}
         <fieldset className="flex flex-col gap-2">
           <legend className="text-xs text-muted font-medium">Voice</legend>
-          <div className="grid grid-cols-2 gap-1">
+          <div className="flex flex-col gap-0.5">
             {VOICES.map((v) => {
               const isSelected = config.voiceId === v.id;
               const isPlaying = playingVoiceId === v.id;
@@ -354,13 +354,13 @@ export function VoiceSettings({ config, onChange }: VoiceSettingsProps) {
               return (
                 <div
                   key={v.id}
-                  className={`group flex items-center h-9 rounded-md transition-all ${
+                  className={`group flex items-center h-8 rounded-md transition-all ${
                     isSelected
-                      ? "bg-foreground text-background"
-                      : "bg-surface-2 text-muted border border-transparent hover:text-foreground hover:border-border-hover"
+                      ? "bg-accent/15 border border-accent/30"
+                      : "hover:bg-surface-2"
                   }`}
                 >
-                  {/* Preview button on the left */}
+                  {/* Preview button */}
                   <button
                     onClick={(e) => {
                       e.stopPropagation();
@@ -370,19 +370,19 @@ export function VoiceSettings({ config, onChange }: VoiceSettingsProps) {
                     disabled={!hasPreview}
                     className={`flex items-center justify-center w-8 h-full flex-shrink-0 rounded-l-md transition-colors focus-ring ${
                       !hasPreview
-                        ? "opacity-0 cursor-default"
+                        ? "text-muted-foreground/20 cursor-default"
                         : isPlaying
-                          ? isSelected ? "text-background" : "text-accent"
-                          : isSelected ? "text-background/70 hover:text-background" : "text-foreground/60 hover:text-foreground"
+                          ? "text-accent"
+                          : "text-muted-foreground hover:text-foreground"
                     }`}
                   >
                     {isPlaying ? (
-                      <svg width="10" height="10" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true">
+                      <svg width="11" height="11" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true">
                         <rect x="6" y="4" width="4" height="16" rx="1" />
                         <rect x="14" y="4" width="4" height="16" rx="1" />
                       </svg>
                     ) : (
-                      <svg width="10" height="10" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true">
+                      <svg width="11" height="11" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true">
                         <polygon points="5 3 19 12 5 21 5 3" />
                       </svg>
                     )}
@@ -391,10 +391,10 @@ export function VoiceSettings({ config, onChange }: VoiceSettingsProps) {
                   <button
                     onClick={() => update({ voiceId: v.id })}
                     aria-pressed={isSelected}
-                    className="flex-1 min-w-0 flex items-center justify-between pr-3 py-1.5 text-left focus-ring rounded-r-md h-full"
+                    className="flex-1 min-w-0 flex items-center gap-3 pr-3 py-1 text-left focus-ring rounded-r-md h-full"
                   >
-                    <span className="text-xs font-medium truncate">{v.name}</span>
-                    <span className={`text-[10px] flex-shrink-0 ml-2 ${isSelected ? "text-background/60" : "text-muted-foreground"}`}>{v.desc}</span>
+                    <span className={`text-xs font-medium ${isSelected ? "text-accent" : "text-foreground"}`}>{v.name}</span>
+                    <span className="text-[10px] text-muted-foreground">{v.desc}</span>
                   </button>
                 </div>
               );
@@ -402,10 +402,6 @@ export function VoiceSettings({ config, onChange }: VoiceSettingsProps) {
           </div>
         </fieldset>
 
-        {/* v3 info */}
-        <p className="text-[10px] text-muted-foreground leading-relaxed">
-          Eleven v3 with built-in text normalization. 5,000 char limit per chunk, auto-split.
-        </p>
       </div>
     </section>
   );
