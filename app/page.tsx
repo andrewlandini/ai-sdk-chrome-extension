@@ -383,35 +383,35 @@ export default function HomePage() {
                   </div>
                 )}
 
-                {/* Bottom: style agent (fixed) */}
-                <div className="flex-shrink-0 px-5 py-3 mt-auto">
+                {/* Bottom: style agent + versions (pinned) */}
+                <div className="flex-shrink-0 px-5 py-3 mt-auto border-t border-border flex flex-col gap-3">
                   <StyleAgent
                     sourceScript={script}
                     onUseStyledScript={setScript}
                     isGeneratingAudio={isGenerating}
                     onGenerateAudio={handleGenerateFromStyled}
                   />
+
+                  {/* Versions list */}
+                  {scriptUrl && versions.length > 0 && (
+                    <div className="border-t border-border pt-3">
+                      <VersionsList
+                        versions={versions}
+                        activeId={activeEntry?.id ?? null}
+                        onSelect={handleSelectVersion}
+                        onDelete={handleDeleteVersion}
+                      />
+                    </div>
+                  )}
                 </div>
               </>
             )}
           </div>
 
-          {/* Voice settings + versions panel */}
+          {/* Voice settings panel */}
           <aside className="w-full lg:w-[380px] flex-shrink-0 border-t lg:border-t-0 lg:border-l border-border overflow-y-auto bg-surface-1">
-            <div className="p-4 flex flex-col gap-4">
+            <div className="p-4">
               <VoiceSettings config={voiceConfig} onChange={setVoiceConfig} />
-
-              {/* Versions list */}
-              {scriptUrl && (
-                <div className="border-t border-border pt-4">
-                  <VersionsList
-                    versions={versions}
-                    activeId={activeEntry?.id ?? null}
-                    onSelect={handleSelectVersion}
-                    onDelete={handleDeleteVersion}
-                  />
-                </div>
-              )}
             </div>
           </aside>
         </div>
