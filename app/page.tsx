@@ -86,6 +86,7 @@ export default function HomePage() {
   const [styledScript, setStyledScript] = useState("");
   const [isGenerating, setIsGenerating] = useState(false);
   const [isSummarizing, setIsSummarizing] = useState(false);
+  const summarizeAbortRef = useRef<AbortController | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [voiceConfig, setVoiceConfig] = useState<VoiceConfig>(DEFAULT_VOICE_CONFIG);
   const [styleHistory, setStyleHistory] = useState<StyleHistoryEntry[]>([]);
@@ -121,12 +122,13 @@ export default function HomePage() {
   // Helper: stream summarize API and progressively build script text
   const streamSummarize = useCallback(async (
     url: string,
-    options: { onDelta?: (accumulated: string) => void } = {}
+    options: { signal?: AbortSignal; onDelta?: (accumulated: string) => void } = {}
   ): Promise<{ title: string; summary: string; url: string }> => {
     const response = await fetch("/api/summarize", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({ url }),
+      signal: options.signal,
     });
 
     if (!response.ok) {
@@ -155,11 +157,14 @@ export default function HomePage() {
 
   const handleGenerateScript = useCallback(async () => {
     if (!scriptUrl) return;
+    const abortController = new AbortController();
+    summarizeAbortRef.current = abortController;
     setIsSummarizing(true);
     setScript("");
     setError(null);
     try {
       const result = await streamSummarize(scriptUrl, {
+        signal: abortController.signal,
         onDelta: (text) => setScript(text),
       });
       setScript(result.summary);
@@ -167,8 +172,13 @@ export default function HomePage() {
       setScriptUrl(result.url);
       mutateVersions();
     } catch (err) {
-      setError(err instanceof Error ? err.message : "An unexpected error occurred");
+      if (err instanceof DOMException && err.name === "AbortError") {
+        // User stopped generation -- keep whatever text streamed so far
+      } else {
+        setError(err instanceof Error ? err.message : "An unexpected error occurred");
+      }
     } finally {
+      summarizeAbortRef.current = null;
       setIsSummarizing(false);
     }
   }, [scriptUrl, mutateVersions, streamSummarize]);
@@ -245,6 +255,10 @@ export default function HomePage() {
     }
   }, [activeEntry, mutateHistory]);
 
+  const handleStopGenerating = useCallback(() => {
+    summarizeAbortRef.current?.abort();
+  }, []);
+
   const handleLoadScripts = useCallback(async () => {
     // Get all cached posts without scripts
     const res = await fetch("/api/history");
@@ -262,10 +276,13 @@ export default function HomePage() {
     const urlList = Array.from(uniqueUrls.entries());
     if (urlList.length === 0) return;
 
+    const abortController = new AbortController();
+    summarizeAbortRef.current = abortController;
     setLoadingScripts(true);
     setScriptProgress({ done: 0, total: urlList.length });
 
     for (let i = 0; i < urlList.length; i++) {
+      if (abortController.signal.aborted) break;
       const [url, title] = urlList[i];
       setScriptProgress({ done: i, total: urlList.length, currentTitle: title });
 
@@ -276,6 +293,7 @@ export default function HomePage() {
 
       try {
         const result = await streamSummarize(url, {
+          signal: abortController.signal,
           onDelta: (text) => setScript(text),
         });
 
@@ -289,11 +307,13 @@ export default function HomePage() {
         setScript(result.summary);
         mutateHistory();
       } catch (err) {
+        if (err instanceof DOMException && err.name === "AbortError") break;
         console.error(`Failed to load script for ${url}:`, err);
       }
       setScriptProgress({ done: i + 1, total: urlList.length });
     }
 
+    summarizeAbortRef.current = null;
     setLoadingScripts(false);
     mutateHistory();
   }, [mutateHistory, streamSummarize]);
@@ -317,31 +337,27 @@ export default function HomePage() {
         {/* Spacer to push right items */}
         <div className="flex-1" />
 
-        <button
-          onClick={handleLoadScripts}
-          disabled={loadingScripts}
-          className="flex items-center gap-1.5 text-xs text-muted hover:text-foreground transition-colors focus-ring rounded px-2 py-1.5 disabled:opacity-50 disabled:cursor-not-allowed flex-shrink-0"
-        >
-          {loadingScripts ? (
-            <>
-              <svg className="animate-spin" width="13" height="13" viewBox="0 0 24 24" fill="none" aria-hidden="true">
-                <circle cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="2" strokeOpacity="0.2" />
-                <path d="M12 2a10 10 0 0 1 10 10" stroke="currentColor" strokeWidth="2" strokeLinecap="round" />
-              </svg>
-              <span className="font-mono tabular-nums">{scriptProgress.done}/{scriptProgress.total}</span>
-              {scriptProgress.currentTitle && (
-                <span className="text-muted truncate max-w-[200px]">{scriptProgress.currentTitle}</span>
-              )}
-            </>
-          ) : (
-            <>
-              <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" aria-hidden="true">
-                <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4M7 10l5 5 5-5M12 15V3" />
-              </svg>
-              <span>Load Scripts</span>
-            </>
-          )}
-        </button>
+        {loadingScripts ? (
+          <button
+            onClick={handleStopGenerating}
+            className="flex items-center gap-1.5 text-xs text-red-400 hover:text-red-300 transition-colors focus-ring rounded px-2 py-1.5 flex-shrink-0"
+          >
+            <svg width="11" height="11" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true">
+              <rect x="4" y="4" width="16" height="16" rx="2" />
+            </svg>
+            <span>Stop ({scriptProgress.done}/{scriptProgress.total})</span>
+          </button>
+        ) : (
+          <button
+            onClick={handleLoadScripts}
+            className="flex items-center gap-1.5 text-xs text-muted hover:text-foreground transition-colors focus-ring rounded px-2 py-1.5 flex-shrink-0"
+          >
+            <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" aria-hidden="true">
+              <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4M7 10l5 5 5-5M12 15V3" />
+            </svg>
+            <span>Load Scripts</span>
+          </button>
+        )}
 
         <button
           onClick={() => setPromptEditorOpen(true)}
@@ -408,23 +424,29 @@ export default function HomePage() {
                 <span className="text-sm font-semibold tracking-tight">Content</span>
                 <span className="text-[10px] font-mono text-accent bg-accent/10 px-1.5 py-0.5 rounded">Source</span>
               </div>
-              {script && scriptUrl && (
-                <button
-                  onClick={handleGenerateScript}
-                  disabled={isSummarizing}
-                  className="flex items-center gap-1.5 text-xs text-muted hover:text-foreground transition-colors focus-ring rounded px-2 py-1 disabled:opacity-50 disabled:cursor-not-allowed flex-shrink-0"
-                >
-                  {isSummarizing ? (
-                    <>
-                      <svg className="animate-spin" width="11" height="11" viewBox="0 0 24 24" fill="none" aria-hidden="true">
-                        <circle cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="2" strokeOpacity="0.2" />
-                        <path d="M12 2a10 10 0 0 1 10 10" stroke="currentColor" strokeWidth="2" strokeLinecap="round" />
-                      </svg>
-                      <span>Regenerating...</span>
-                    </>
-                  ) : (
-                    <span>Regenerate</span>
-                  )}
+              {script && scriptUrl && !isSummarizing && !loadingScripts && (
+              <button
+                onClick={handleGenerateScript}
+                className="flex items-center gap-1.5 text-xs text-muted hover:text-foreground transition-colors focus-ring rounded px-2 py-1 flex-shrink-0"
+              >
+                <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" aria-hidden="true">
+                  <path d="M1 4v6h6M23 20v-6h-6" />
+                  <path d="M20.49 9A9 9 0 0 0 5.64 5.64L1 10m22 4l-4.64 4.36A9 9 0 0 1 3.51 15" />
+                </svg>
+                <span>Regenerate</span>
+              </button>
+              )}
+              {(isSummarizing || loadingScripts) && (
+              <button
+                onClick={handleStopGenerating}
+                className="flex items-center gap-1.5 text-xs text-red-400 hover:text-red-300 transition-colors focus-ring rounded px-2 py-1 flex-shrink-0"
+              >
+                <svg width="11" height="11" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true">
+                  <rect x="4" y="4" width="16" height="16" rx="2" />
+                </svg>
+                <span>Stop</span>
+              </button>
+              )}
                 </button>
               )}
             </div>
@@ -474,11 +496,20 @@ export default function HomePage() {
                     </svg>
                   </div>
                   <p className="text-sm text-muted">
-                    {loadingScripts && scriptProgress.currentTitle
-                      ? `Generating script for "${scriptProgress.currentTitle}"...`
-                      : "Generating script from blog post..."}
-                  </p>
-                </div>
+              {loadingScripts && scriptProgress.currentTitle
+                ? `Generating script for "${scriptProgress.currentTitle}"...`
+                : "Generating script from blog post..."}
+              </p>
+              <button
+                onClick={handleStopGenerating}
+                className="flex items-center gap-1.5 text-xs text-red-400 hover:text-red-300 transition-colors focus-ring rounded px-2.5 py-1.5 border border-red-500/20 hover:border-red-500/40"
+              >
+                <svg width="11" height="11" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true">
+                  <rect x="4" y="4" width="16" height="16" rx="2" />
+                </svg>
+                <span>Stop generating</span>
+              </button>
+              </div>
               )}
 
               {/* No post selected */}
