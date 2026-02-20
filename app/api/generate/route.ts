@@ -173,7 +173,7 @@ export async function POST(request: Request) {
       voice_id: voiceId,
       model_id: MODEL,
       stability,
-      label: versionLabel,
+      label: label || `gen-${genNum}`,
     });
 
     return Response.json({
