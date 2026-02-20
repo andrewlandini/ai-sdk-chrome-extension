@@ -435,6 +435,7 @@ function HomePage() {
               } else if (event.type === "done") {
                 finalEntry = event.entry;
               } else if (event.type === "error") {
+                console.error("[v0] Stream error event:", event);
                 throw new Error(event.error);
               }
             } catch (parseErr) {

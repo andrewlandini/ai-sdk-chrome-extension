@@ -267,9 +267,20 @@ export async function POST(request: Request) {
         });
 
         controller.close();
-      } catch (error) {
+      } catch (error: unknown) {
         console.error("[v0] Generate error:", error);
-        console.error("[v0] Generate error details:", JSON.stringify(error, Object.getOwnPropertyNames(error as object)));
+        // Log all available properties including cause, response body, status code
+        if (error instanceof Error) {
+          console.error("[v0] Error name:", error.name, "message:", error.message);
+          console.error("[v0] Error cause:", (error as Error & { cause?: unknown }).cause);
+          console.error("[v0] Error stack:", error.stack);
+          // Some AI SDK errors have responseBody or data
+          const errAny = error as Record<string, unknown>;
+          if (errAny.responseBody) console.error("[v0] Response body:", errAny.responseBody);
+          if (errAny.data) console.error("[v0] Error data:", errAny.data);
+          if (errAny.statusCode) console.error("[v0] Status code:", errAny.statusCode);
+          if (errAny.url) console.error("[v0] Request URL:", errAny.url);
+        }
         const message =
           error instanceof Error ? error.message : "An unexpected error occurred";
         await updateGenerationJob(job.id, { status: "error", message }).catch(() => {});
