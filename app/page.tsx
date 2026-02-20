@@ -17,8 +17,8 @@ const fetcher = (url: string) => fetch(url).then((r) => r.json());
 type Tab = "url" | "catalog";
 
 const DEFAULT_VOICE_CONFIG: VoiceConfig = {
-  voiceId: "JBFqnCBsd6RMkjVDRZzb",
-  modelId: "eleven_flash_v2_5",
+  voiceId: "TX3LPaxmHKxFdv7VOQHJ",
+  modelId: "eleven_v3",
   stability: 0.5,
   similarityBoost: 0.75,
   label: "",

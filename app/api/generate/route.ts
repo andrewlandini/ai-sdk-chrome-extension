@@ -3,7 +3,45 @@ import { elevenlabs } from "@ai-sdk/elevenlabs";
 import { put } from "@vercel/blob";
 import { insertBlogAudio } from "@/lib/db";
 
-export const maxDuration = 60;
+export const maxDuration = 120;
+
+/**
+ * Enhance text for TTS: write out numbers, symbols, and notation
+ * so the model pronounces them correctly. This mirrors ElevenLabs'
+ * UI-side normalization step.
+ */
+function enhanceText(text: string): string {
+  let enhanced = text;
+
+  // Currency symbols to words (before number processing)
+  enhanced = enhanced.replace(/\$\s?([\d,]+(?:\.\d+)?)/g, (_, n) => `${n} dollars`);
+  enhanced = enhanced.replace(/\u00a3\s?([\d,]+(?:\.\d+)?)/g, (_, n) => `${n} pounds`);
+  enhanced = enhanced.replace(/\u20ac\s?([\d,]+(?:\.\d+)?)/g, (_, n) => `${n} euros`);
+  enhanced = enhanced.replace(/\u00a5\s?([\d,]+(?:\.\d+)?)/g, (_, n) => `${n} yen`);
+
+  // Percentage
+  enhanced = enhanced.replace(/([\d,.]+)\s?%/g, "$1 percent");
+
+  // Common abbreviations
+  enhanced = enhanced.replace(/\betc\./gi, "etcetera");
+  enhanced = enhanced.replace(/\be\.g\./gi, "for example");
+  enhanced = enhanced.replace(/\bi\.e\./gi, "that is");
+  enhanced = enhanced.replace(/\bvs\./gi, "versus");
+  enhanced = enhanced.replace(/\bw\//gi, "with");
+
+  // URLs - simplify for speech
+  enhanced = enhanced.replace(/https?:\/\/(?:www\.)?([^\s/]+)(?:\/[^\s]*)?/g, (_, domain) => domain);
+
+  // Arrows and symbols
+  enhanced = enhanced.replace(/=>/g, "arrow");
+  enhanced = enhanced.replace(/->/g, "to");
+  enhanced = enhanced.replace(/\.\.\./g, "...");
+
+  // Clean up extra whitespace
+  enhanced = enhanced.replace(/\s{2,}/g, " ").trim();
+
+  return enhanced;
+}
 
 export async function POST(request: Request) {
   try {
@@ -12,8 +50,8 @@ export async function POST(request: Request) {
       url,
       title,
       summary,
-      voiceId = "JBFqnCBsd6RMkjVDRZzb",
-      modelId = "eleven_flash_v2_5",
+      voiceId = "TX3LPaxmHKxFdv7VOQHJ",
+      modelId = "eleven_v3",
       stability,
       similarityBoost,
       label,
@@ -26,15 +64,24 @@ export async function POST(request: Request) {
       );
     }
 
-    // Build ElevenLabs voice settings
+    const isV3 = modelId === "eleven_v3";
+
+    // Always enhance the text before sending to ElevenLabs
+    const processedText = enhanceText(summary);
+
+    // Build voice settings based on model
     const voiceSettings: Record<string, number> = {};
     if (stability !== undefined) voiceSettings.stability = stability;
-    if (similarityBoost !== undefined) voiceSettings.similarity_boost = similarityBoost;
+
+    // v3 only uses stability; older models also use similarity_boost
+    if (!isV3 && similarityBoost !== undefined) {
+      voiceSettings.similarity_boost = similarityBoost;
+    }
 
     // Generate speech with ElevenLabs
     const { audio } = await generateSpeech({
       model: elevenlabs.speech(modelId),
-      text: summary,
+      text: processedText,
       voice: voiceId,
       ...(Object.keys(voiceSettings).length > 0 && {
         providerOptions: {
@@ -62,7 +109,7 @@ export async function POST(request: Request) {
       voice_id: voiceId,
       model_id: modelId,
       stability,
-      similarity_boost: similarityBoost,
+      similarity_boost: isV3 ? null : similarityBoost,
       label: versionLabel,
     });
 
