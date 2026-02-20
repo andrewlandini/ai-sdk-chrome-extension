@@ -72,6 +72,8 @@ export default function HomePage() {
   const { data: credits } = useSWR<CreditsData>("/api/credits", fetcher, { refreshInterval: 30000 });
   const creditsPercent = credits ? Math.round((credits.characterCount / credits.characterLimit) * 100) : 0;
   const [promptEditorOpen, setPromptEditorOpen] = useState(false);
+  const [sidebarOpen, setSidebarOpen] = useState(false);
+  const [activeTab, setActiveTab] = useState<"content" | "voiceover" | "settings">("content");
   const [loadingScripts, setLoadingScripts] = useState(false);
   const [scriptProgress, setScriptProgress] = useState<{ done: number; total: number; currentTitle?: string }>({ done: 0, total: 0 });
 
@@ -111,6 +113,11 @@ export default function HomePage() {
     setScriptTitle(title);
     setError(null);
     setActiveEntry(null);
+    setStyledScript("");
+    setStyleHistory([]);
+    setSelectedHistoryScript(null);
+    setAutoplay(false);
+    setSidebarOpen(false);
     advanceName();
 
     // Check if there's a cached script for this post
@@ -319,16 +326,27 @@ export default function HomePage() {
   }, [mutateHistory, streamSummarize]);
 
   return (
-    <div className="h-screen flex flex-col overflow-hidden">
+    <div className="h-screen flex flex-col overflow-hidden min-w-[320px]">
       {/* ── Top bar ── */}
-      <header className="h-12 border-b border-border flex items-center px-4 flex-shrink-0 bg-background z-10 gap-4">
+      <header className="h-12 border-b border-border flex items-center px-3 sm:px-4 flex-shrink-0 bg-background z-10 gap-2 sm:gap-4">
+        {/* Mobile hamburger */}
+        <button
+          onClick={() => setSidebarOpen(true)}
+          className="md:hidden flex items-center justify-center w-8 h-8 rounded-md text-muted hover:text-foreground transition-colors focus-ring flex-shrink-0"
+          aria-label="Open blog posts"
+        >
+          <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" aria-hidden="true">
+            <path d="M3 12h18M3 6h18M3 18h18" />
+          </svg>
+        </button>
+
         <div className="flex items-center gap-3 flex-shrink-0">
           <svg height="16" viewBox="0 0 76 65" fill="currentColor" aria-hidden="true">
             <path d="M37.5274 0L75.0548 65H0L37.5274 0Z" />
           </svg>
           <span className="text-border select-none" aria-hidden="true">/</span>
           <span
-            className={`text-sm font-medium transition-opacity duration-150 ${nameFading ? "opacity-0" : "opacity-100"}`}
+            className={`text-sm font-medium transition-opacity duration-150 hidden sm:inline ${nameFading ? "opacity-0" : "opacity-100"}`}
           >
             {productName}
           </span>
@@ -345,7 +363,8 @@ export default function HomePage() {
             <svg width="11" height="11" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true">
               <rect x="4" y="4" width="16" height="16" rx="2" />
             </svg>
-            <span>Stop ({scriptProgress.done}/{scriptProgress.total})</span>
+            <span className="hidden sm:inline">Stop</span>
+            <span>({scriptProgress.done}/{scriptProgress.total})</span>
           </button>
         ) : (
           <button
@@ -355,7 +374,7 @@ export default function HomePage() {
             <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" aria-hidden="true">
               <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4M7 10l5 5 5-5M12 15V3" />
             </svg>
-            <span>Load Scripts</span>
+            <span className="hidden sm:inline">Load Scripts</span>
           </button>
         )}
 
@@ -366,13 +385,13 @@ export default function HomePage() {
           <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" aria-hidden="true">
             <path d="M12 20h9M16.5 3.5a2.121 2.121 0 0 1 3 3L7 19l-4 1 1-4L16.5 3.5z" />
           </svg>
-          <span>Prompts</span>
+          <span className="hidden sm:inline">Prompts</span>
         </button>
 
         {/* Credits */}
         {credits && (
           <div className="flex items-center gap-2 flex-shrink-0 ml-1">
-            <div className="w-20 h-1.5 rounded-full bg-surface-3 overflow-hidden">
+            <div className="w-16 sm:w-20 h-1.5 rounded-full bg-surface-3 overflow-hidden">
               <div
                 className={`h-full rounded-full transition-all ${
                   creditsPercent > 90 ? "bg-red-500" : creditsPercent > 70 ? "bg-amber-500" : "bg-accent"
@@ -380,18 +399,76 @@ export default function HomePage() {
                 style={{ width: `${creditsPercent}%` }}
               />
             </div>
-            <span className="text-[10px] text-muted font-mono tabular-nums">
+            <span className="text-[10px] text-muted font-mono tabular-nums hidden sm:inline">
               {credits.characterCount.toLocaleString()}/{credits.characterLimit.toLocaleString()}
             </span>
           </div>
         )}
       </header>
 
+      {/* ── Mobile sidebar drawer ── */}
+      {sidebarOpen && (
+        <>
+          <div className="fixed inset-0 bg-black/50 z-40 md:hidden" onClick={() => setSidebarOpen(false)} />
+          <aside className="fixed inset-y-0 left-0 w-[85vw] max-w-[400px] z-50 md:hidden bg-surface-1 border-r border-border flex flex-col overflow-hidden">
+            <div className="flex items-center justify-between px-3 py-2 border-b border-border flex-shrink-0">
+              <div className="flex items-center gap-2">
+                <span className="text-sm font-semibold tracking-tight">Blog Posts</span>
+                <span className="text-[10px] font-mono text-accent bg-accent/10 px-1.5 py-0.5 rounded">{entries.length}</span>
+              </div>
+              <button
+                onClick={() => setSidebarOpen(false)}
+                className="p-1 text-muted hover:text-foreground transition-colors focus-ring rounded"
+                aria-label="Close sidebar"
+              >
+                <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" aria-hidden="true">
+                  <path d="M18 6L6 18M6 6l12 12" />
+                </svg>
+              </button>
+            </div>
+            <div className="flex-1 min-h-0 overflow-hidden">
+              <PostsList
+                entries={entries}
+                selectedUrl={scriptUrl}
+                activeId={activeEntry?.id ?? null}
+                onSelect={handleSelectPost}
+                onPlay={handlePlayFromList}
+                onDelete={handleDeleteEntry}
+              />
+            </div>
+            <div className="flex-shrink-0 border-t border-border px-3 py-2">
+              <AddPostInput mutateHistory={mutateHistory} />
+            </div>
+          </aside>
+        </>
+      )}
+
+      {/* ── Mobile tab bar ── */}
+      <div className="flex md:hidden border-b border-border flex-shrink-0 bg-background">
+        {([
+          { id: "content" as const, label: "Content" },
+          { id: "voiceover" as const, label: "Voice Over" },
+          { id: "settings" as const, label: "Settings" },
+        ]).map((tab) => (
+          <button
+            key={tab.id}
+            onClick={() => setActiveTab(tab.id)}
+            className={`flex-1 py-2.5 text-xs font-medium text-center transition-colors ${
+              activeTab === tab.id
+                ? "text-foreground border-b-2 border-accent"
+                : "text-muted hover:text-foreground"
+            }`}
+          >
+            {tab.label}
+          </button>
+        ))}
+      </div>
+
       {/* ── Main layout: sidebar + workspace ── */}
       <div className="flex-1 flex overflow-hidden">
 
-        {/* Fixed posts sidebar */}
-        <aside className="hidden md:flex w-[640px] flex-shrink-0 border-r border-border bg-surface-1 flex-col overflow-hidden">
+        {/* Fixed posts sidebar -- desktop */}
+        <aside className="hidden md:flex md:w-[280px] lg:w-[400px] xl:w-[640px] flex-shrink-0 border-r border-border bg-surface-1 flex-col overflow-hidden">
           <div className="flex items-center justify-between px-3 py-2 border-b border-border flex-shrink-0">
             <div className="flex items-center gap-2">
               <span className="text-sm font-semibold tracking-tight">Blog Posts</span>
@@ -418,7 +495,7 @@ export default function HomePage() {
         <div className="flex-1 min-w-0 flex flex-col lg:flex-row overflow-hidden">
 
           {/* Content column -- full height, verbatim blog script */}
-          <div className="flex-1 min-w-0 flex flex-col overflow-hidden border-r border-border">
+          <div className={`flex-1 min-w-0 flex-col overflow-hidden border-r border-border ${activeTab === "content" ? "flex" : "hidden md:flex"}`}>
             <div className="flex items-center justify-between px-3 py-2 border-b border-border flex-shrink-0">
               <div className="flex items-center gap-2">
                 <span className="text-sm font-semibold tracking-tight">Content</span>
@@ -446,8 +523,6 @@ export default function HomePage() {
                 </svg>
                 <span>Stop</span>
               </button>
-              )}
-                </button>
               )}
             </div>
             <div className="flex-1 min-h-0 overflow-y-auto">
@@ -541,10 +616,10 @@ export default function HomePage() {
           </div>
 
           {/* Right side: (Voice Over + Versions) | Voice Settings */}
-          <div className="flex-[2] min-w-0 flex flex-col lg:flex-row overflow-hidden">
+          <div className={`flex-[2] min-w-0 flex-col lg:flex-row overflow-hidden ${activeTab !== "content" ? "flex" : "hidden md:flex"}`}>
 
             {/* Voice Over column + Audio Versions below */}
-            <div className="flex-1 min-w-0 flex flex-col overflow-hidden">
+            <div className={`flex-1 min-w-0 flex-col overflow-hidden ${activeTab === "voiceover" ? "flex" : "hidden md:flex"}`}>
               {/* Voice Over header */}
               <div className="flex items-center justify-between px-3 py-2 border-b border-border flex-shrink-0">
                 <div className="flex items-center gap-2">
@@ -709,7 +784,7 @@ export default function HomePage() {
             </div>
 
             {/* Voice Settings panel -- full height */}
-            <aside className="w-full lg:w-[380px] flex-shrink-0 border-t lg:border-t-0 lg:border-l border-border flex flex-col overflow-hidden bg-surface-1">
+            <aside className={`w-full lg:w-[380px] flex-shrink-0 border-t lg:border-t-0 lg:border-l border-border flex-col overflow-hidden bg-surface-1 ${activeTab === "settings" ? "flex" : "hidden lg:flex"}`}>
               <div className="flex items-center justify-between px-3 py-2 border-b border-border flex-shrink-0">
                 <div className="flex items-center gap-2">
                   <span className="text-sm font-semibold tracking-tight">Voice Settings</span>
