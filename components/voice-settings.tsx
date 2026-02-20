@@ -5,9 +5,7 @@ import useSWR from "swr";
 
 export interface VoiceConfig {
   voiceId: string;
-  modelId: string;
   stability: number;
-  similarityBoost: number;
   label: string;
   testMode: boolean;
 }
@@ -16,9 +14,7 @@ interface VoicePreset {
   id: number;
   name: string;
   voice_id: string;
-  model_id: string;
   stability: number;
-  similarity_boost: number;
 }
 
 const VOICES = [
@@ -33,25 +29,10 @@ const VOICES = [
   { id: "XB0fDUnXU5powFXDhCwa", name: "Charlotte" },
 ];
 
-const MODELS = [
-  { id: "eleven_v3", name: "v3", tag: "Latest" },
-  { id: "eleven_flash_v2_5", name: "Flash v2.5", tag: "Fast" },
-  { id: "eleven_multilingual_v2", name: "Multi v2", tag: null },
-  { id: "eleven_turbo_v2_5", name: "Turbo v2.5", tag: null },
-  { id: "eleven_turbo_v2", name: "Turbo v2", tag: null },
-];
-
 const fetcher = (url: string) => fetch(url).then((r) => r.json());
 
 function getVoiceName(id: string) {
   return VOICES.find((v) => v.id === id)?.name ?? id;
-}
-function getModelName(id: string) {
-  return MODELS.find((m) => m.id === id)?.name ?? id;
-}
-
-function isV3(modelId: string) {
-  return modelId === "eleven_v3";
 }
 
 interface VoiceSettingsProps {
@@ -97,9 +78,9 @@ export function VoiceSettings({ config, onChange }: VoiceSettingsProps) {
         body: JSON.stringify({
           name: presetName.trim(),
           voice_id: config.voiceId,
-          model_id: config.modelId,
+          model_id: "eleven_v3",
           stability: config.stability,
-          similarity_boost: config.similarityBoost,
+          similarity_boost: 0,
         }),
       });
       setPresetName("");
@@ -114,9 +95,7 @@ export function VoiceSettings({ config, onChange }: VoiceSettingsProps) {
     onChange({
       ...config,
       voiceId: preset.voice_id,
-      modelId: preset.model_id,
       stability: preset.stability,
-      similarityBoost: preset.similarity_boost,
     });
   };
 
@@ -129,17 +108,20 @@ export function VoiceSettings({ config, onChange }: VoiceSettingsProps) {
     mutatePresets();
   };
 
-  const v3Active = isV3(config.modelId);
-
   return (
     <section
       className="rounded-lg border border-border bg-surface-1 overflow-hidden"
       aria-labelledby="voice-heading"
     >
       <div className="border-b border-border px-4 py-3 flex items-center justify-between">
-        <h2 id="voice-heading" className="text-sm font-medium text-foreground">
-          Voice Settings
-        </h2>
+        <div className="flex items-center gap-2">
+          <h2 id="voice-heading" className="text-sm font-medium text-foreground">
+            Voice Settings
+          </h2>
+          <span className="text-[10px] font-medium text-accent bg-accent/10 px-1.5 py-0.5 rounded">
+            v3
+          </span>
+        </div>
         <button
           onClick={() => update({ testMode: !config.testMode })}
           aria-pressed={config.testMode}
@@ -246,9 +228,7 @@ export function VoiceSettings({ config, onChange }: VoiceSettingsProps) {
               {presets.map((preset) => {
                 const isActive =
                   config.voiceId === preset.voice_id &&
-                  config.modelId === preset.model_id &&
-                  config.stability === preset.stability &&
-                  config.similarityBoost === preset.similarity_boost;
+                  config.stability === preset.stability;
 
                 return (
                   <div
@@ -267,7 +247,7 @@ export function VoiceSettings({ config, onChange }: VoiceSettingsProps) {
                         {preset.name}
                       </span>
                       <span className="block text-[10px] text-muted font-mono mt-0.5">
-                        {getVoiceName(preset.voice_id)} / {getModelName(preset.model_id)} / {preset.stability.toFixed(2)}{isV3(preset.model_id) ? "" : ` / ${preset.similarity_boost.toFixed(2)}`}
+                        {getVoiceName(preset.voice_id)} / stability {preset.stability.toFixed(2)}
                       </span>
                     </button>
                     <button
@@ -328,44 +308,9 @@ export function VoiceSettings({ config, onChange }: VoiceSettingsProps) {
           </div>
         </fieldset>
 
-        {/* Model */}
-        <fieldset className="flex flex-col gap-2">
-          <legend className="text-xs text-muted font-medium">Model</legend>
-          <div className="flex flex-wrap gap-1.5">
-            {MODELS.map((m) => (
-              <button
-                key={m.id}
-                onClick={() => update({ modelId: m.id })}
-                aria-pressed={config.modelId === m.id}
-                className={`h-8 px-3 rounded-md text-xs font-medium transition-all focus-ring flex items-center gap-1.5 ${
-                  config.modelId === m.id
-                    ? "bg-foreground text-background"
-                    : "bg-surface-2 text-muted border border-border hover:text-foreground hover:border-border-hover"
-                }`}
-              >
-                {m.name}
-                {m.tag && (
-                  <span className={`text-[9px] font-semibold uppercase px-1 py-0.5 rounded ${
-                    config.modelId === m.id
-                      ? "bg-background/20 text-background"
-                      : "bg-accent/10 text-accent"
-                  }`}>
-                    {m.tag}
-                  </span>
-                )}
-              </button>
-            ))}
-          </div>
-          {v3Active && (
-            <p className="text-[11px] text-muted mt-1">
-              Eleven v3 uses enhanced text normalization for numbers, symbols, and notation. Only stability is available.
-            </p>
-          )}
-        </fieldset>
-
         <hr className="border-border" />
 
-        {/* Stability */}
+        {/* Stability - Creative to Robust */}
         <fieldset className="flex flex-col gap-2">
           <div className="flex items-center justify-between">
             <label htmlFor="stability" className="text-xs text-muted font-medium">Stability</label>
@@ -384,36 +329,15 @@ export function VoiceSettings({ config, onChange }: VoiceSettingsProps) {
             className="focus-ring rounded"
           />
           <div className="flex justify-between text-[11px] text-muted-foreground">
-            <span>{v3Active ? "Creative" : "Variable"}</span>
-            <span>{v3Active ? "Robust" : "Stable"}</span>
+            <span>Creative</span>
+            <span>Robust</span>
           </div>
         </fieldset>
 
-        {/* Similarity Boost -- hidden for v3 */}
-        {!v3Active && (
-          <fieldset className="flex flex-col gap-2">
-            <div className="flex items-center justify-between">
-              <label htmlFor="similarity" className="text-xs text-muted font-medium">Similarity Boost</label>
-              <output className="text-xs text-foreground font-mono tabular-nums" htmlFor="similarity">
-                {config.similarityBoost.toFixed(2)}
-              </output>
-            </div>
-            <input
-              id="similarity"
-              type="range"
-              min="0"
-              max="1"
-              step="0.05"
-              value={config.similarityBoost}
-              onChange={(e) => update({ similarityBoost: parseFloat(e.target.value) })}
-              className="focus-ring rounded"
-            />
-            <div className="flex justify-between text-[11px] text-muted-foreground">
-              <span>Low</span>
-              <span>High</span>
-            </div>
-          </fieldset>
-        )}
+        {/* v3 info */}
+        <div className="text-[11px] text-muted bg-surface-2 rounded-md px-3 py-2 leading-relaxed">
+          Eleven v3 includes built-in text normalization. 5,000 char limit per chunk — longer scripts are automatically split and concatenated.
+        </div>
       </div>
     </section>
   );

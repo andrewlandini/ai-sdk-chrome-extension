@@ -3,44 +3,70 @@ import { elevenlabs } from "@ai-sdk/elevenlabs";
 import { put } from "@vercel/blob";
 import { insertBlogAudio } from "@/lib/db";
 
-export const maxDuration = 120;
+export const maxDuration = 300;
+
+const MODEL = "eleven_v3";
+const MAX_CHARS = 4800; // leave headroom under 5000 limit
 
 /**
- * Enhance text for TTS: write out numbers, symbols, and notation
- * so the model pronounces them correctly. This mirrors ElevenLabs'
- * UI-side normalization step.
+ * Split text into chunks at sentence boundaries, each under MAX_CHARS.
  */
-function enhanceText(text: string): string {
-  let enhanced = text;
+function chunkText(text: string): string[] {
+  if (text.length <= MAX_CHARS) return [text];
 
-  // Currency symbols to words (before number processing)
-  enhanced = enhanced.replace(/\$\s?([\d,]+(?:\.\d+)?)/g, (_, n) => `${n} dollars`);
-  enhanced = enhanced.replace(/\u00a3\s?([\d,]+(?:\.\d+)?)/g, (_, n) => `${n} pounds`);
-  enhanced = enhanced.replace(/\u20ac\s?([\d,]+(?:\.\d+)?)/g, (_, n) => `${n} euros`);
-  enhanced = enhanced.replace(/\u00a5\s?([\d,]+(?:\.\d+)?)/g, (_, n) => `${n} yen`);
+  const chunks: string[] = [];
+  let remaining = text;
 
-  // Percentage
-  enhanced = enhanced.replace(/([\d,.]+)\s?%/g, "$1 percent");
+  while (remaining.length > 0) {
+    if (remaining.length <= MAX_CHARS) {
+      chunks.push(remaining);
+      break;
+    }
 
-  // Common abbreviations
-  enhanced = enhanced.replace(/\betc\./gi, "etcetera");
-  enhanced = enhanced.replace(/\be\.g\./gi, "for example");
-  enhanced = enhanced.replace(/\bi\.e\./gi, "that is");
-  enhanced = enhanced.replace(/\bvs\./gi, "versus");
-  enhanced = enhanced.replace(/\bw\//gi, "with");
+    // Find last sentence boundary within limit
+    const slice = remaining.slice(0, MAX_CHARS);
+    let splitAt = -1;
 
-  // URLs - simplify for speech
-  enhanced = enhanced.replace(/https?:\/\/(?:www\.)?([^\s/]+)(?:\/[^\s]*)?/g, (_, domain) => domain);
+    // Try splitting at sentence endings: . ! ? followed by space/newline
+    for (let i = slice.length - 1; i >= Math.floor(MAX_CHARS * 0.5); i--) {
+      if (
+        (slice[i] === "." || slice[i] === "!" || slice[i] === "?") &&
+        (i + 1 >= slice.length || slice[i + 1] === " " || slice[i + 1] === "\n")
+      ) {
+        splitAt = i + 1;
+        break;
+      }
+    }
 
-  // Arrows and symbols
-  enhanced = enhanced.replace(/=>/g, "arrow");
-  enhanced = enhanced.replace(/->/g, "to");
-  enhanced = enhanced.replace(/\.\.\./g, "...");
+    // Fallback: split at last space
+    if (splitAt === -1) {
+      splitAt = slice.lastIndexOf(" ");
+    }
 
-  // Clean up extra whitespace
-  enhanced = enhanced.replace(/\s{2,}/g, " ").trim();
+    // Worst case: hard split
+    if (splitAt <= 0) {
+      splitAt = MAX_CHARS;
+    }
 
-  return enhanced;
+    chunks.push(remaining.slice(0, splitAt).trim());
+    remaining = remaining.slice(splitAt).trim();
+  }
+
+  return chunks;
+}
+
+/**
+ * Concatenate multiple audio buffers into one.
+ */
+function concatAudioBuffers(buffers: Buffer[]): Buffer {
+  const totalLength = buffers.reduce((sum, b) => sum + b.length, 0);
+  const result = Buffer.alloc(totalLength);
+  let offset = 0;
+  for (const buf of buffers) {
+    buf.copy(result, offset);
+    offset += buf.length;
+  }
+  return result;
 }
 
 export async function POST(request: Request) {
@@ -51,9 +77,7 @@ export async function POST(request: Request) {
       title,
       summary,
       voiceId = "TX3LPaxmHKxFdv7VOQHJ",
-      modelId = "eleven_v3",
       stability,
-      similarityBoost,
       label,
     } = body;
 
@@ -64,40 +88,39 @@ export async function POST(request: Request) {
       );
     }
 
-    const isV3 = modelId === "eleven_v3";
-
-    // Always enhance the text before sending to ElevenLabs
-    const processedText = enhanceText(summary);
-
-    // Build voice settings based on model
+    // Build voice settings (v3 only uses stability)
     const voiceSettings: Record<string, number> = {};
     if (stability !== undefined) voiceSettings.stability = stability;
 
-    // v3 only uses stability; older models also use similarity_boost
-    if (!isV3 && similarityBoost !== undefined) {
-      voiceSettings.similarity_boost = similarityBoost;
+    const providerOpts = Object.keys(voiceSettings).length > 0
+      ? { providerOptions: { elevenlabs: { voiceSettings } } }
+      : {};
+
+    // Split into chunks for v3's 5,000 char limit
+    const chunks = chunkText(summary);
+    const audioBuffers: Buffer[] = [];
+
+    for (const chunk of chunks) {
+      const { audio } = await generateSpeech({
+        model: elevenlabs.speech(MODEL),
+        text: chunk,
+        voice: voiceId,
+        ...providerOpts,
+      });
+      audioBuffers.push(Buffer.from(audio.uint8Array));
     }
 
-    // Generate speech with ElevenLabs
-    const { audio } = await generateSpeech({
-      model: elevenlabs.speech(modelId),
-      text: processedText,
-      voice: voiceId,
-      ...(Object.keys(voiceSettings).length > 0 && {
-        providerOptions: {
-          elevenlabs: { voiceSettings },
-        },
-      }),
-    });
+    // Concatenate all chunks
+    const finalAudio = concatAudioBuffers(audioBuffers);
 
     // Upload to Vercel Blob
     const timestamp = Date.now();
     const slug = (title || "audio").substring(0, 50).replace(/[^a-zA-Z0-9]/g, "-");
     const versionLabel = label || `v${timestamp}`;
     const filename = `blog-audio/${timestamp}-${slug}-${versionLabel}.mp3`;
-    const blob = await put(filename, Buffer.from(audio.uint8Array), {
+    const blob = await put(filename, finalAudio, {
       access: "public",
-      contentType: audio.mediaType || "audio/mpeg",
+      contentType: "audio/mpeg",
     });
 
     // Save to database
@@ -107,13 +130,17 @@ export async function POST(request: Request) {
       summary,
       audio_url: blob.url,
       voice_id: voiceId,
-      model_id: modelId,
+      model_id: MODEL,
       stability,
-      similarity_boost: isV3 ? null : similarityBoost,
+      similarity_boost: null,
       label: versionLabel,
     });
 
-    return Response.json({ entry });
+    return Response.json({
+      entry,
+      chunks: chunks.length,
+      totalChars: summary.length,
+    });
   } catch (error) {
     console.error("Generate error:", error);
     const message =

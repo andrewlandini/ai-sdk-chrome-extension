@@ -18,9 +18,7 @@ type Tab = "url" | "catalog";
 
 const DEFAULT_VOICE_CONFIG: VoiceConfig = {
   voiceId: "TX3LPaxmHKxFdv7VOQHJ",
-  modelId: "eleven_v3",
   stability: 0.5,
-  similarityBoost: 0.75,
   label: "",
   testMode: false,
 };
@@ -101,9 +99,7 @@ export default function HomePage() {
           title: scriptTitle,
           summary: script,
           voiceId: voiceConfig.voiceId,
-          modelId: voiceConfig.modelId,
           stability: voiceConfig.stability,
-          similarityBoost: voiceConfig.similarityBoost,
           label: voiceConfig.label || undefined,
         }),
       });
