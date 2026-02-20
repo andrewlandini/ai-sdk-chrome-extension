@@ -25,41 +25,62 @@ const VOICE_MAP: Record<string, string> = {
 };
 
 /**
- * Split text into chunks at paragraph boundaries, each under MAX_CHARS.
- * Never splits in the middle of a paragraph. If a single paragraph exceeds
- * MAX_CHARS it gets its own chunk (ElevenLabs will handle it).
+ * Split text into chunks, each under MAX_CHARS.
+ * Strategy: try paragraph breaks (\n\n) first, then single newlines (\n),
+ * then sentence boundaries (. ! ?) as a last resort.
  */
 function chunkText(text: string): string[] {
   if (text.length <= MAX_CHARS) return [text];
 
-  // Split into paragraphs (double newline, or single newline with blank line)
-  const paragraphs = text.split(/\n\s*\n/).map((p) => p.trim()).filter(Boolean);
-
   const chunks: string[] = [];
-  let current = "";
 
-  for (const para of paragraphs) {
-    // Check if adding this paragraph would exceed the limit
-    const combined = current ? `${current}\n\n${para}` : para;
+  // Try splitting on double newlines first
+  let segments = text.split(/\n\s*\n/).map((p) => p.trim()).filter(Boolean);
+
+  // If that produced segments that are ALL too big, re-split on single newlines
+  if (segments.some((s) => s.length > MAX_CHARS)) {
+    const refined: string[] = [];
+    for (const seg of segments) {
+      if (seg.length <= MAX_CHARS) {
+        refined.push(seg);
+      } else {
+        // Split on single newlines
+        const lines = seg.split(/\n/).map((l) => l.trim()).filter(Boolean);
+        refined.push(...lines);
+      }
+    }
+    segments = refined;
+  }
+
+  // If we still have segments too big, split on sentence boundaries
+  if (segments.some((s) => s.length > MAX_CHARS)) {
+    const refined: string[] = [];
+    for (const seg of segments) {
+      if (seg.length <= MAX_CHARS) {
+        refined.push(seg);
+      } else {
+        // Split on sentence-ending punctuation followed by a space
+        const sentences = seg.match(/[^.!?]*[.!?]+[\s]*/g) || [seg];
+        refined.push(...sentences.map((s) => s.trim()).filter(Boolean));
+      }
+    }
+    segments = refined;
+  }
+
+  let current = "";
+  for (const seg of segments) {
+    const separator = current.endsWith("\n") || !current ? "" : "\n\n";
+    const combined = current ? `${current}${separator}${seg}` : seg;
 
     if (combined.length <= MAX_CHARS) {
-      // Fits -- accumulate into current chunk
       current = combined;
     } else {
-      // Doesn't fit -- push current chunk (if any) and start fresh
-      if (current) {
-        chunks.push(current);
-      }
-      // Start new chunk with this paragraph (even if it exceeds MAX_CHARS
-      // on its own -- never break a paragraph)
-      current = para;
+      if (current) chunks.push(current);
+      current = seg;
     }
   }
 
-  // Push the last chunk
-  if (current) {
-    chunks.push(current);
-  }
+  if (current) chunks.push(current);
 
   return chunks;
 }
@@ -108,9 +129,7 @@ export async function POST(request: Request) {
     stability,
   } = body;
 
-  console.log("[v0] Generate POST body:", { url, summaryLength: summary?.length, voiceId, title: title?.substring(0, 50) });
   if (!url || !summary) {
-    console.log("[v0] Generate 400: missing url or summary", { hasUrl: !!url, hasSummary: !!summary });
     return Response.json(
       { error: "URL and summary are required" },
       { status: 400 }
@@ -139,21 +158,13 @@ export async function POST(request: Request) {
 
       try {
         await updateGenerationJob(job.id, { status: "generating", message: "Starting generation..." });
-        // Build provider options -- eleven_v3 may not support voiceSettings
-        // so only include them for non-v3 models
-        const isV3 = MODEL === "eleven_v3";
-        const providerOpts = isV3
-          ? {}
-          : {
-              providerOptions: {
-                elevenlabs: {
-                  voiceSettings: {
-                    stability: stability ?? 0.5,
-                    similarityBoost: 0.75,
-                  },
-                },
-              },
-            };
+        // Build provider options (only include voiceSettings if stability was provided)
+        const voiceSettings: Record<string, number> = {};
+        if (stability !== undefined) voiceSettings.stability = stability;
+
+        const providerOpts = Object.keys(voiceSettings).length > 0
+          ? { providerOptions: { elevenlabs: { voiceSettings } } }
+          : {};
 
         // Split into chunks for v3's character limit
         const chunks = chunkText(summary);
@@ -267,20 +278,8 @@ export async function POST(request: Request) {
         });
 
         controller.close();
-      } catch (error: unknown) {
-        console.error("[v0] Generate error:", error);
-        // Log all available properties including cause, response body, status code
-        if (error instanceof Error) {
-          console.error("[v0] Error name:", error.name, "message:", error.message);
-          console.error("[v0] Error cause:", (error as Error & { cause?: unknown }).cause);
-          console.error("[v0] Error stack:", error.stack);
-          // Some AI SDK errors have responseBody or data
-          const errAny = error as Record<string, unknown>;
-          if (errAny.responseBody) console.error("[v0] Response body:", errAny.responseBody);
-          if (errAny.data) console.error("[v0] Error data:", errAny.data);
-          if (errAny.statusCode) console.error("[v0] Status code:", errAny.statusCode);
-          if (errAny.url) console.error("[v0] Request URL:", errAny.url);
-        }
+      } catch (error) {
+        console.error("Generate error:", error);
         const message =
           error instanceof Error ? error.message : "An unexpected error occurred";
         await updateGenerationJob(job.id, { status: "error", message }).catch(() => {});
