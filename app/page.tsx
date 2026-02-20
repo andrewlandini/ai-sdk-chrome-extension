@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useCallback, useRef, useEffect } from "react";
+import { useState, useCallback, useRef, useEffect, Suspense } from "react";
 import { useSearchParams, useRouter } from "next/navigation";
 import useSWR from "swr";
 import { PostsList } from "@/components/posts-list";
@@ -96,7 +96,15 @@ function saveSession(data: Record<string, unknown>) {
   try { sessionStorage.setItem(SESSION_KEY, JSON.stringify(data)); } catch { /* ignore */ }
 }
 
-export default function HomePage() {
+export default function Page() {
+  return (
+    <Suspense fallback={null}>
+      <HomePage />
+    </Suspense>
+  );
+}
+
+function HomePage() {
   const searchParams = useSearchParams();
   const router = useRouter();
   const { name: productName, fading: nameFading, advance: advanceName } = useProductName();
