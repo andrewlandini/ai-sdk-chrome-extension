@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useState, useRef, useCallback } from "react";
 import useSWR from "swr";
 
 export interface VoiceConfig {
@@ -64,6 +64,40 @@ export function VoiceSettings({ config, onChange }: VoiceSettingsProps) {
   }>("/api/presets", fetcher);
 
   const presets = presetsData?.presets ?? [];
+
+  // Voice preview playback
+  const { data: voicePreviewData } = useSWR<{ voices: Record<string, string> }>("/api/voices", fetcher);
+  const previewUrls = voicePreviewData?.voices ?? {};
+  const audioRef = useRef<HTMLAudioElement | null>(null);
+  const [playingVoiceId, setPlayingVoiceId] = useState<string | null>(null);
+
+  const handlePreview = useCallback((voiceId: string) => {
+    const url = previewUrls[voiceId];
+    if (!url) return;
+
+    // If already playing this voice, stop it
+    if (playingVoiceId === voiceId && audioRef.current) {
+      audioRef.current.pause();
+      audioRef.current.currentTime = 0;
+      setPlayingVoiceId(null);
+      return;
+    }
+
+    // Stop any currently playing preview
+    if (audioRef.current) {
+      audioRef.current.pause();
+      audioRef.current.currentTime = 0;
+    }
+
+    const audio = new Audio(url);
+    audio.crossOrigin = "anonymous";
+    audioRef.current = audio;
+    setPlayingVoiceId(voiceId);
+
+    audio.play().catch(() => setPlayingVoiceId(null));
+    audio.addEventListener("ended", () => setPlayingVoiceId(null), { once: true });
+    audio.addEventListener("error", () => setPlayingVoiceId(null), { once: true });
+  }, [previewUrls, playingVoiceId]);
 
   const usedPercent = credits
     ? Math.round((credits.characterCount / credits.characterLimit) * 100)
@@ -295,21 +329,56 @@ export function VoiceSettings({ config, onChange }: VoiceSettingsProps) {
         <fieldset className="flex flex-col gap-2">
           <legend className="text-xs text-muted font-medium">Voice</legend>
           <div className="flex flex-col gap-1">
-            {VOICES.map((v) => (
-              <button
-                key={v.id}
-                onClick={() => update({ voiceId: v.id })}
-                aria-pressed={config.voiceId === v.id}
-                className={`flex items-center justify-between rounded-md px-3 py-2 text-left transition-all focus-ring ${
-                  config.voiceId === v.id
-                    ? "bg-foreground text-background"
-                    : "bg-surface-2 text-muted border border-transparent hover:text-foreground hover:border-border-hover"
-                }`}
-              >
-                <span className="text-xs font-medium">{v.name}</span>
-                <span className={`text-[10px] ${config.voiceId === v.id ? "text-background/60" : "text-muted-foreground"}`}>{v.desc}</span>
-              </button>
-            ))}
+            {VOICES.map((v) => {
+              const isSelected = config.voiceId === v.id;
+              const isPlaying = playingVoiceId === v.id;
+              const hasPreview = !!previewUrls[v.id];
+
+              return (
+                <div
+                  key={v.id}
+                  className={`group flex items-center rounded-md transition-all ${
+                    isSelected
+                      ? "bg-foreground text-background"
+                      : "bg-surface-2 text-muted border border-transparent hover:text-foreground hover:border-border-hover"
+                  }`}
+                >
+                  <button
+                    onClick={() => update({ voiceId: v.id })}
+                    aria-pressed={isSelected}
+                    className="flex-1 flex items-center justify-between px-3 py-2 text-left focus-ring rounded-l-md"
+                  >
+                    <span className="text-xs font-medium">{v.name}</span>
+                    <span className={`text-[10px] ${isSelected ? "text-background/60" : "text-muted-foreground"}`}>{v.desc}</span>
+                  </button>
+                  {hasPreview && (
+                    <button
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        handlePreview(v.id);
+                      }}
+                      aria-label={isPlaying ? `Stop ${v.name} preview` : `Preview ${v.name}`}
+                      className={`flex items-center justify-center w-8 h-full rounded-r-md transition-colors focus-ring ${
+                        isPlaying
+                          ? isSelected ? "text-background" : "text-accent"
+                          : isSelected ? "text-background/50 hover:text-background" : "text-muted-foreground/50 hover:text-foreground opacity-0 group-hover:opacity-100"
+                      }`}
+                    >
+                      {isPlaying ? (
+                        <svg width="12" height="12" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true">
+                          <rect x="6" y="4" width="4" height="16" rx="1" />
+                          <rect x="14" y="4" width="4" height="16" rx="1" />
+                        </svg>
+                      ) : (
+                        <svg width="12" height="12" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true">
+                          <polygon points="5 3 19 12 5 21 5 3" />
+                        </svg>
+                      )}
+                    </button>
+                  )}
+                </div>
+              );
+            })}
           </div>
         </fieldset>
 
