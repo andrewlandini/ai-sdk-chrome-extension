@@ -62,3 +62,39 @@ export async function getAllBlogAudio(): Promise<BlogAudio[]> {
 export async function deleteBlogAudio(id: number): Promise<void> {
   await sql`DELETE FROM blog_audio WHERE id = ${id}`;
 }
+
+// ── Voice Presets ──
+
+export interface VoicePreset {
+  id: number;
+  name: string;
+  voice_id: string;
+  model_id: string;
+  stability: number;
+  similarity_boost: number;
+  created_at: string;
+}
+
+export async function getAllPresets(): Promise<VoicePreset[]> {
+  const rows = await sql`SELECT * FROM voice_presets ORDER BY created_at DESC`;
+  return rows as VoicePreset[];
+}
+
+export async function insertPreset(data: {
+  name: string;
+  voice_id: string;
+  model_id: string;
+  stability: number;
+  similarity_boost: number;
+}): Promise<VoicePreset> {
+  const rows = await sql`
+    INSERT INTO voice_presets (name, voice_id, model_id, stability, similarity_boost)
+    VALUES (${data.name}, ${data.voice_id}, ${data.model_id}, ${data.stability}, ${data.similarity_boost})
+    RETURNING *
+  `;
+  return rows[0] as VoicePreset;
+}
+
+export async function deletePreset(id: number): Promise<void> {
+  await sql`DELETE FROM voice_presets WHERE id = ${id}`;
+}
