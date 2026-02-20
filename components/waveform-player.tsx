@@ -223,23 +223,16 @@ export function WaveformPlayer({
       aria-label="Audio player"
     >
       {/* Header */}
-      <div className="px-4 py-3 border-b border-border flex items-start justify-between gap-4">
-        <div className="min-w-0">
-          <h3 className={`text-sm font-medium truncate text-balance ${idle ? "text-muted" : "text-foreground"}`}>
-            {idle ? "No audio loaded" : title}
-          </h3>
-          {!idle && summary && (
-            <p className="text-xs text-muted mt-0.5 line-clamp-2 leading-relaxed">
-              {summary}
-            </p>
-          )}
-        </div>
+      <div className="px-4 py-2 border-b border-border flex items-center justify-between gap-4">
+        <h3 className={`text-xs font-medium truncate min-w-0 ${idle ? "text-muted" : "text-foreground"}`}>
+          {idle ? "No audio loaded" : title}
+        </h3>
         {!idle && url && (
           <a
             href={url}
             target="_blank"
             rel="noopener noreferrer"
-            className="flex items-center gap-1 text-[11px] text-muted hover:text-foreground transition-colors flex-shrink-0 mt-0.5 font-mono focus-ring rounded"
+            className="flex items-center gap-1 text-[11px] text-muted hover:text-foreground transition-colors flex-shrink-0 font-mono focus-ring rounded"
             aria-label={`Open ${truncateHost(url)} in new tab`}
           >
             {truncateHost(url)}
