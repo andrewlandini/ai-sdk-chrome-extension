@@ -53,7 +53,7 @@ export async function POST(request: Request) {
 
     // Upload to Vercel Blob
     const filename = `blog-audio/${Date.now()}-${encodeURIComponent(scraped.title.substring(0, 50))}.mp3`;
-    const blob = await put(filename, audio.uint8Array, {
+    const blob = await put(filename, Buffer.from(audio.uint8Array), {
       access: "public",
       contentType: audio.mediaType || "audio/mpeg",
     });
