@@ -33,7 +33,7 @@ export async function POST(request: Request) {
         systemPrompt = activePreset.system_prompt;
         if (!requestModel) selectedModel = activePreset.model;
       } else {
-        systemPrompt = "You are a blog-to-audio script writer. Reproduce the blog post content verbatim but summarize code blocks like an instructor. Return only the script text.";
+        systemPrompt = "You are a blog-to-audio script writer. Reproduce the blog post content faithfully. Do NOT add any greeting, introduction, welcome, sign-off, or outro — jump straight into the content from the very first word. Summarize code blocks like an instructor explaining them in plain English. Return only the script text.";
       }
     }
 

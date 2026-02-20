@@ -75,9 +75,9 @@ export function VersionsList({
         <span className="w-5 flex-shrink-0" />
         <span className="flex-1 min-w-0">Filename</span>
         <span className="w-16 flex-shrink-0 text-center">Voice</span>
-        <span className="w-12 flex-shrink-0 text-center">Stability</span>
-        <span className="w-12 flex-shrink-0 text-center">Vibe</span>
-        <span className="w-10 flex-shrink-0 text-right">Age</span>
+        <span className="w-12 flex-shrink-0 text-center hidden sm:block">Stability</span>
+        <span className="w-12 flex-shrink-0 text-center hidden sm:block">Vibe</span>
+        <span className="w-10 flex-shrink-0 text-right hidden sm:block">Age</span>
         <span className="w-14 flex-shrink-0" />
       </div>
 
@@ -118,17 +118,17 @@ export function VersionsList({
               </span>
 
               {/* Stability */}
-              <span className="w-12 flex-shrink-0 text-center text-[10px] text-muted-foreground font-mono tabular-nums">
+              <span className="w-12 flex-shrink-0 text-center text-[10px] text-muted-foreground font-mono tabular-nums hidden sm:block">
                 {v.stability !== null ? v.stability.toFixed(2) : "--"}
               </span>
 
               {/* Vibe */}
-              <span className="w-12 flex-shrink-0 text-center text-[10px] text-muted-foreground truncate" title={getVibeLabel(v.summary)}>
+              <span className="w-12 flex-shrink-0 text-center text-[10px] text-muted-foreground truncate hidden sm:block" title={getVibeLabel(v.summary)}>
                 {getVibeLabel(v.summary)}
               </span>
 
               {/* Age */}
-              <span className="w-10 flex-shrink-0 text-right text-[10px] text-muted-foreground font-mono tabular-nums">
+              <span className="w-10 flex-shrink-0 text-right text-[10px] text-muted-foreground font-mono tabular-nums hidden sm:block">
                 {formatRelative(v.created_at)}
               </span>
 
@@ -177,9 +177,9 @@ export function VersionsList({
             </span>
             <span className="flex-1 min-w-0 text-muted-foreground/20 font-mono">--</span>
             <span className="w-16 flex-shrink-0 text-center text-[10px] text-muted-foreground/20 font-mono">--</span>
-            <span className="w-12 flex-shrink-0 text-center text-[10px] text-muted-foreground/20 font-mono">--</span>
-            <span className="w-12 flex-shrink-0 text-center text-[10px] text-muted-foreground/20 font-mono">--</span>
-            <span className="w-10 flex-shrink-0 text-right text-[10px] text-muted-foreground/20 font-mono">--</span>
+            <span className="w-12 flex-shrink-0 text-center text-[10px] text-muted-foreground/20 font-mono hidden sm:block">--</span>
+            <span className="w-12 flex-shrink-0 text-center text-[10px] text-muted-foreground/20 font-mono hidden sm:block">--</span>
+            <span className="w-10 flex-shrink-0 text-right text-[10px] text-muted-foreground/20 font-mono hidden sm:block">--</span>
             <span className="w-14 flex-shrink-0" />
           </div>
         ))}

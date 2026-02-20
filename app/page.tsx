@@ -67,11 +67,21 @@ type CreditsData = {
   nextResetUnix: number;
 };
 
+const DEFAULT_VOICE_CONFIG: VoiceConfig = {
+  voiceId: "TX3LPaxmHKxFdv7VOQHJ",
+  stability: 0,
+  label: "",
+  styleVibe: "Confident and genuinely excited about the content, but grounded and conversational -- not over the top",
+};
+
 export default function HomePage() {
   const { name: productName, fading: nameFading, advance: advanceName } = useProductName();
   const { data: credits } = useSWR<CreditsData>("/api/credits", fetcher, { refreshInterval: 30000 });
   const creditsPercent = credits ? Math.round((credits.characterCount / credits.characterLimit) * 100) : 0;
   const [promptEditorOpen, setPromptEditorOpen] = useState(false);
+  const [contentFocused, setContentFocused] = useState(false);
+  const [sidebarOpen, setSidebarOpen] = useState(false);
+  const [activeTab, setActiveTab] = useState<"content" | "voiceover" | "settings">("content");
   const [loadingScripts, setLoadingScripts] = useState(false);
   const [scriptProgress, setScriptProgress] = useState<{ done: number; total: number; currentTitle?: string }>({ done: 0, total: 0 });
 
@@ -85,6 +95,7 @@ export default function HomePage() {
   const [scriptUrl, setScriptUrl] = useState("");
   const [styledScript, setStyledScript] = useState("");
   const [isGenerating, setIsGenerating] = useState(false);
+  const [generateStatus, setGenerateStatus] = useState("");
   const [isSummarizing, setIsSummarizing] = useState(false);
   const summarizeAbortRef = useRef<AbortController | null>(null);
   const [error, setError] = useState<string | null>(null);
@@ -111,6 +122,10 @@ export default function HomePage() {
     setScriptTitle(title);
     setError(null);
     setActiveEntry(null);
+    setStyledScript("");
+    setSelectedHistoryScript(null);
+    setAutoplay(false);
+    setSidebarOpen(false);
     advanceName();
 
     // Check if there's a cached script for this post
@@ -170,7 +185,15 @@ export default function HomePage() {
       setScript(result.summary);
       setScriptTitle(result.title);
       setScriptUrl(result.url);
+
+      // Save to cache (same as Load Scripts)
+      await fetch("/api/save-script", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ url: result.url, script: result.summary }),
+      });
       mutateVersions();
+      mutateHistory();
     } catch (err) {
       if (err instanceof DOMException && err.name === "AbortError") {
         // User stopped generation -- keep whatever text streamed so far
@@ -181,11 +204,12 @@ export default function HomePage() {
       summarizeAbortRef.current = null;
       setIsSummarizing(false);
     }
-  }, [scriptUrl, mutateVersions, streamSummarize]);
+  }, [scriptUrl, mutateVersions, mutateHistory, streamSummarize]);
 
   const handleGenerateFromStyled = useCallback(async (styledScript: string) => {
     if (!styledScript.trim() || !scriptUrl) return;
     setIsGenerating(true);
+    setGenerateStatus("Starting generation...");
     setError(null);
     try {
       const response = await fetch("/api/generate", {
@@ -199,16 +223,56 @@ export default function HomePage() {
           stability: voiceConfig.stability,
         }),
       });
-      const data = await response.json();
-      if (!response.ok) throw new Error(data.error || "Failed to generate audio");
-      setActiveEntry(data.entry);
-      setAutoplay(true);
-      mutateHistory();
-      mutateVersions();
+
+      if (!response.ok) {
+        const data = await response.json();
+        throw new Error(data.error || "Failed to generate audio");
+      }
+
+      const reader = response.body?.getReader();
+      const decoder = new TextDecoder();
+      let buffer = "";
+      let finalEntry = null;
+
+      if (reader) {
+        while (true) {
+          const { done, value } = await reader.read();
+          if (done) break;
+          buffer += decoder.decode(value, { stream: true });
+
+          const lines = buffer.split("\n");
+          buffer = lines.pop() || "";
+
+          for (const line of lines) {
+            if (!line.trim()) continue;
+            try {
+              const event = JSON.parse(line);
+              if (event.type === "status") {
+                setGenerateStatus(event.message);
+              } else if (event.type === "done") {
+                finalEntry = event.entry;
+              } else if (event.type === "error") {
+                throw new Error(event.error);
+              }
+            } catch (parseErr) {
+              if (parseErr instanceof SyntaxError) continue;
+              throw parseErr;
+            }
+          }
+        }
+      }
+
+      if (finalEntry) {
+        setActiveEntry(finalEntry);
+        setAutoplay(true);
+        mutateHistory();
+        mutateVersions();
+      }
     } catch (err) {
       setError(err instanceof Error ? err.message : "An unexpected error occurred");
     } finally {
       setIsGenerating(false);
+      setGenerateStatus("");
     }
   }, [scriptUrl, scriptTitle, voiceConfig, mutateHistory, mutateVersions]);
 
@@ -319,16 +383,27 @@ export default function HomePage() {
   }, [mutateHistory, streamSummarize]);
 
   return (
-    <div className="h-screen flex flex-col overflow-hidden">
+    <div className="h-screen flex flex-col overflow-hidden min-w-[320px]">
       {/* ── Top bar ── */}
-      <header className="h-12 border-b border-border flex items-center px-4 flex-shrink-0 bg-background z-10 gap-4">
+      <header className="h-12 border-b border-border flex items-center px-3 sm:px-4 flex-shrink-0 bg-background z-10 gap-2 sm:gap-4">
+        {/* Mobile hamburger */}
+        <button
+          onClick={() => setSidebarOpen(true)}
+          className="md:hidden flex items-center justify-center w-8 h-8 rounded-md text-muted hover:text-foreground transition-colors focus-ring flex-shrink-0"
+          aria-label="Open blog posts"
+        >
+          <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" aria-hidden="true">
+            <path d="M3 12h18M3 6h18M3 18h18" />
+          </svg>
+        </button>
+
         <div className="flex items-center gap-3 flex-shrink-0">
           <svg height="16" viewBox="0 0 76 65" fill="currentColor" aria-hidden="true">
             <path d="M37.5274 0L75.0548 65H0L37.5274 0Z" />
           </svg>
           <span className="text-border select-none" aria-hidden="true">/</span>
           <span
-            className={`text-sm font-medium transition-opacity duration-150 ${nameFading ? "opacity-0" : "opacity-100"}`}
+            className={`text-sm font-medium transition-opacity duration-150 hidden sm:inline ${nameFading ? "opacity-0" : "opacity-100"}`}
           >
             {productName}
           </span>
@@ -345,7 +420,8 @@ export default function HomePage() {
             <svg width="11" height="11" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true">
               <rect x="4" y="4" width="16" height="16" rx="2" />
             </svg>
-            <span>Stop ({scriptProgress.done}/{scriptProgress.total})</span>
+            <span className="hidden sm:inline">Stop</span>
+            <span>({scriptProgress.done}/{scriptProgress.total})</span>
           </button>
         ) : (
           <button
@@ -355,7 +431,7 @@ export default function HomePage() {
             <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" aria-hidden="true">
               <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4M7 10l5 5 5-5M12 15V3" />
             </svg>
-            <span>Load Scripts</span>
+            <span className="hidden sm:inline">Load Scripts</span>
           </button>
         )}
 
@@ -366,13 +442,13 @@ export default function HomePage() {
           <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" aria-hidden="true">
             <path d="M12 20h9M16.5 3.5a2.121 2.121 0 0 1 3 3L7 19l-4 1 1-4L16.5 3.5z" />
           </svg>
-          <span>Prompts</span>
+          <span className="hidden sm:inline">Prompts</span>
         </button>
 
         {/* Credits */}
         {credits && (
           <div className="flex items-center gap-2 flex-shrink-0 ml-1">
-            <div className="w-20 h-1.5 rounded-full bg-surface-3 overflow-hidden">
+            <div className="w-16 sm:w-20 h-1.5 rounded-full bg-surface-3 overflow-hidden">
               <div
                 className={`h-full rounded-full transition-all ${
                   creditsPercent > 90 ? "bg-red-500" : creditsPercent > 70 ? "bg-amber-500" : "bg-accent"
@@ -380,23 +456,110 @@ export default function HomePage() {
                 style={{ width: `${creditsPercent}%` }}
               />
             </div>
-            <span className="text-[10px] text-muted font-mono tabular-nums">
+            <span className="text-[10px] text-muted font-mono tabular-nums hidden sm:inline">
               {credits.characterCount.toLocaleString()}/{credits.characterLimit.toLocaleString()}
             </span>
           </div>
         )}
       </header>
 
+      {/* ── Mobile sidebar drawer ── */}
+      {sidebarOpen && (
+        <>
+          <div className="fixed inset-0 bg-black/50 z-40 md:hidden" onClick={() => setSidebarOpen(false)} />
+          <aside className="fixed inset-y-0 left-0 w-[85vw] max-w-[400px] z-50 md:hidden bg-surface-1 border-r border-border flex flex-col overflow-hidden">
+            <div className="flex items-center justify-between px-3 py-2 border-b border-border flex-shrink-0">
+              <div className="flex items-center gap-2">
+                <span className="text-sm font-semibold tracking-tight">Blog Posts</span>
+                <span className="text-[10px] font-mono text-accent bg-accent/10 px-1.5 py-0.5 rounded">{entries.length}</span>
+              </div>
+              <div className="flex items-center gap-1">
+                <AddPostButton mutateHistory={mutateHistory} />
+                <button
+                  onClick={() => setSidebarOpen(false)}
+                  className="p-1 text-muted hover:text-foreground transition-colors focus-ring rounded"
+                  aria-label="Close sidebar"
+                >
+                  <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" aria-hidden="true">
+                    <path d="M18 6L6 18M6 6l12 12" />
+                  </svg>
+                </button>
+              </div>
+            </div>
+            <div className="flex-1 min-h-0 overflow-hidden">
+              <PostsList
+                entries={entries}
+                selectedUrl={scriptUrl}
+                activeId={activeEntry?.id ?? null}
+                onSelect={handleSelectPost}
+                onPlay={handlePlayFromList}
+                onDelete={handleDeleteEntry}
+              />
+            </div>
+
+            {/* Audio Versions */}
+            <div className="flex-shrink-0 border-t border-border">
+              <div className="flex items-center justify-between px-3 py-2 border-b border-border">
+                <div className="flex items-center gap-2">
+                  <span className="text-sm font-semibold tracking-tight">Audio Versions</span>
+                  <span className="text-[10px] font-mono text-accent bg-accent/10 px-1.5 py-0.5 rounded">{versions.length}</span>
+                </div>
+              </div>
+              <VersionsList
+                versions={versions}
+                activeId={activeEntry?.id ?? null}
+                onSelect={handleSelectVersion}
+                onDelete={handleDeleteVersion}
+              />
+            </div>
+
+            {/* Player -- always visible */}
+            <div className="flex-shrink-0 border-t border-border">
+              <WaveformPlayer
+                key={activeEntry?.id ?? "idle"}
+                audioUrl={activeEntry?.audio_url}
+                title={activeEntry?.title || undefined}
+                summary={activeEntry?.summary || undefined}
+                url={activeEntry?.url}
+                autoplay={autoplay}
+              />
+            </div>
+          </aside>
+        </>
+      )}
+
+      {/* ── Mobile tab bar ── */}
+      <div className="flex xl:hidden border-b border-border flex-shrink-0 bg-background">
+        {([
+          { id: "content" as const, label: "Content" },
+          { id: "voiceover" as const, label: "Voice Over" },
+          { id: "settings" as const, label: "Settings" },
+        ]).map((tab) => (
+          <button
+            key={tab.id}
+            onClick={() => setActiveTab(tab.id)}
+            className={`flex-1 py-2.5 text-xs font-medium text-center transition-colors ${
+              activeTab === tab.id
+                ? "text-foreground border-b-2 border-accent"
+                : "text-muted hover:text-foreground"
+            }`}
+          >
+            {tab.label}
+          </button>
+        ))}
+      </div>
+
       {/* ── Main layout: sidebar + workspace ── */}
       <div className="flex-1 flex overflow-hidden">
 
-        {/* Fixed posts sidebar */}
-        <aside className="hidden md:flex w-[640px] flex-shrink-0 border-r border-border bg-surface-1 flex-col overflow-hidden">
+        {/* Fixed posts sidebar -- desktop */}
+        <aside className="hidden md:flex md:w-[220px] lg:w-[280px] xl:w-[400px] 2xl:w-[640px] flex-shrink-0 border-r border-border bg-surface-1 flex-col overflow-hidden">
           <div className="flex items-center justify-between px-3 py-2 border-b border-border flex-shrink-0">
             <div className="flex items-center gap-2">
               <span className="text-sm font-semibold tracking-tight">Blog Posts</span>
               <span className="text-[10px] font-mono text-accent bg-accent/10 px-1.5 py-0.5 rounded">{entries.length}</span>
             </div>
+            <AddPostButton mutateHistory={mutateHistory} />
           </div>
           <div className="flex-1 min-h-0 overflow-hidden">
             <PostsList
@@ -408,17 +571,52 @@ export default function HomePage() {
               onDelete={handleDeleteEntry}
             />
           </div>
-          {/* Add post URL -- pinned to bottom */}
-          <div className="flex-shrink-0 border-t border-border px-3 py-2">
-            <AddPostInput mutateHistory={mutateHistory} />
+
+          {/* Audio Versions */}
+          <div className="flex-shrink-0 border-t border-border">
+            <div className="flex items-center justify-between px-3 py-2 border-b border-border">
+              <div className="flex items-center gap-2">
+                <span className="text-sm font-semibold tracking-tight">Audio Versions</span>
+                <span className="text-[10px] font-mono text-accent bg-accent/10 px-1.5 py-0.5 rounded">{versions.length}</span>
+              </div>
+            </div>
+            {isGenerating && generateStatus && (
+              <div className="px-3 py-1.5 border-b border-border bg-accent/5">
+                <p className="text-[10px] text-accent font-mono truncate animate-pulse">
+                  {generateStatus}
+                </p>
+              </div>
+            )}
+            <VersionsList
+              versions={versions}
+              activeId={activeEntry?.id ?? null}
+              onSelect={handleSelectVersion}
+              onDelete={handleDeleteVersion}
+            />
+          </div>
+
+          {/* Player -- always visible */}
+          <div className="flex-shrink-0 border-t border-border">
+            <WaveformPlayer
+              key={activeEntry?.id ?? "idle"}
+              audioUrl={activeEntry?.audio_url}
+              title={activeEntry?.title || undefined}
+              summary={activeEntry?.summary || undefined}
+              url={activeEntry?.url}
+              autoplay={autoplay}
+            />
           </div>
         </aside>
 
         {/* Workspace: content | (voice over + voice settings + versions) */}
-        <div className="flex-1 min-w-0 flex flex-col lg:flex-row overflow-hidden">
+        <div className="flex-1 min-w-0 flex flex-col xl:flex-row overflow-hidden">
 
           {/* Content column -- full height, verbatim blog script */}
-          <div className="flex-1 min-w-0 flex flex-col overflow-hidden border-r border-border">
+          <div
+            className={`flex-1 min-w-0 flex-col overflow-hidden border-r border-border ${activeTab === "content" ? "flex" : "hidden md:flex"}`}
+            onFocus={() => setContentFocused(true)}
+            onBlur={(e) => { if (!e.currentTarget.contains(e.relatedTarget)) setContentFocused(false); }}
+          >
             <div className="flex items-center justify-between px-3 py-2 border-b border-border flex-shrink-0">
               <div className="flex items-center gap-2">
                 <span className="text-sm font-semibold tracking-tight">Content</span>
@@ -446,8 +644,6 @@ export default function HomePage() {
                 </svg>
                 <span>Stop</span>
               </button>
-              )}
-                </button>
               )}
             </div>
             <div className="flex-1 min-h-0 overflow-y-auto">
@@ -541,10 +737,10 @@ export default function HomePage() {
           </div>
 
           {/* Right side: (Voice Over + Versions) | Voice Settings */}
-          <div className="flex-[2] min-w-0 flex flex-col lg:flex-row overflow-hidden">
+          <div className={`flex-[2] min-w-0 flex-col xl:flex-row overflow-hidden ${activeTab !== "content" ? "flex" : "hidden md:flex"}`}>
 
             {/* Voice Over column + Audio Versions below */}
-            <div className="flex-1 min-w-0 flex flex-col overflow-hidden">
+            <div className={`flex-1 min-w-0 flex-col overflow-hidden ${activeTab === "voiceover" ? "flex" : "hidden md:flex"}`}>
               {/* Voice Over header */}
               <div className="flex items-center justify-between px-3 py-2 border-b border-border flex-shrink-0">
                 <div className="flex items-center gap-2">
@@ -646,6 +842,7 @@ export default function HomePage() {
               <div className="flex-1 min-h-0 overflow-y-auto">
                 <StyleAgent
                   sourceScript={script}
+                  postUrl={scriptUrl}
                   onUseStyledScript={setScript}
                   isGeneratingAudio={isGenerating}
                   onGenerateAudio={handleGenerateFromStyled}
@@ -653,63 +850,13 @@ export default function HomePage() {
                   onHistoryChange={setStyleHistory}
                   externalScript={selectedHistoryScript}
                   styleVibe={voiceConfig.styleVibe}
-                />
-              </div>
-
-              {/* Player */}
-              {activeEntry && (
-                <div className="flex-shrink-0 px-4 py-3 border-t border-border">
-                  <WaveformPlayer
-                    key={activeEntry.id}
-                    audioUrl={activeEntry.audio_url}
-                    title={activeEntry.title || "Untitled"}
-                    summary={activeEntry.summary || ""}
-                    url={activeEntry.url}
-                    autoplay={autoplay}
-                  />
-                </div>
-              )}
-
-              {/* Audio Versions */}
-              <div className="flex-shrink-0 border-t border-border">
-                <div className="flex items-center justify-between px-3 py-2 border-b border-border">
-                  <div className="flex items-center gap-2">
-                    <span className="text-sm font-semibold tracking-tight">Audio Versions</span>
-                    <span className="text-[10px] font-mono text-accent bg-accent/10 px-1.5 py-0.5 rounded">{versions.length}</span>
-                  </div>
-                  <button
-                    onClick={() => {
-                      if (styledScript.trim()) {
-                        handleGenerateFromStyled(styledScript);
-                      }
-                    }}
-                    disabled={isGenerating || !styledScript.trim()}
-                    className="flex items-center justify-center gap-2 h-7 rounded-md bg-accent text-primary-foreground px-3 text-xs font-medium transition-colors hover:bg-accent-hover disabled:opacity-40 disabled:cursor-not-allowed focus-ring flex-shrink-0"
-                  >
-                    {isGenerating ? (
-                      <>
-                        <svg className="animate-spin" width="12" height="12" viewBox="0 0 24 24" fill="none" aria-hidden="true">
-                          <circle cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="2" strokeOpacity="0.2" />
-                          <path d="M12 2a10 10 0 0 1 10 10" stroke="currentColor" strokeWidth="2" strokeLinecap="round" />
-                        </svg>
-                        <span>Generating...</span>
-                      </>
-                    ) : (
-                      <span>Generate Audio</span>
-                    )}
-                  </button>
-                </div>
-                <VersionsList
-                  versions={versions}
-                  activeId={activeEntry?.id ?? null}
-                  onSelect={handleSelectVersion}
-                  onDelete={handleDeleteVersion}
+                  dimmed={contentFocused}
                 />
               </div>
             </div>
 
             {/* Voice Settings panel -- full height */}
-            <aside className="w-full lg:w-[380px] flex-shrink-0 border-t lg:border-t-0 lg:border-l border-border flex flex-col overflow-hidden bg-surface-1">
+            <aside className={`w-full xl:w-[380px] flex-shrink-0 border-t xl:border-t-0 xl:border-l border-border flex-col overflow-hidden bg-surface-1 ${activeTab === "settings" ? "flex" : "hidden xl:flex"}`}>
               <div className="flex items-center justify-between px-3 py-2 border-b border-border flex-shrink-0">
                 <div className="flex items-center gap-2">
                   <span className="text-sm font-semibold tracking-tight">Voice Settings</span>
@@ -734,12 +881,32 @@ export default function HomePage() {
   );
 }
 
-/* ── Add Post Input (top bar) ── */
+/* ── Add Post Button (popup) ── */
 
-function AddPostInput({ mutateHistory }: { mutateHistory: () => void }) {
+function AddPostButton({ mutateHistory }: { mutateHistory: () => void }) {
+  const [open, setOpen] = useState(false);
   const [url, setUrl] = useState("");
   const [isAdding, setIsAdding] = useState(false);
   const [message, setMessage] = useState<string | null>(null);
+  const popoverRef = useRef<HTMLDivElement>(null);
+  const inputRef = useRef<HTMLInputElement>(null);
+
+  // Close on outside click
+  useEffect(() => {
+    if (!open) return;
+    const handler = (e: MouseEvent) => {
+      if (popoverRef.current && !popoverRef.current.contains(e.target as Node)) {
+        setOpen(false);
+      }
+    };
+    document.addEventListener("mousedown", handler);
+    return () => document.removeEventListener("mousedown", handler);
+  }, [open]);
+
+  // Focus input on open
+  useEffect(() => {
+    if (open) setTimeout(() => inputRef.current?.focus(), 50);
+  }, [open]);
 
   const handleAdd = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -764,7 +931,7 @@ function AddPostInput({ mutateHistory }: { mutateHistory: () => void }) {
       setUrl("");
       setMessage(`Added: ${data.title}`);
       mutateHistory();
-      setTimeout(() => setMessage(null), 3000);
+      setTimeout(() => { setMessage(null); setOpen(false); }, 1500);
     } catch (err) {
       setMessage(err instanceof Error ? err.message : "Failed to add");
     } finally {
@@ -773,46 +940,51 @@ function AddPostInput({ mutateHistory }: { mutateHistory: () => void }) {
   };
 
   return (
-    <form onSubmit={handleAdd} className="flex items-center gap-2">
-      <div className="relative flex-1">
-        <svg
-          width="14"
-          height="14"
-          viewBox="0 0 24 24"
-          fill="none"
-          stroke="currentColor"
-          strokeWidth="2"
-          className="absolute left-2.5 top-1/2 -translate-y-1/2 text-muted-foreground"
-          aria-hidden="true"
-        >
-          <path d="M10 13a5 5 0 0 0 7.54.54l3-3a5 5 0 0 0-7.07-7.07l-1.72 1.71" />
-          <path d="M14 11a5 5 0 0 0-7.54-.54l-3 3a5 5 0 0 0 7.07 7.07l1.71-1.71" />
-        </svg>
-        <input
-          type="url"
-          value={url}
-          onChange={(e) => {
-            setUrl(e.target.value);
-            if (message) setMessage(null);
-          }}
-          placeholder="Paste blog URL to add..."
-          disabled={isAdding}
-          className="w-full h-8 rounded-md border border-border bg-surface-2 pl-8 pr-3 text-xs text-foreground font-mono placeholder:text-muted-foreground/30 focus:outline-none focus:border-accent transition-colors disabled:opacity-50"
-          aria-label="Add blog post URL"
-        />
-      </div>
+    <div className="relative" ref={popoverRef}>
       <button
-        type="submit"
-        disabled={isAdding || !url.trim()}
-        className="h-8 px-3 rounded-md bg-foreground text-background text-xs font-medium hover:bg-foreground/90 disabled:opacity-40 disabled:cursor-not-allowed transition-colors focus-ring flex-shrink-0"
+        onClick={() => setOpen(!open)}
+        className="p-1 text-muted hover:text-foreground transition-colors focus-ring rounded"
+        aria-label="Add blog post"
       >
-        {isAdding ? "Adding..." : "Add"}
+        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" aria-hidden="true">
+          <path d="M12 5v14M5 12h14" />
+        </svg>
       </button>
-      {message && (
-        <span className={`text-[11px] flex-shrink-0 ${message.startsWith("Added") ? "text-success" : "text-destructive"}`}>
-          {message}
-        </span>
+
+      {open && (
+        <div className="absolute right-0 top-full mt-1 z-50 w-80 rounded-lg border border-border bg-surface-1 shadow-lg p-3">
+          <form onSubmit={handleAdd} className="flex flex-col gap-2">
+            <label className="text-[11px] text-muted font-medium">Blog Post URL</label>
+            <div className="flex items-center gap-2">
+              <input
+                ref={inputRef}
+                type="url"
+                value={url}
+                onChange={(e) => {
+                  setUrl(e.target.value);
+                  if (message) setMessage(null);
+                }}
+                placeholder="https://vercel.com/blog/..."
+                disabled={isAdding}
+                className="flex-1 h-8 rounded-md border border-border bg-surface-2 px-3 text-xs text-foreground font-mono placeholder:text-muted-foreground/30 focus:outline-none focus:border-accent transition-colors disabled:opacity-50"
+                aria-label="Blog post URL"
+              />
+              <button
+                type="submit"
+                disabled={isAdding || !url.trim()}
+                className="h-8 px-3 rounded-md bg-foreground text-background text-xs font-medium hover:bg-foreground/90 disabled:opacity-40 disabled:cursor-not-allowed transition-colors focus-ring flex-shrink-0"
+              >
+                {isAdding ? "..." : "Add"}
+              </button>
+            </div>
+            {message && (
+              <span className={`text-[11px] ${message.startsWith("Added") ? "text-success" : "text-destructive"}`}>
+                {message}
+              </span>
+            )}
+          </form>
+        </div>
       )}
-    </form>
+    </div>
   );
 }
