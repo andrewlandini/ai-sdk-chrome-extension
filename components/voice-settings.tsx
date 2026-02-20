@@ -51,13 +51,6 @@ export function VoiceSettings({ config, onChange }: VoiceSettingsProps) {
   const [isSaving, setIsSaving] = useState(false);
   const [showSaveInput, setShowSaveInput] = useState(false);
 
-  const { data: credits } = useSWR<{
-    tier: string;
-    characterCount: number;
-    characterLimit: number;
-    nextResetUnix: number;
-  }>("/api/credits", fetcher, { refreshInterval: 30000 });
-
   const { data: presetsData, mutate: mutatePresets } = useSWR<{
     presets: VoicePreset[];
   }>("/api/presets", fetcher);
@@ -94,10 +87,6 @@ export function VoiceSettings({ config, onChange }: VoiceSettingsProps) {
     audio.addEventListener("ended", () => setPlayingVoiceId(null), { once: true });
     audio.addEventListener("error", () => setPlayingVoiceId(null), { once: true });
   }, [previewUrls, playingVoiceId]);
-
-  const usedPercent = credits
-    ? Math.round((credits.characterCount / credits.characterLimit) * 100)
-    : 0;
 
   const handleSavePreset = async () => {
     if (!presetName.trim()) return;
@@ -142,24 +131,7 @@ export function VoiceSettings({ config, onChange }: VoiceSettingsProps) {
     <section className="flex flex-col gap-5" aria-labelledby="voice-heading">
 
 
-      {/* Credits */}
-      {credits && (
-        <div className="flex items-center gap-3">
-          <span className="text-xs text-muted-foreground">Credits</span>
-          <div className="flex-1 h-1.5 rounded-full bg-surface-3 overflow-hidden">
-            <div
-              className={`h-full rounded-full transition-all ${
-                usedPercent > 90 ? "bg-red-500" : usedPercent > 70 ? "bg-amber-500" : "bg-accent"
-              }`}
-              style={{ width: `${usedPercent}%` }}
-            />
-          </div>
-          <span className="text-xs text-muted-foreground font-mono tabular-nums flex-shrink-0">
-            {credits.characterCount.toLocaleString()} / {credits.characterLimit.toLocaleString()}
-          </span>
-          <span className="text-[10px] text-muted-foreground">{credits.tier}</span>
-        </div>
-      )}
+
 
 
 

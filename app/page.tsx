@@ -60,15 +60,17 @@ function useProductName() {
 
 const fetcher = (url: string) => fetch(url).then((r) => r.json());
 
-const DEFAULT_VOICE_CONFIG: VoiceConfig = {
-  voiceId: "TX3LPaxmHKxFdv7VOQHJ",
-  stability: 0,
-  label: "",
-  styleVibe: "Confident and genuinely excited about the content, but grounded and conversational -- not over the top",
+type CreditsData = {
+  tier: string;
+  characterCount: number;
+  characterLimit: number;
+  nextResetUnix: number;
 };
 
 export default function HomePage() {
   const { name: productName, fading: nameFading, advance: advanceName } = useProductName();
+  const { data: credits } = useSWR<CreditsData>("/api/credits", fetcher, { refreshInterval: 30000 });
+  const creditsPercent = credits ? Math.round((credits.characterCount / credits.characterLimit) * 100) : 0;
   const [promptEditorOpen, setPromptEditorOpen] = useState(false);
   const [loadingScripts, setLoadingScripts] = useState(false);
   const [scriptProgress, setScriptProgress] = useState<{ done: number; total: number; currentTitle?: string }>({ done: 0, total: 0 });
@@ -350,6 +352,23 @@ export default function HomePage() {
           </svg>
           <span>Prompts</span>
         </button>
+
+        {/* Credits */}
+        {credits && (
+          <div className="flex items-center gap-2 flex-shrink-0 ml-1">
+            <div className="w-20 h-1.5 rounded-full bg-surface-3 overflow-hidden">
+              <div
+                className={`h-full rounded-full transition-all ${
+                  creditsPercent > 90 ? "bg-red-500" : creditsPercent > 70 ? "bg-amber-500" : "bg-accent"
+                }`}
+                style={{ width: `${creditsPercent}%` }}
+              />
+            </div>
+            <span className="text-[10px] text-muted font-mono tabular-nums">
+              {credits.characterCount.toLocaleString()}/{credits.characterLimit.toLocaleString()}
+            </span>
+          </div>
+        )}
       </header>
 
       {/* ── Main layout: sidebar + workspace ── */}
