@@ -4,17 +4,21 @@ import { useState, useMemo, useCallback, useRef } from "react";
 import type { BlogAudio } from "@/lib/db";
 
 /* ── Column definitions ── */
-type ColumnId = "title" | "gens";
+type ColumnId = "title" | "date" | "gens";
+type SortKey = "title" | "date";
+type SortDir = "asc" | "desc";
 
 interface ColumnDef {
   id: ColumnId;
   label: string;
   width: string; // Tailwind width class
   align: "left" | "center" | "right";
+  sortable?: boolean;
 }
 
 const DEFAULT_COLUMNS: ColumnDef[] = [
-  { id: "title", label: "Title", width: "flex-1 min-w-0", align: "left" },
+  { id: "date", label: "Date", width: "w-20 flex-shrink-0", align: "left", sortable: true },
+  { id: "title", label: "Title", width: "flex-1 min-w-0", align: "left", sortable: true },
   { id: "gens", label: "Gens", width: "w-12 flex-shrink-0", align: "center" },
 ];
 
@@ -23,6 +27,7 @@ const DEFAULT_COLUMNS: ColumnDef[] = [
 interface BlogPostGroup {
   url: string;
   title: string;
+  publishedDate: string | null;
   generations: BlogAudio[];
   latestDate: string;
   hasScript: boolean;
@@ -51,6 +56,8 @@ function slugFromUrl(url: string): string {
 
 export function PostsList({ entries, selectedUrl, activeId, onSelect, onPlay, onDelete }: PostsListProps) {
   const [search, setSearch] = useState("");
+  const [sortKey, setSortKey] = useState<SortKey>("date");
+  const [sortDir, setSortDir] = useState<SortDir>("desc");
 
   const [columns, setColumns] = useState<ColumnDef[]>(DEFAULT_COLUMNS);
   const dragCol = useRef<number | null>(null);
@@ -97,9 +104,9 @@ export function PostsList({ entries, selectedUrl, activeId, onSelect, onPlay, on
     const map = new Map<string, BlogPostGroup>();
     for (const entry of entries) {
       const key = entry.url;
-      const entryWithScript = entry as BlogAudio & { cached_script?: string | null };
+      const entryWithScript = entry as BlogAudio & { cached_script?: string | null; published_date?: string | null };
       if (!map.has(key)) {
-        map.set(key, { url: key, title: entry.title || "Untitled", generations: [], latestDate: entry.created_at, hasScript: !!entryWithScript.cached_script });
+        map.set(key, { url: key, title: entry.title || "Untitled", publishedDate: entryWithScript.published_date ?? null, generations: [], latestDate: entry.created_at, hasScript: !!entryWithScript.cached_script });
       }
       const group = map.get(key)!;
       if (entry.id !== -1) {
@@ -117,12 +124,36 @@ export function PostsList({ entries, selectedUrl, activeId, onSelect, onPlay, on
   }, [entries]);
 
   const filtered = useMemo(() => {
-    if (!search.trim()) return groups;
-    const q = search.toLowerCase();
-    return groups.filter(
-      (g) => g.title.toLowerCase().includes(q) || g.url.toLowerCase().includes(q)
-    );
-  }, [groups, search]);
+    const base = !search.trim()
+      ? groups
+      : groups.filter((g) => {
+          const q = search.toLowerCase();
+          return g.title.toLowerCase().includes(q) || g.url.toLowerCase().includes(q);
+        });
+
+    const sorted = [...base].sort((a, b) => {
+      if (sortKey === "title") {
+        const cmp = (a.title || "").localeCompare(b.title || "");
+        return sortDir === "asc" ? cmp : -cmp;
+      }
+      // Sort by date
+      const da = a.publishedDate || "";
+      const db = b.publishedDate || "";
+      const cmp = da.localeCompare(db);
+      return sortDir === "asc" ? cmp : -cmp;
+    });
+
+    return sorted;
+  }, [groups, search, sortKey, sortDir]);
+
+  const handleSort = useCallback((key: SortKey) => {
+    if (sortKey === key) {
+      setSortDir((d) => (d === "asc" ? "desc" : "asc"));
+    } else {
+      setSortKey(key);
+      setSortDir(key === "date" ? "desc" : "asc");
+    }
+  }, [sortKey]);
 
   return (
     <div className="h-full flex flex-col">
@@ -155,13 +186,19 @@ export function PostsList({ entries, selectedUrl, activeId, onSelect, onPlay, on
             onDragOver={(e) => handleDragOver(e, idx)}
             onDrop={handleDrop}
             onDragEnd={handleDragEnd}
-            className={`${col.width} cursor-grab active:cursor-grabbing transition-all ${
-              col.align === "right" ? "text-right pr-1" : col.align === "center" ? "text-center" : ""
+            onClick={col.sortable ? () => handleSort(col.id as SortKey) : undefined}
+            className={`${col.width} ${col.sortable ? "cursor-pointer hover:text-foreground" : "cursor-grab"} active:cursor-grabbing transition-all flex items-center gap-0.5 ${
+              col.align === "right" ? "text-right pr-1 justify-end" : col.align === "center" ? "text-center justify-center" : ""
             } ${draggingIdx === idx ? "opacity-40" : ""} ${
               dragOverIdx === idx && draggingIdx !== idx ? "border-l-2 border-l-accent" : ""
             }`}
           >
             {col.label}
+            {col.sortable && sortKey === col.id && (
+              <svg width="8" height="8" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="3" className="flex-shrink-0" aria-hidden="true">
+                {sortDir === "asc" ? <path d="M18 15l-6-6-6 6" /> : <path d="M6 9l6 6 6-6" />}
+              </svg>
+            )}
           </span>
         ))}
       </div>
@@ -199,6 +236,15 @@ export function PostsList({ entries, selectedUrl, activeId, onSelect, onPlay, on
                   {/* Dynamic columns */}
                   {columns.map((col) => {
                     switch (col.id) {
+                      case "date":
+                        return (
+                          <span key={col.id} className={`${col.width} text-[10px] font-mono tabular-nums text-muted-foreground truncate`}>
+                            {group.publishedDate
+                              ? new Date(group.publishedDate).toLocaleDateString("en-US", { month: "short", day: "numeric", year: "2-digit" })
+                              : ""}
+                          </span>
+                        );
+
                       case "title":
                         return (
                           <span key={col.id} className={`${col.width} truncate ${isSelected ? "text-foreground font-medium" : "text-muted group-hover:text-foreground"} transition-colors`}>
