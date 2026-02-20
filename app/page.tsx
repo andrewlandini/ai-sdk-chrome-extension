@@ -249,20 +249,15 @@ export default function HomePage() {
         {/* Spacer to push right items */}
         <div className="flex-1" />
 
-        <div className="flex items-center gap-2 flex-shrink-0">
-          <button
-            onClick={() => setPromptEditorOpen(true)}
-            className="flex items-center gap-1.5 text-xs text-muted hover:text-foreground transition-colors focus-ring rounded px-2 py-1.5 hover:bg-surface-2"
-          >
-            <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" aria-hidden="true">
-              <path d="M12 20h9M16.5 3.5a2.121 2.121 0 0 1 3 3L7 19l-4 1 1-4L16.5 3.5z" />
-            </svg>
-            <span>Prompts</span>
-          </button>
-
-          {/* URL paste input */}
-          <AddPostInput mutateHistory={mutateHistory} />
-        </div>
+        <button
+          onClick={() => setPromptEditorOpen(true)}
+          className="flex items-center gap-1.5 text-xs text-muted hover:text-foreground transition-colors focus-ring rounded px-2 py-1.5 hover:bg-surface-2 flex-shrink-0"
+        >
+          <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" aria-hidden="true">
+            <path d="M12 20h9M16.5 3.5a2.121 2.121 0 0 1 3 3L7 19l-4 1 1-4L16.5 3.5z" />
+          </svg>
+          <span>Prompts</span>
+        </button>
       </header>
 
       {/* ── Main layout: sidebar + workspace ── */}
@@ -302,6 +297,10 @@ export default function HomePage() {
               onPlay={handlePlayFromList}
               onDelete={handleDeleteEntry}
             />
+          </div>
+          {/* Add post URL -- pinned to bottom */}
+          <div className="flex-shrink-0 border-t border-border px-3 py-2">
+            <AddPostInput mutateHistory={mutateHistory} />
           </div>
         </aside>
 
@@ -466,7 +465,7 @@ function AddPostInput({ mutateHistory }: { mutateHistory: () => void }) {
   };
 
   return (
-    <form onSubmit={handleAdd} className="flex items-center gap-2 w-72">
+    <form onSubmit={handleAdd} className="flex items-center gap-2">
       <div className="relative flex-1">
         <svg
           width="14"
