@@ -1,6 +1,7 @@
 "use client";
 
 import { useState, useCallback, useRef, useEffect } from "react";
+import { useSearchParams, useRouter } from "next/navigation";
 import useSWR from "swr";
 import { PostsList } from "@/components/posts-list";
 import { ScriptEditor } from "@/components/script-editor";
@@ -74,6 +75,13 @@ const DEFAULT_VOICE_CONFIG: VoiceConfig = {
   styleVibe: "Confident and genuinely excited about the content, but grounded and conversational -- not over the top",
 };
 
+function slugFromUrl(url: string): string {
+  try {
+    const path = new URL(url).pathname;
+    return path.split("/").filter(Boolean).pop() || "untitled";
+  } catch { return "untitled"; }
+}
+
 const SESSION_KEY = "aether-session";
 
 function loadSession() {
@@ -89,6 +97,8 @@ function saveSession(data: Record<string, unknown>) {
 }
 
 export default function HomePage() {
+  const searchParams = useSearchParams();
+  const router = useRouter();
   const { name: productName, fading: nameFading, advance: advanceName } = useProductName();
   const { data: credits } = useSWR<CreditsData>("/api/credits", fetcher, { refreshInterval: 30000 });
   const creditsPercent = credits ? Math.round((credits.characterCount / credits.characterLimit) * 100) : 0;
@@ -144,6 +154,23 @@ export default function HomePage() {
   const { data: historyData, mutate: mutateHistory } = useSWR<{ entries: BlogAudio[] }>("/api/history", fetcher);
   const entries = historyData?.entries ?? [];
 
+  // ── Restore from URL ?post=slug ──
+  const urlRestoredRef = useRef(false);
+  useEffect(() => {
+    if (urlRestoredRef.current || entries.length === 0) return;
+    const postSlug = searchParams.get("post");
+    if (!postSlug) return;
+    // Find matching entry by slug
+    const match = entries.find((e) => slugFromUrl(e.url) === postSlug);
+    if (match) {
+      urlRestoredRef.current = true;
+      setScriptUrl(match.url);
+      setScriptTitle(match.title || "");
+      const cachedScript = (match as BlogAudio & { cached_script?: string | null })?.cached_script;
+      setScript(cachedScript || "");
+    }
+  }, [entries, searchParams]);
+
   const { data: versionsData, mutate: mutateVersions } = useSWR<{ versions: BlogAudio[] }>(
     scriptUrl ? `/api/versions?url=${encodeURIComponent(scriptUrl)}` : null,
     fetcher
@@ -163,11 +190,15 @@ export default function HomePage() {
     setSidebarOpen(false);
     advanceName();
 
+    // Push slug to URL
+    const slug = slugFromUrl(url);
+    router.replace(`?post=${encodeURIComponent(slug)}`, { scroll: false });
+
     // Check if there's a cached script for this post
     const entry = entries.find((e) => e.url === url);
     const cachedScript = (entry as BlogAudio & { cached_script?: string | null })?.cached_script;
     setScript(cachedScript || "");
-  }, [entries, advanceName]);
+  }, [entries, advanceName, router]);
 
   // Helper: stream summarize API and progressively build script text
   const streamSummarize = useCallback(async (
@@ -333,12 +364,13 @@ export default function HomePage() {
   }, []);
 
   const handlePlayFromList = useCallback((entry: BlogAudio) => {
-    setActiveEntry(entry);
-    setAutoplay(true);
-    setScriptUrl(entry.url);
-    setScriptTitle(entry.title || "");
-    setScript(entry.summary || "");
-  }, []);
+  setActiveEntry(entry);
+  setAutoplay(true);
+  setScriptUrl(entry.url);
+  setScriptTitle(entry.title || "");
+  setScript(entry.summary || "");
+  router.replace(`?post=${encodeURIComponent(slugFromUrl(entry.url))}`, { scroll: false });
+  }, [router]);
 
   const handleDeleteEntry = useCallback(async (entry: BlogAudio) => {
     try {
