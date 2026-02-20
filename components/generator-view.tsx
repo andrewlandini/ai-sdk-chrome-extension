@@ -265,6 +265,7 @@ export function GeneratorView({
           {/* Style Agent */}
           <StyleAgent
             sourceScript={script}
+            postUrl={scriptUrl}
             onUseStyledScript={onScriptChange}
             isGeneratingAudio={isGenerating}
             onGenerateAudio={handleGenerateFromStyled}
