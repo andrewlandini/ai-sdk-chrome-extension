@@ -22,6 +22,7 @@ const DEFAULT_VOICE_CONFIG: VoiceConfig = {
 
 export default function HomePage() {
   const [promptEditorOpen, setPromptEditorOpen] = useState(false);
+  const [postsDrawerOpen, setPostsDrawerOpen] = useState(false);
 
   // Active selection
   const [activeEntry, setActiveEntry] = useState<BlogAudio | null>(null);
@@ -54,6 +55,7 @@ export default function HomePage() {
     setScript("");
     setError(null);
     setActiveEntry(null);
+    setPostsDrawerOpen(false);
   }, []);
 
   const handleGenerateScript = useCallback(async () => {
@@ -187,11 +189,23 @@ export default function HomePage() {
       {/* ── Top bar ── */}
       <header className="h-12 border-b border-border flex items-center px-4 flex-shrink-0 bg-background z-10 gap-4">
         <div className="flex items-center gap-3 flex-shrink-0">
-          <svg height="16" viewBox="0 0 76 65" fill="currentColor" aria-hidden="true">
-            <path d="M37.5274 0L75.0548 65H0L37.5274 0Z" />
-          </svg>
+          <button
+            onClick={() => setPostsDrawerOpen((o) => !o)}
+            className={`flex items-center gap-1.5 text-xs font-medium transition-colors focus-ring rounded px-2 py-1.5 ${
+              postsDrawerOpen ? "bg-surface-3 text-foreground" : "text-muted hover:text-foreground hover:bg-surface-2"
+            }`}
+            aria-label={postsDrawerOpen ? "Close posts list" : "Open posts list"}
+          >
+            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" aria-hidden="true">
+              <line x1="3" y1="6" x2="21" y2="6" />
+              <line x1="3" y1="12" x2="21" y2="12" />
+              <line x1="3" y1="18" x2="21" y2="18" />
+            </svg>
+            <span>Posts</span>
+            <span className="text-[10px] text-muted font-mono tabular-nums">{entries.length}</span>
+          </button>
           <span className="text-border select-none" aria-hidden="true">/</span>
-          <span className="text-sm font-medium">Blog Audio</span>
+          <span className="text-sm font-medium truncate">{scriptTitle || "Blog Audio"}</span>
         </div>
 
         {/* URL paste input */}
@@ -207,24 +221,58 @@ export default function HomePage() {
             </svg>
             <span>Prompts</span>
           </button>
-          <span className="text-xs text-muted font-mono tabular-nums px-2">
-            {entries.length} {entries.length === 1 ? "entry" : "entries"}
-          </span>
         </div>
       </header>
 
-      {/* ── Main content: workspace top, posts list bottom ── */}
+      {/* ── Posts drawer overlay ── */}
+      {postsDrawerOpen && (
+        <div className="fixed inset-0 z-30 flex" role="dialog" aria-label="Blog posts list">
+          {/* Backdrop */}
+          <div
+            className="absolute inset-0 bg-background/60 backdrop-blur-sm"
+            onClick={() => setPostsDrawerOpen(false)}
+            aria-hidden="true"
+          />
+          {/* Drawer panel */}
+          <aside className="relative z-10 w-full max-w-lg h-full border-r border-border bg-background shadow-2xl flex flex-col animate-in slide-in-from-left duration-200">
+            <div className="flex items-center justify-between px-3 py-2 border-b border-border flex-shrink-0">
+              <span className="text-xs font-medium">Blog Posts</span>
+              <button
+                onClick={() => setPostsDrawerOpen(false)}
+                className="p-1.5 text-muted hover:text-foreground transition-colors focus-ring rounded"
+                aria-label="Close posts list"
+              >
+                <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" aria-hidden="true">
+                  <path d="M18 6L6 18M6 6l12 12" />
+                </svg>
+              </button>
+            </div>
+            <div className="flex-1 min-h-0 overflow-hidden">
+              <PostsList
+                entries={entries}
+                selectedUrl={scriptUrl}
+                activeId={activeEntry?.id ?? null}
+                onSelect={handleSelectPost}
+                onPlay={handlePlayFromList}
+                onDelete={handleDeleteEntry}
+              />
+            </div>
+          </aside>
+        </div>
+      )}
+
+      {/* ── Main content ── */}
       <div className="flex-1 flex flex-col overflow-hidden">
 
         {/* Workspace: generator + voice settings side by side (stacks on mobile) */}
-        <div className="flex-1 min-h-0 flex flex-col lg:flex-row overflow-hidden border-b border-border">
+        <div className="flex-1 min-h-0 flex flex-col lg:flex-row overflow-hidden">
 
           {/* Generator panel */}
           <div className="flex-1 min-w-0 overflow-y-auto">
             <div className="w-full px-5 py-4 flex flex-col gap-3">
               {!scriptUrl ? (
                 <div className="flex items-center justify-center min-h-[80px]">
-                  <p className="text-xs text-muted-foreground">Select a blog post below or paste a URL above</p>
+                  <p className="text-xs text-muted-foreground">Open Posts to select a blog post, or paste a URL above</p>
                 </div>
               ) : (
                 <>
@@ -340,17 +388,6 @@ export default function HomePage() {
           </aside>
         </div>
 
-        {/* Blog posts list -- pinned to bottom, full width, max 10 rows visible */}
-        <div className="flex-shrink-0 overflow-hidden" style={{ maxHeight: "calc(10 * 32px + 72px)" }}>
-          <PostsList
-            entries={entries}
-            selectedUrl={scriptUrl}
-            activeId={activeEntry?.id ?? null}
-            onSelect={handleSelectPost}
-            onPlay={handlePlayFromList}
-            onDelete={handleDeleteEntry}
-          />
-        </div>
       </div>
 
       {/* Prompt Editor Modal */}
