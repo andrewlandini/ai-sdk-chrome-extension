@@ -7,7 +7,6 @@ export interface VoiceConfig {
   voiceId: string;
   stability: number;
   label: string;
-  testMode: boolean;
   styleVibe: string;
 }
 
@@ -141,25 +140,7 @@ export function VoiceSettings({ config, onChange }: VoiceSettingsProps) {
 
   return (
     <section className="flex flex-col gap-5" aria-labelledby="voice-heading">
-      {/* Test mode toggle */}
-      <div className="flex items-center justify-end">
-        <button
-          onClick={() => update({ testMode: !config.testMode })}
-          aria-pressed={config.testMode}
-          className={`flex items-center gap-1.5 h-7 px-2.5 rounded-md text-xs font-medium transition-all border focus-ring ${
-            config.testMode
-              ? "bg-amber-500/15 text-amber-400 border-amber-500/30"
-              : "bg-surface-2 text-muted border-border hover:text-foreground hover:border-border-hover"
-          }`}
-        >
-          <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" aria-hidden="true">
-            <path d="M9 3h6l2 4H7L9 3Z" />
-            <path d="M7 7v10a2 2 0 0 0 2 2h6a2 2 0 0 0 2-2V7" />
-            <path d="M12 11v4" />
-          </svg>
-          Test
-        </button>
-      </div>
+
 
       {/* Credits */}
       {credits && (
@@ -180,15 +161,7 @@ export function VoiceSettings({ config, onChange }: VoiceSettingsProps) {
         </div>
       )}
 
-      {config.testMode && (
-        <div className="flex items-center gap-2 text-xs text-amber-400 bg-amber-500/10 border border-amber-500/20 rounded-md px-3 py-2">
-          <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" aria-hidden="true">
-            <path d="M12 9v4m0 4h.01" />
-            <path d="M10.29 3.86L1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0Z" />
-          </svg>
-          Test mode: short script to save credits
-        </div>
-      )}
+
 
       {/* Presets */}
       <fieldset className="flex flex-col gap-2">
