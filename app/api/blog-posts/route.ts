@@ -1,5 +1,3 @@
-"use server";
-
 import { generateText } from "ai";
 import {
   getCachedBlogPosts,
