@@ -9,6 +9,7 @@ import { BlogCatalog } from "@/components/blog-catalog";
 import { ScriptEditor } from "@/components/script-editor";
 import { VoiceSettings, type VoiceConfig } from "@/components/voice-settings";
 import { VersionsList } from "@/components/versions-list";
+import { StyleAgent } from "@/components/style-agent";
 import { PromptEditorModal } from "@/components/prompt-editor-modal";
 import type { BlogAudio } from "@/lib/db";
 
@@ -125,6 +126,36 @@ export default function HomePage() {
     mutateHistory,
     mutateVersions,
   ]);
+
+  const handleGenerateFromStyled = useCallback(async (styledScript: string) => {
+    if (!styledScript.trim() || !scriptUrl) return;
+    setIsGenerating(true);
+    setError(null);
+    try {
+      const response = await fetch("/api/generate", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          url: scriptUrl,
+          title: scriptTitle,
+          summary: styledScript,
+          voiceId: voiceConfig.voiceId,
+          stability: voiceConfig.stability,
+          label: voiceConfig.label ? `${voiceConfig.label} (styled)` : "styled",
+        }),
+      });
+      const data = await response.json();
+      if (!response.ok) throw new Error(data.error || "Failed to generate audio");
+      setActiveEntry(data.entry);
+      setAutoplay(true);
+      mutateHistory();
+      mutateVersions();
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "An unexpected error occurred");
+    } finally {
+      setIsGenerating(false);
+    }
+  }, [scriptUrl, scriptTitle, voiceConfig, mutateHistory, mutateVersions]);
 
   const handleDeleteVersion = useCallback(
     async (version: BlogAudio) => {
@@ -281,6 +312,14 @@ export default function HomePage() {
                 isLoading={isGenerating}
                 onScriptChange={setScript}
                 onGenerate={handleGenerate}
+              />
+
+              {/* Style Agent (optional) */}
+              <StyleAgent
+                sourceScript={script}
+                onUseStyledScript={setScript}
+                isGeneratingAudio={isGenerating}
+                onGenerateAudio={handleGenerateFromStyled}
               />
 
               {/* Audio Player */}
