@@ -65,6 +65,23 @@
 }
 .animate-fade-in { animation: fade-in 0.2s ease-out; }
 
+@keyframes shimmer-flow {
+  0% { background-position: 200% 50%; }
+  100% { background-position: -200% 50%; }
+}
+.animate-shimmer {
+  background: linear-gradient(
+    90deg,
+    var(--color-accent) 0%,
+    #7c3aed 25%,
+    var(--color-accent) 50%,
+    #06b6d4 75%,
+    var(--color-accent) 100%
+  );
+  background-size: 200% 100%;
+  animation: shimmer-flow 2s linear infinite;
+}
+
 /* Slider */
 input[type="range"] {
   -webkit-appearance: none;
