@@ -113,28 +113,61 @@ export default function HomePage() {
     setScript(cachedScript || "");
   }, [entries, advanceName]);
 
+  // Helper: stream summarize API and progressively build script text
+  const streamSummarize = useCallback(async (
+    url: string,
+    options: { testMode?: boolean; onDelta?: (accumulated: string) => void } = {}
+  ): Promise<{ title: string; summary: string; url: string }> => {
+    const response = await fetch("/api/summarize", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ url, testMode: options.testMode }),
+    });
+
+    if (!response.ok) {
+      const data = await response.json();
+      throw new Error(data.error || "Failed to summarize");
+    }
+
+    const title = decodeURIComponent(response.headers.get("X-Title") || "");
+    const resolvedUrl = decodeURIComponent(response.headers.get("X-Url") || url);
+
+    const reader = response.body?.getReader();
+    const decoder = new TextDecoder();
+    let accumulated = "";
+
+    if (reader) {
+      while (true) {
+        const { done, value } = await reader.read();
+        if (done) break;
+        accumulated += decoder.decode(value, { stream: true });
+        options.onDelta?.(accumulated);
+      }
+    }
+
+    return { title, summary: accumulated, url: resolvedUrl };
+  }, []);
+
   const handleGenerateScript = useCallback(async () => {
     if (!scriptUrl) return;
     setIsSummarizing(true);
+    setScript("");
     setError(null);
     try {
-      const response = await fetch("/api/summarize", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ url: scriptUrl, testMode: voiceConfig.testMode }),
+      const result = await streamSummarize(scriptUrl, {
+        testMode: voiceConfig.testMode,
+        onDelta: (text) => setScript(text),
       });
-      const data = await response.json();
-      if (!response.ok) throw new Error(data.error || "Failed to summarize");
-      setScript(data.summary);
-      setScriptTitle(data.title);
-      setScriptUrl(data.url);
+      setScript(result.summary);
+      setScriptTitle(result.title);
+      setScriptUrl(result.url);
       mutateVersions();
     } catch (err) {
       setError(err instanceof Error ? err.message : "An unexpected error occurred");
     } finally {
       setIsSummarizing(false);
     }
-  }, [scriptUrl, voiceConfig.testMode, mutateVersions]);
+  }, [scriptUrl, voiceConfig.testMode, mutateVersions, streamSummarize]);
 
   const handleGenerateFromStyled = useCallback(async (styledScript: string) => {
     if (!styledScript.trim() || !scriptUrl) return;
@@ -232,23 +265,26 @@ export default function HomePage() {
     for (let i = 0; i < urlList.length; i++) {
       const [url, title] = urlList[i];
       setScriptProgress({ done: i, total: urlList.length, currentTitle: title });
+
+      // Select this post so the user sees it streaming in real-time
+      setScriptUrl(url);
+      setScriptTitle(title);
+      setScript("");
+
       try {
-        const sumRes = await fetch("/api/summarize", {
+        const result = await streamSummarize(url, {
+          onDelta: (text) => setScript(text),
+        });
+
+        // Save script to blog_posts_cache
+        await fetch("/api/save-script", {
           method: "POST",
           headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ url }),
+          body: JSON.stringify({ url, script: result.summary }),
         });
-        if (sumRes.ok) {
-          const sumData = await sumRes.json();
-          // Save script to blog_posts_cache
-          await fetch("/api/save-script", {
-            method: "POST",
-            headers: { "Content-Type": "application/json" },
-            body: JSON.stringify({ url, script: sumData.summary }),
-          });
-          // Refresh the list so this post shows its script immediately
-          mutateHistory();
-        }
+
+        setScript(result.summary);
+        mutateHistory();
       } catch (err) {
         console.error(`Failed to load script for ${url}:`, err);
       }
@@ -257,7 +293,7 @@ export default function HomePage() {
 
     setLoadingScripts(false);
     mutateHistory();
-  }, [mutateHistory]);
+  }, [mutateHistory, streamSummarize]);
 
   return (
     <div className="h-screen flex flex-col overflow-hidden">
@@ -383,7 +419,7 @@ export default function HomePage() {
               )}
 
               {/* Centered Generate Script CTA when no script yet */}
-              {!script && scriptUrl && !isSummarizing && (
+              {!script && scriptUrl && !isSummarizing && !loadingScripts && (
                 <div className="flex-1 flex flex-col items-center justify-center h-full px-8 py-12 gap-4">
                   <div className="w-12 h-12 rounded-full bg-accent/10 flex items-center justify-center">
                     <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" className="text-accent" aria-hidden="true">
@@ -408,8 +444,8 @@ export default function HomePage() {
                 </div>
               )}
 
-              {/* Summarizing spinner */}
-              {!script && isSummarizing && (
+              {/* Summarizing / batch loading spinner (before first chunk arrives) */}
+              {!script && (isSummarizing || loadingScripts) && (
                 <div className="flex-1 flex flex-col items-center justify-center h-full px-8 py-12 gap-4">
                   <div className="w-12 h-12 rounded-full bg-accent/10 flex items-center justify-center">
                     <svg className="animate-spin text-accent" width="24" height="24" viewBox="0 0 24 24" fill="none" aria-hidden="true">
@@ -417,7 +453,11 @@ export default function HomePage() {
                       <path d="M12 2a10 10 0 0 1 10 10" stroke="currentColor" strokeWidth="2" strokeLinecap="round" />
                     </svg>
                   </div>
-                  <p className="text-sm text-muted">Generating script from blog post...</p>
+                  <p className="text-sm text-muted">
+                    {loadingScripts && scriptProgress.currentTitle
+                      ? `Generating script for "${scriptProgress.currentTitle}"...`
+                      : "Generating script from blog post..."}
+                  </p>
                 </div>
               )}
 
@@ -441,6 +481,7 @@ export default function HomePage() {
                   script={script}
                   title={scriptTitle}
                   isLoading={isGenerating}
+                  isStreaming={isSummarizing || loadingScripts}
                   onScriptChange={setScript}
                 />
               )}
