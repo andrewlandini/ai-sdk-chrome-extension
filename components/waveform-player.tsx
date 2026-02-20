@@ -154,25 +154,48 @@ export function WaveformPlayer({
     }
   }, []);
 
+  // Reset time state when track changes
+  useEffect(() => {
+    setCurrentTime(0);
+    setDuration(0);
+    setIsPlaying(false);
+  }, [audioUrl]);
+
   useEffect(() => {
     const audio = audioRef.current;
     if (!audio) return;
     const onPlay = () => { setIsPlaying(true); startAnimation(); };
     const onPause = () => { setIsPlaying(false); stopAnimation(); };
     const onEnded = () => { setIsPlaying(false); stopAnimation(); };
-    const onMeta = () => setDuration(audio.duration);
+    const onMeta = () => {
+      if (audio.duration && isFinite(audio.duration)) {
+        setDuration(audio.duration);
+      }
+    };
+    // Also listen for durationchange which fires more reliably with streaming/blob audio
+    const onDurationChange = () => {
+      if (audio.duration && isFinite(audio.duration)) {
+        setDuration(audio.duration);
+      }
+    };
     audio.addEventListener("play", onPlay);
     audio.addEventListener("pause", onPause);
     audio.addEventListener("ended", onEnded);
     audio.addEventListener("loadedmetadata", onMeta);
+    audio.addEventListener("durationchange", onDurationChange);
+    // Check if metadata already loaded (e.g. cached audio)
+    if (audio.readyState >= 1 && audio.duration && isFinite(audio.duration)) {
+      setDuration(audio.duration);
+    }
     return () => {
       audio.removeEventListener("play", onPlay);
       audio.removeEventListener("pause", onPause);
       audio.removeEventListener("ended", onEnded);
       audio.removeEventListener("loadedmetadata", onMeta);
+      audio.removeEventListener("durationchange", onDurationChange);
       stopAnimation();
     };
-  }, [startAnimation, stopAnimation]);
+  }, [audioUrl, startAnimation, stopAnimation]);
 
   useEffect(() => {
     return () => {
