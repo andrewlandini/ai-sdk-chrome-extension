@@ -4,6 +4,7 @@ import { useState, useCallback, useRef, useEffect } from "react";
 import useSWR from "swr";
 import { PostsList } from "@/components/posts-list";
 import { ScriptEditor } from "@/components/script-editor";
+import { StyleAgent } from "@/components/style-agent";
 import { VoiceSettings, type VoiceConfig } from "@/components/voice-settings";
 import { VersionsList } from "@/components/versions-list";
 import { WaveformPlayer } from "@/components/waveform-player";
@@ -162,6 +163,36 @@ export default function HomePage() {
       setIsGenerating(false);
     }
   }, [script, scriptUrl, scriptTitle, voiceConfig, mutateHistory, mutateVersions]);
+
+  const handleGenerateFromStyled = useCallback(async (styledScript: string) => {
+    if (!styledScript.trim() || !scriptUrl) return;
+    setIsGenerating(true);
+    setError(null);
+    try {
+      const response = await fetch("/api/generate", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          url: scriptUrl,
+          title: scriptTitle,
+          summary: styledScript,
+          voiceId: voiceConfig.voiceId,
+          stability: voiceConfig.stability,
+          label: voiceConfig.label ? `${voiceConfig.label} (styled)` : "styled",
+        }),
+      });
+      const data = await response.json();
+      if (!response.ok) throw new Error(data.error || "Failed to generate audio");
+      setActiveEntry(data.entry);
+      setAutoplay(true);
+      mutateHistory();
+      mutateVersions();
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "An unexpected error occurred");
+    } finally {
+      setIsGenerating(false);
+    }
+  }, [scriptUrl, scriptTitle, voiceConfig, mutateHistory, mutateVersions]);
 
   const handleDeleteVersion = useCallback(async (version: BlogAudio) => {
     try {
@@ -384,6 +415,14 @@ export default function HomePage() {
                 isLoading={isGenerating}
                 onScriptChange={setScript}
                 onGenerate={handleGenerateAudio}
+              />
+
+              {/* Style agent -- always visible */}
+              <StyleAgent
+                sourceScript={script}
+                onUseStyledScript={setScript}
+                isGeneratingAudio={isGenerating}
+                onGenerateAudio={handleGenerateFromStyled}
               />
             </div>
 
