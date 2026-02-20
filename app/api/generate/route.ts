@@ -164,6 +164,10 @@ export async function POST(request: Request) {
       contentType: "audio/mpeg",
     });
 
+    // Build label as slug_v1, slug_v2, etc.
+    const versionNum = genCount + 1;
+    const versionLabel = `${slug}_v${versionNum}`;
+
     // Save to database
     const entry = await insertBlogAudio({
       url,
@@ -173,7 +177,7 @@ export async function POST(request: Request) {
       voice_id: voiceId,
       model_id: MODEL,
       stability,
-      label: label || `gen-${genNum}`,
+      label: versionLabel,
     });
 
     return Response.json({

@@ -187,7 +187,6 @@ export default function HomePage() {
           summary: styledScript,
           voiceId: voiceConfig.voiceId,
           stability: voiceConfig.stability,
-          label: voiceConfig.label ? `${voiceConfig.label} (styled)` : "styled",
         }),
       });
       const data = await response.json();
