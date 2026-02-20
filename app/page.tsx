@@ -377,27 +377,32 @@ function HomePage() {
   }, [scriptUrl, mutateVersions, mutateHistory, streamSummarize]);
 
   const handleGenerateFromStyled = useCallback(async (styledScript: string) => {
+    console.log("[v0] handleGenerateFromStyled called", { styledScript: styledScript?.substring(0, 100), scriptUrl, isGenerating, voiceId: voiceConfig.voiceId });
     if (!styledScript.trim() || !scriptUrl || isGenerating) return;
     setIsGenerating(true);
     setGenerateStatus("Starting generation...");
     setError(null);
     try {
+      const payload = {
+        url: scriptUrl,
+        title: scriptTitle,
+        summary: styledScript,
+        voiceId: voiceConfig.voiceId,
+        stability: voiceConfig.stability,
+      };
+      console.log("[v0] Sending generate request", { url: payload.url, summaryLength: payload.summary?.length, voiceId: payload.voiceId });
       const response = await fetch("/api/generate", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          url: scriptUrl,
-          title: scriptTitle,
-          summary: styledScript,
-          voiceId: voiceConfig.voiceId,
-          stability: voiceConfig.stability,
-        }),
+        body: JSON.stringify(payload),
       });
 
+      console.log("[v0] Generate response status:", response.status, response.statusText);
       if (!response.ok) {
         let errorMsg = "Failed to generate audio";
         try {
           const data = await response.json();
+          console.log("[v0] Generate error response:", data);
           errorMsg = data.error || errorMsg;
         } catch { /* response may not be JSON */ }
         throw new Error(errorMsg);
