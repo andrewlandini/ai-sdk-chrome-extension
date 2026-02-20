@@ -1,23 +1,20 @@
-import { getAllBlogAudio } from "@/lib/db";
-import { neon } from "@neondatabase/serverless";
-
-const sql = neon(process.env.DATABASE_URL!);
+import { getAllBlogAudio, getCachedBlogPosts } from "@/lib/db";
 
 export async function GET() {
   try {
     const [entries, cachedPosts] = await Promise.all([
       getAllBlogAudio(),
-      sql`SELECT url, title, created_at FROM blog_posts_cache ORDER BY created_at DESC`,
+      getCachedBlogPosts(),
     ]);
 
     // Find cached posts that have no audio entries
     const urlsWithAudio = new Set(entries.map((e) => e.url));
     const postsWithoutAudio = cachedPosts
-      .filter((p) => !urlsWithAudio.has(p.url as string))
+      .filter((p) => !urlsWithAudio.has(p.url))
       .map((p) => ({
         id: -1, // sentinel: no audio yet
-        url: p.url as string,
-        title: p.title as string,
+        url: p.url,
+        title: p.title,
         summary: null,
         audio_url: "",
         voice_id: null,
@@ -25,7 +22,7 @@ export async function GET() {
         stability: null,
         similarity_boost: null,
         label: null,
-        created_at: p.created_at as string,
+        created_at: p.created_at,
       }));
 
     return Response.json({ entries: [...entries, ...postsWithoutAudio] });

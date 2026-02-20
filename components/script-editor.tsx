@@ -44,10 +44,12 @@ export function ScriptEditor({
       <textarea
         value={script}
         onChange={(e) => onScriptChange(e.target.value)}
-        placeholder="Paste a blog URL above or select from the catalog to generate a script..."
+        placeholder="Click Generate Script to create an audio script from the blog post..."
         disabled={isLoading}
         aria-label="Audio script text"
-        className="w-full min-h-[220px] max-h-[440px] bg-transparent text-sm font-mono leading-relaxed text-foreground p-4 resize-y border-none focus:outline-none placeholder:text-muted-foreground/30 disabled:opacity-50"
+        className={`w-full bg-transparent text-sm font-mono leading-relaxed text-foreground p-4 resize-y border-none focus:outline-none placeholder:text-muted-foreground/30 disabled:opacity-50 ${
+          script ? "min-h-[160px] max-h-[440px]" : "min-h-[64px] max-h-[440px]"
+        }`}
       />
 
       {/* Footer */}

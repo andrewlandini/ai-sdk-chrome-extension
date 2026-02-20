@@ -230,15 +230,10 @@ export default function HomePage() {
 
         {/* Column 2: Generator */}
         <main className="flex-1 overflow-y-auto">
-          <div className="max-w-[780px] mx-auto px-6 py-5 flex flex-col gap-4">
+          <div className="max-w-[780px] mx-auto px-6 py-4 flex flex-col gap-3">
             {!scriptUrl ? (
-              <div className="flex items-center justify-center h-64">
-                <div className="text-center">
-                  <p className="text-sm text-muted">Select a blog post from the list</p>
-                  <p className="text-xs text-muted-foreground mt-1">
-                    or paste a URL in the top bar to add one
-                  </p>
-                </div>
+              <div className="flex items-center justify-center h-full min-h-[120px]">
+                <p className="text-xs text-muted-foreground">Select a blog post or paste a URL above</p>
               </div>
             ) : (
               <>
