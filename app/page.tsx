@@ -94,6 +94,7 @@ export default function HomePage() {
   const [scriptUrl, setScriptUrl] = useState("");
   const [styledScript, setStyledScript] = useState("");
   const [isGenerating, setIsGenerating] = useState(false);
+  const [generateStatus, setGenerateStatus] = useState("");
   const [isSummarizing, setIsSummarizing] = useState(false);
   const summarizeAbortRef = useRef<AbortController | null>(null);
   const [error, setError] = useState<string | null>(null);
@@ -208,6 +209,7 @@ export default function HomePage() {
   const handleGenerateFromStyled = useCallback(async (styledScript: string) => {
     if (!styledScript.trim() || !scriptUrl) return;
     setIsGenerating(true);
+    setGenerateStatus("Starting generation...");
     setError(null);
     try {
       const response = await fetch("/api/generate", {
@@ -221,16 +223,56 @@ export default function HomePage() {
           stability: voiceConfig.stability,
         }),
       });
-      const data = await response.json();
-      if (!response.ok) throw new Error(data.error || "Failed to generate audio");
-      setActiveEntry(data.entry);
-      setAutoplay(true);
-      mutateHistory();
-      mutateVersions();
+
+      if (!response.ok) {
+        const data = await response.json();
+        throw new Error(data.error || "Failed to generate audio");
+      }
+
+      const reader = response.body?.getReader();
+      const decoder = new TextDecoder();
+      let buffer = "";
+      let finalEntry = null;
+
+      if (reader) {
+        while (true) {
+          const { done, value } = await reader.read();
+          if (done) break;
+          buffer += decoder.decode(value, { stream: true });
+
+          const lines = buffer.split("\n");
+          buffer = lines.pop() || "";
+
+          for (const line of lines) {
+            if (!line.trim()) continue;
+            try {
+              const event = JSON.parse(line);
+              if (event.type === "status") {
+                setGenerateStatus(event.message);
+              } else if (event.type === "done") {
+                finalEntry = event.entry;
+              } else if (event.type === "error") {
+                throw new Error(event.error);
+              }
+            } catch (parseErr) {
+              if (parseErr instanceof SyntaxError) continue;
+              throw parseErr;
+            }
+          }
+        }
+      }
+
+      if (finalEntry) {
+        setActiveEntry(finalEntry);
+        setAutoplay(true);
+        mutateHistory();
+        mutateVersions();
+      }
     } catch (err) {
       setError(err instanceof Error ? err.message : "An unexpected error occurred");
     } finally {
       setIsGenerating(false);
+      setGenerateStatus("");
     }
   }, [scriptUrl, scriptTitle, voiceConfig, mutateHistory, mutateVersions]);
 
@@ -789,6 +831,14 @@ export default function HomePage() {
                     )}
                   </button>
                 </div>
+                {/* Generation progress status */}
+                {isGenerating && generateStatus && (
+                  <div className="px-3 py-1.5 border-b border-border bg-accent/5">
+                    <p className="text-[10px] text-accent font-mono truncate animate-pulse">
+                      {generateStatus}
+                    </p>
+                  </div>
+                )}
                 <VersionsList
                   versions={versions}
                   activeId={activeEntry?.id ?? null}

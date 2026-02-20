@@ -99,89 +99,137 @@ function concatMp3Buffers(buffers: Buffer[]): Buffer {
 }
 
 export async function POST(request: Request) {
-  try {
-    const body = await request.json();
-    const {
-      url,
-      title,
-      summary,
-      voiceId = "TX3LPaxmHKxFdv7VOQHJ",
-      stability,
-      label,
-    } = body;
+  const body = await request.json();
+  const {
+    url,
+    title,
+    summary,
+    voiceId = "TX3LPaxmHKxFdv7VOQHJ",
+    stability,
+  } = body;
 
-    if (!url || !summary) {
-      return Response.json(
-        { error: "URL and summary are required" },
-        { status: 400 }
-      );
-    }
-
-    // Build voice settings (v3 only uses stability)
-    const voiceSettings: Record<string, number> = {};
-    if (stability !== undefined) voiceSettings.stability = stability;
-
-    const providerOpts = Object.keys(voiceSettings).length > 0
-      ? { providerOptions: { elevenlabs: { voiceSettings } } }
-      : {};
-
-    // Split into chunks for v3's 5,000 char limit
-    const chunks = chunkText(summary);
-    const audioBuffers: Buffer[] = [];
-
-    for (const chunk of chunks) {
-      const { audio } = await generateSpeech({
-        model: elevenlabs.speech(MODEL),
-        text: chunk,
-        voice: voiceId,
-        ...providerOpts,
-      });
-      audioBuffers.push(Buffer.from(audio.uint8Array));
-    }
-
-    // Concatenate chunks, stripping duplicate MP3 headers from chunks 2+
-    const finalAudio = concatMp3Buffers(audioBuffers);
-
-    // Upload to Vercel Blob with slug-based filenames
-    const postSlug = await getAudioIdByUrl(url);
-    const genCount = await getGenerationCountByUrl(url);
-    const genNum = String(genCount + 1).padStart(3, "0"); // 001, 002, etc.
-    const slug = postSlug || (title || "untitled")
-      .toLowerCase()
-      .substring(0, 60)
-      .replace(/[^a-z0-9]+/g, "-")
-      .replace(/(^-|-$)/g, "");
-    const filename = `blog-audio/${slug}-gen-${genNum}.mp3`;
-    const blob = await put(filename, finalAudio, {
-      access: "public",
-      contentType: "audio/mpeg",
-    });
-
-    // Build label as slug_v1, slug_v2, etc.
-    const versionNum = genCount + 1;
-    const versionLabel = `${slug}_v${versionNum}`;
-
-    // Save to database
-    const entry = await insertBlogAudio({
-      url,
-      title: title || "Untitled",
-      summary,
-      audio_url: blob.url,
-      voice_id: voiceId,
-      model_id: MODEL,
-      stability,
-      label: versionLabel,
-    });
-
-    return Response.json({
-      entry,
-      chunks: chunks.length,
-      totalChars: summary.length,
-    });
-  } catch (error) {
-    console.error("Generate error:", error);
-    const message =
-      error instanceof Error ? error.message : "An unexpected error occurred";
-    return Response.json({ error: message }, { status: 500 });
+  if (!url || !summary) {
+    return Response.json(
+      { error: "URL and summary are required" },
+      { status: 400 }
+    );
   }
+
+  const encoder = new TextEncoder();
+
+  const stream = new ReadableStream({
+    async start(controller) {
+      const send = (data: Record<string, unknown>) => {
+        controller.enqueue(encoder.encode(JSON.stringify(data) + "\n"));
+      };
+
+      try {
+        // Build voice settings (v3 only uses stability)
+        const voiceSettings: Record<string, number> = {};
+        if (stability !== undefined) voiceSettings.stability = stability;
+
+        const providerOpts = Object.keys(voiceSettings).length > 0
+          ? { providerOptions: { elevenlabs: { voiceSettings } } }
+          : {};
+
+        // Split into chunks for v3's character limit
+        const chunks = chunkText(summary);
+        const totalChars = summary.length;
+        const voiceName = VOICE_MAP[voiceId] || "Unknown";
+
+        send({
+          type: "status",
+          step: "chunking",
+          message: chunks.length === 1
+            ? `Preparing script (${totalChars.toLocaleString()} chars) for ${voiceName}...`
+            : `Split into ${chunks.length} chunks (${totalChars.toLocaleString()} chars) for ${voiceName}`,
+        });
+
+        const audioBuffers: Buffer[] = [];
+
+        for (let i = 0; i < chunks.length; i++) {
+          const chunkChars = chunks[i].length;
+          send({
+            type: "status",
+            step: "generating",
+            message: chunks.length === 1
+              ? `Generating speech with ElevenLabs v3...`
+              : `Generating chunk ${i + 1}/${chunks.length} (${chunkChars.toLocaleString()} chars)...`,
+            progress: { current: i + 1, total: chunks.length },
+          });
+
+          const { audio } = await generateSpeech({
+            model: elevenlabs.speech(MODEL),
+            text: chunks[i],
+            voice: voiceId,
+            ...providerOpts,
+          });
+          audioBuffers.push(Buffer.from(audio.uint8Array));
+        }
+
+        // Concatenate chunks
+        if (chunks.length > 1) {
+          send({ type: "status", step: "combining", message: "Combining audio chunks..." });
+        }
+        const finalAudio = concatMp3Buffers(audioBuffers);
+
+        // Upload to Vercel Blob
+        send({ type: "status", step: "uploading", message: "Uploading to storage..." });
+
+        const postSlug = await getAudioIdByUrl(url);
+        const genCount = await getGenerationCountByUrl(url);
+        const genNum = String(genCount + 1).padStart(3, "0");
+        const slug = postSlug || (title || "untitled")
+          .toLowerCase()
+          .substring(0, 60)
+          .replace(/[^a-z0-9]+/g, "-")
+          .replace(/(^-|-$)/g, "");
+        const filename = `blog-audio/${slug}-gen-${genNum}.mp3`;
+        const blob = await put(filename, finalAudio, {
+          access: "public",
+          contentType: "audio/mpeg",
+        });
+
+        // Save to database
+        send({ type: "status", step: "saving", message: "Saving to database..." });
+
+        const versionNum = genCount + 1;
+        const versionLabel = `${slug}_v${versionNum}`;
+
+        const entry = await insertBlogAudio({
+          url,
+          title: title || "Untitled",
+          summary,
+          audio_url: blob.url,
+          voice_id: voiceId,
+          model_id: MODEL,
+          stability,
+          label: versionLabel,
+        });
+
+        send({
+          type: "done",
+          entry,
+          chunks: chunks.length,
+          totalChars,
+        });
+
+        controller.close();
+      } catch (error) {
+        console.error("Generate error:", error);
+        const message =
+          error instanceof Error ? error.message : "An unexpected error occurred";
+        send({ type: "error", error: message });
+        controller.close();
+      }
+    },
+  });
+
+  return new Response(stream, {
+    headers: {
+      "Content-Type": "application/x-ndjson",
+      "Cache-Control": "no-cache",
+      Connection: "keep-alive",
+    },
+  });
 }
