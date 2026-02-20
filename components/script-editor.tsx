@@ -26,7 +26,11 @@ export function ScriptEditor({
         placeholder="Select a blog post and click Generate Script to fetch the content..."
         disabled={isLoading}
         aria-label="Blog post script content"
-        className="flex-1 w-full bg-transparent text-sm font-mono leading-relaxed text-foreground p-4 resize-none border-none focus:outline-none placeholder:text-muted-foreground/30 disabled:opacity-50 overflow-y-auto"
+        className={`flex-1 w-full bg-transparent text-sm font-mono leading-relaxed text-foreground p-4 resize-none border-none focus:outline-none placeholder:text-muted-foreground/30 disabled:opacity-50 overflow-y-auto transition-opacity duration-300 ${
+          script && !isStreaming
+            ? "opacity-30 hover:opacity-100 focus:opacity-100"
+            : ""
+        }`}
       />
 
       {/* Footer */}
