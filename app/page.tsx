@@ -67,6 +67,13 @@ type CreditsData = {
   nextResetUnix: number;
 };
 
+const DEFAULT_VOICE_CONFIG: VoiceConfig = {
+  voiceId: "TX3LPaxmHKxFdv7VOQHJ",
+  stability: 0,
+  label: "",
+  styleVibe: "Confident and genuinely excited about the content, but grounded and conversational -- not over the top",
+};
+
 export default function HomePage() {
   const { name: productName, fading: nameFading, advance: advanceName } = useProductName();
   const { data: credits } = useSWR<CreditsData>("/api/credits", fetcher, { refreshInterval: 30000 });
