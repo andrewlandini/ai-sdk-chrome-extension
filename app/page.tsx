@@ -473,15 +473,18 @@ export default function HomePage() {
                 <span className="text-sm font-semibold tracking-tight">Blog Posts</span>
                 <span className="text-[10px] font-mono text-accent bg-accent/10 px-1.5 py-0.5 rounded">{entries.length}</span>
               </div>
-              <button
-                onClick={() => setSidebarOpen(false)}
-                className="p-1 text-muted hover:text-foreground transition-colors focus-ring rounded"
-                aria-label="Close sidebar"
-              >
-                <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" aria-hidden="true">
-                  <path d="M18 6L6 18M6 6l12 12" />
-                </svg>
-              </button>
+              <div className="flex items-center gap-1">
+                <AddPostButton mutateHistory={mutateHistory} />
+                <button
+                  onClick={() => setSidebarOpen(false)}
+                  className="p-1 text-muted hover:text-foreground transition-colors focus-ring rounded"
+                  aria-label="Close sidebar"
+                >
+                  <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" aria-hidden="true">
+                    <path d="M18 6L6 18M6 6l12 12" />
+                  </svg>
+                </button>
+              </div>
             </div>
             <div className="flex-1 min-h-0 overflow-hidden">
               <PostsList
@@ -492,9 +495,6 @@ export default function HomePage() {
                 onPlay={handlePlayFromList}
                 onDelete={handleDeleteEntry}
               />
-            </div>
-            <div className="flex-shrink-0 border-t border-border px-3 py-2">
-              <AddPostInput mutateHistory={mutateHistory} />
             </div>
           </aside>
         </>
@@ -531,6 +531,7 @@ export default function HomePage() {
               <span className="text-sm font-semibold tracking-tight">Blog Posts</span>
               <span className="text-[10px] font-mono text-accent bg-accent/10 px-1.5 py-0.5 rounded">{entries.length}</span>
             </div>
+            <AddPostButton mutateHistory={mutateHistory} />
           </div>
           <div className="flex-1 min-h-0 overflow-hidden">
             <PostsList
@@ -541,10 +542,6 @@ export default function HomePage() {
               onPlay={handlePlayFromList}
               onDelete={handleDeleteEntry}
             />
-          </div>
-          {/* Add post URL -- pinned to bottom */}
-          <div className="flex-shrink-0 border-t border-border px-3 py-2">
-            <AddPostInput mutateHistory={mutateHistory} />
           </div>
         </aside>
 
@@ -880,12 +877,32 @@ export default function HomePage() {
   );
 }
 
-/* ── Add Post Input (top bar) ── */
+/* ── Add Post Button (popup) ── */
 
-function AddPostInput({ mutateHistory }: { mutateHistory: () => void }) {
+function AddPostButton({ mutateHistory }: { mutateHistory: () => void }) {
+  const [open, setOpen] = useState(false);
   const [url, setUrl] = useState("");
   const [isAdding, setIsAdding] = useState(false);
   const [message, setMessage] = useState<string | null>(null);
+  const popoverRef = useRef<HTMLDivElement>(null);
+  const inputRef = useRef<HTMLInputElement>(null);
+
+  // Close on outside click
+  useEffect(() => {
+    if (!open) return;
+    const handler = (e: MouseEvent) => {
+      if (popoverRef.current && !popoverRef.current.contains(e.target as Node)) {
+        setOpen(false);
+      }
+    };
+    document.addEventListener("mousedown", handler);
+    return () => document.removeEventListener("mousedown", handler);
+  }, [open]);
+
+  // Focus input on open
+  useEffect(() => {
+    if (open) setTimeout(() => inputRef.current?.focus(), 50);
+  }, [open]);
 
   const handleAdd = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -910,7 +927,7 @@ function AddPostInput({ mutateHistory }: { mutateHistory: () => void }) {
       setUrl("");
       setMessage(`Added: ${data.title}`);
       mutateHistory();
-      setTimeout(() => setMessage(null), 3000);
+      setTimeout(() => { setMessage(null); setOpen(false); }, 1500);
     } catch (err) {
       setMessage(err instanceof Error ? err.message : "Failed to add");
     } finally {
@@ -919,46 +936,51 @@ function AddPostInput({ mutateHistory }: { mutateHistory: () => void }) {
   };
 
   return (
-    <form onSubmit={handleAdd} className="flex items-center gap-2">
-      <div className="relative flex-1">
-        <svg
-          width="14"
-          height="14"
-          viewBox="0 0 24 24"
-          fill="none"
-          stroke="currentColor"
-          strokeWidth="2"
-          className="absolute left-2.5 top-1/2 -translate-y-1/2 text-muted-foreground"
-          aria-hidden="true"
-        >
-          <path d="M10 13a5 5 0 0 0 7.54.54l3-3a5 5 0 0 0-7.07-7.07l-1.72 1.71" />
-          <path d="M14 11a5 5 0 0 0-7.54-.54l-3 3a5 5 0 0 0 7.07 7.07l1.71-1.71" />
-        </svg>
-        <input
-          type="url"
-          value={url}
-          onChange={(e) => {
-            setUrl(e.target.value);
-            if (message) setMessage(null);
-          }}
-          placeholder="Paste blog URL to add..."
-          disabled={isAdding}
-          className="w-full h-8 rounded-md border border-border bg-surface-2 pl-8 pr-3 text-xs text-foreground font-mono placeholder:text-muted-foreground/30 focus:outline-none focus:border-accent transition-colors disabled:opacity-50"
-          aria-label="Add blog post URL"
-        />
-      </div>
+    <div className="relative" ref={popoverRef}>
       <button
-        type="submit"
-        disabled={isAdding || !url.trim()}
-        className="h-8 px-3 rounded-md bg-foreground text-background text-xs font-medium hover:bg-foreground/90 disabled:opacity-40 disabled:cursor-not-allowed transition-colors focus-ring flex-shrink-0"
+        onClick={() => setOpen(!open)}
+        className="p-1 text-muted hover:text-foreground transition-colors focus-ring rounded"
+        aria-label="Add blog post"
       >
-        {isAdding ? "Adding..." : "Add"}
+        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" aria-hidden="true">
+          <path d="M12 5v14M5 12h14" />
+        </svg>
       </button>
-      {message && (
-        <span className={`text-[11px] flex-shrink-0 ${message.startsWith("Added") ? "text-success" : "text-destructive"}`}>
-          {message}
-        </span>
+
+      {open && (
+        <div className="absolute right-0 top-full mt-1 z-50 w-80 rounded-lg border border-border bg-surface-1 shadow-lg p-3">
+          <form onSubmit={handleAdd} className="flex flex-col gap-2">
+            <label className="text-[11px] text-muted font-medium">Blog Post URL</label>
+            <div className="flex items-center gap-2">
+              <input
+                ref={inputRef}
+                type="url"
+                value={url}
+                onChange={(e) => {
+                  setUrl(e.target.value);
+                  if (message) setMessage(null);
+                }}
+                placeholder="https://vercel.com/blog/..."
+                disabled={isAdding}
+                className="flex-1 h-8 rounded-md border border-border bg-surface-2 px-3 text-xs text-foreground font-mono placeholder:text-muted-foreground/30 focus:outline-none focus:border-accent transition-colors disabled:opacity-50"
+                aria-label="Blog post URL"
+              />
+              <button
+                type="submit"
+                disabled={isAdding || !url.trim()}
+                className="h-8 px-3 rounded-md bg-foreground text-background text-xs font-medium hover:bg-foreground/90 disabled:opacity-40 disabled:cursor-not-allowed transition-colors focus-ring flex-shrink-0"
+              >
+                {isAdding ? "..." : "Add"}
+              </button>
+            </div>
+            {message && (
+              <span className={`text-[11px] ${message.startsWith("Added") ? "text-success" : "text-destructive"}`}>
+                {message}
+              </span>
+            )}
+          </form>
+        </div>
       )}
-    </form>
+    </div>
   );
 }
