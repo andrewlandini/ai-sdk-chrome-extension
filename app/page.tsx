@@ -496,6 +496,40 @@ export default function HomePage() {
                 onDelete={handleDeleteEntry}
               />
             </div>
+
+            {/* Audio Versions */}
+            <div className="flex-shrink-0 border-t border-border">
+              <div className="flex items-center justify-between px-3 py-2 border-b border-border">
+                <div className="flex items-center gap-2">
+                  <span className="text-sm font-semibold tracking-tight">Audio Versions</span>
+                  <span className="text-[10px] font-mono text-accent bg-accent/10 px-1.5 py-0.5 rounded">{versions.length}</span>
+                </div>
+              </div>
+              <VersionsList
+                versions={versions}
+                activeId={activeEntry?.id ?? null}
+                onSelect={handleSelectVersion}
+                onDelete={handleDeleteVersion}
+              />
+            </div>
+
+            {/* Player -- always visible */}
+            <div className="flex-shrink-0 border-t border-border px-4 py-3">
+              {activeEntry ? (
+                <WaveformPlayer
+                  key={activeEntry.id}
+                  audioUrl={activeEntry.audio_url}
+                  title={activeEntry.title || "Untitled"}
+                  summary={activeEntry.summary || ""}
+                  url={activeEntry.url}
+                  autoplay={autoplay}
+                />
+              ) : (
+                <div className="flex items-center justify-center h-10 text-[11px] text-muted">
+                  No audio selected
+                </div>
+              )}
+            </div>
           </aside>
         </>
       )}
@@ -542,6 +576,68 @@ export default function HomePage() {
               onPlay={handlePlayFromList}
               onDelete={handleDeleteEntry}
             />
+          </div>
+
+          {/* Audio Versions */}
+          <div className="flex-shrink-0 border-t border-border">
+            <div className="flex items-center justify-between px-3 py-2 border-b border-border">
+              <div className="flex items-center gap-2">
+                <span className="text-sm font-semibold tracking-tight">Audio Versions</span>
+                <span className="text-[10px] font-mono text-accent bg-accent/10 px-1.5 py-0.5 rounded">{versions.length}</span>
+              </div>
+              <button
+                onClick={() => {
+                  if (styledScript.trim()) {
+                    handleGenerateFromStyled(styledScript);
+                  }
+                }}
+                disabled={isGenerating || !styledScript.trim()}
+                className="flex items-center justify-center gap-2 h-7 rounded-md bg-accent text-primary-foreground px-3 text-xs font-medium transition-colors hover:bg-accent-hover disabled:opacity-40 disabled:cursor-not-allowed focus-ring flex-shrink-0"
+              >
+                {isGenerating ? (
+                  <>
+                    <svg className="animate-spin" width="12" height="12" viewBox="0 0 24 24" fill="none" aria-hidden="true">
+                      <circle cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="2" strokeOpacity="0.2" />
+                      <path d="M12 2a10 10 0 0 1 10 10" stroke="currentColor" strokeWidth="2" strokeLinecap="round" />
+                    </svg>
+                    <span>Generating...</span>
+                  </>
+                ) : (
+                  <span>Generate Audio</span>
+                )}
+              </button>
+            </div>
+            {isGenerating && generateStatus && (
+              <div className="px-3 py-1.5 border-b border-border bg-accent/5">
+                <p className="text-[10px] text-accent font-mono truncate animate-pulse">
+                  {generateStatus}
+                </p>
+              </div>
+            )}
+            <VersionsList
+              versions={versions}
+              activeId={activeEntry?.id ?? null}
+              onSelect={handleSelectVersion}
+              onDelete={handleDeleteVersion}
+            />
+          </div>
+
+          {/* Player -- always visible */}
+          <div className="flex-shrink-0 border-t border-border px-4 py-3">
+            {activeEntry ? (
+              <WaveformPlayer
+                key={activeEntry.id}
+                audioUrl={activeEntry.audio_url}
+                title={activeEntry.title || "Untitled"}
+                summary={activeEntry.summary || ""}
+                url={activeEntry.url}
+                autoplay={autoplay}
+              />
+            ) : (
+              <div className="flex items-center justify-center h-10 text-[11px] text-muted">
+                No audio selected
+              </div>
+            )}
           </div>
         </aside>
 
@@ -788,65 +884,6 @@ export default function HomePage() {
                   externalScript={selectedHistoryScript}
                   styleVibe={voiceConfig.styleVibe}
                   dimmed={contentFocused}
-                />
-              </div>
-
-              {/* Player */}
-              {activeEntry && (
-                <div className="flex-shrink-0 px-4 py-3 border-t border-border">
-                  <WaveformPlayer
-                    key={activeEntry.id}
-                    audioUrl={activeEntry.audio_url}
-                    title={activeEntry.title || "Untitled"}
-                    summary={activeEntry.summary || ""}
-                    url={activeEntry.url}
-                    autoplay={autoplay}
-                  />
-                </div>
-              )}
-
-              {/* Audio Versions */}
-              <div className="flex-shrink-0 border-t border-border">
-                <div className="flex items-center justify-between px-3 py-2 border-b border-border">
-                  <div className="flex items-center gap-2">
-                    <span className="text-sm font-semibold tracking-tight">Audio Versions</span>
-                    <span className="text-[10px] font-mono text-accent bg-accent/10 px-1.5 py-0.5 rounded">{versions.length}</span>
-                  </div>
-                  <button
-                    onClick={() => {
-                      if (styledScript.trim()) {
-                        handleGenerateFromStyled(styledScript);
-                      }
-                    }}
-                    disabled={isGenerating || !styledScript.trim()}
-                    className="flex items-center justify-center gap-2 h-7 rounded-md bg-accent text-primary-foreground px-3 text-xs font-medium transition-colors hover:bg-accent-hover disabled:opacity-40 disabled:cursor-not-allowed focus-ring flex-shrink-0"
-                  >
-                    {isGenerating ? (
-                      <>
-                        <svg className="animate-spin" width="12" height="12" viewBox="0 0 24 24" fill="none" aria-hidden="true">
-                          <circle cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="2" strokeOpacity="0.2" />
-                          <path d="M12 2a10 10 0 0 1 10 10" stroke="currentColor" strokeWidth="2" strokeLinecap="round" />
-                        </svg>
-                        <span>Generating...</span>
-                      </>
-                    ) : (
-                      <span>Generate Audio</span>
-                    )}
-                  </button>
-                </div>
-                {/* Generation progress status */}
-                {isGenerating && generateStatus && (
-                  <div className="px-3 py-1.5 border-b border-border bg-accent/5">
-                    <p className="text-[10px] text-accent font-mono truncate animate-pulse">
-                      {generateStatus}
-                    </p>
-                  </div>
-                )}
-                <VersionsList
-                  versions={versions}
-                  activeId={activeEntry?.id ?? null}
-                  onSelect={handleSelectVersion}
-                  onDelete={handleDeleteVersion}
                 />
               </div>
             </div>
