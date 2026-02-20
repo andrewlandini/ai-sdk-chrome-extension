@@ -132,7 +132,6 @@ export async function POST(request: Request) {
       voice_id: voiceId,
       model_id: MODEL,
       stability,
-      similarity_boost: null,
       label: versionLabel,
     });
 
