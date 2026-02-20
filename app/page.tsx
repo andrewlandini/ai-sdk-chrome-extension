@@ -82,6 +82,7 @@ export default function HomePage() {
   const [script, setScript] = useState("");
   const [scriptTitle, setScriptTitle] = useState("");
   const [scriptUrl, setScriptUrl] = useState("");
+  const [styledScript, setStyledScript] = useState("");
   const [isGenerating, setIsGenerating] = useState(false);
   const [isSummarizing, setIsSummarizing] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -334,17 +335,16 @@ export default function HomePage() {
           </div>
         </aside>
 
-        {/* Workspace: generator + voice settings side by side */}
+        {/* Workspace: content + voice over + voice settings */}
         <div className="flex-1 min-w-0 flex flex-col lg:flex-row overflow-hidden">
 
-          {/* Generator panel -- always visible, empty when nothing selected */}
-          <div className="flex-1 min-w-0 flex flex-col overflow-hidden">
-            {/* Column header */}
+          {/* Content column -- verbatim blog script */}
+          <div className="flex-1 min-w-0 flex flex-col overflow-hidden border-r border-border">
             <div className="flex items-center justify-between px-3 py-2 border-b border-border flex-shrink-0">
               <div className="flex items-center gap-2">
-                <span className="text-xs font-medium">Generator</span>
+                <span className="text-xs font-medium">Content</span>
                 {scriptTitle && (
-                  <span className="text-[10px] text-muted font-mono truncate max-w-[300px]">{scriptTitle}</span>
+                  <span className="text-[10px] text-muted font-mono truncate max-w-[200px]">{scriptTitle}</span>
                 )}
               </div>
               {scriptUrl && (
@@ -367,46 +367,46 @@ export default function HomePage() {
                 </button>
               )}
             </div>
-
-            {/* Scrollable content: script + style */}
-            <div className="flex-1 min-h-0 overflow-y-auto px-5 pt-4 pb-2 flex flex-col gap-4 border-b border-border">
-              {/* Error */}
+            <div className="flex-1 min-h-0 overflow-y-auto">
               {error && (
-                <div className="flex items-center gap-2 text-xs text-destructive border border-destructive/20 bg-destructive/5 rounded-md px-3 py-2" role="alert">
+                <div className="mx-4 mt-3 flex items-center gap-2 text-xs text-destructive border border-destructive/20 bg-destructive/5 rounded-md px-3 py-2" role="alert">
                   <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" aria-hidden="true">
                     <circle cx="12" cy="12" r="10" /><path d="M12 8v4m0 4h.01" />
                   </svg>
                   <span>{error}</span>
                 </div>
               )}
+              <ScriptEditor
+                script={script}
+                title={scriptTitle}
+                isLoading={isGenerating}
+                onScriptChange={setScript}
+              />
+            </div>
+          </div>
 
-              {/* Script Agent */}
-              <div className="flex flex-col gap-2">
-                <h3 className="text-[10px] text-muted-foreground uppercase tracking-wider font-medium">Script Agent</h3>
-                <ScriptEditor
-                  script={script}
-                  title={scriptTitle}
-                  isLoading={isGenerating}
-                  onScriptChange={setScript}
-                />
-              </div>
-
-              {/* Style Agent */}
-              <div className="flex flex-col gap-2">
-                <h3 className="text-[10px] text-muted-foreground uppercase tracking-wider font-medium">Style Agent</h3>
-                <StyleAgent
-                  sourceScript={script}
-                  onUseStyledScript={setScript}
-                  isGeneratingAudio={isGenerating}
-                  onGenerateAudio={handleGenerateFromStyled}
-                  styleVibe={voiceConfig.styleVibe}
-                />
+          {/* Voice Over column -- styled script for ElevenLabs */}
+          <div className="flex-1 min-w-0 flex flex-col overflow-hidden">
+            <div className="flex items-center justify-between px-3 py-2 border-b border-border flex-shrink-0">
+              <div className="flex items-center gap-2">
+                <span className="text-xs font-medium">Voice Over</span>
+                <span className="text-[10px] text-muted">ElevenLabs v3</span>
               </div>
             </div>
+            <div className="flex-1 min-h-0 overflow-y-auto">
+              <StyleAgent
+                sourceScript={script}
+                onUseStyledScript={setScript}
+                isGeneratingAudio={isGenerating}
+                onGenerateAudio={handleGenerateFromStyled}
+                onStyledScriptChange={setStyledScript}
+                styleVibe={voiceConfig.styleVibe}
+              />
+            </div>
 
-            {/* Middle: player */}
+            {/* Player */}
             {activeEntry && (
-              <div className="flex-shrink-0 px-5 py-3 border-b border-border">
+              <div className="flex-shrink-0 px-4 py-3 border-t border-border">
                 <WaveformPlayer
                   key={activeEntry.id}
                   audioUrl={activeEntry.audio_url}
@@ -418,8 +418,8 @@ export default function HomePage() {
               </div>
             )}
 
-            {/* Bottom: versions (pinned) */}
-            <div className="flex-shrink-0 px-5 py-3 mt-auto border-t border-border">
+            {/* Versions (pinned) */}
+            <div className="flex-shrink-0 px-4 py-3 border-t border-border">
               <VersionsList
                 versions={versions}
                 activeId={activeEntry?.id ?? null}
@@ -430,9 +430,37 @@ export default function HomePage() {
           </div>
 
           {/* Voice settings panel */}
-          <aside className="w-full lg:w-[380px] flex-shrink-0 border-t lg:border-t-0 lg:border-l border-border overflow-y-auto bg-surface-1">
-            <div className="p-4">
+          <aside className="w-full lg:w-[380px] flex-shrink-0 border-t lg:border-t-0 lg:border-l border-border flex flex-col overflow-hidden bg-surface-1">
+            <div className="flex-1 overflow-y-auto p-4">
               <VoiceSettings config={voiceConfig} onChange={setVoiceConfig} />
+            </div>
+            {/* Generate button -- pinned to bottom */}
+            <div className="flex-shrink-0 border-t border-border p-4">
+              <button
+                onClick={() => {
+                  if (styledScript.trim()) {
+                    handleGenerateFromStyled(styledScript);
+                  }
+                }}
+                disabled={isGenerating || !styledScript.trim()}
+                className={`relative w-full h-12 rounded-lg text-sm font-semibold transition-all focus-ring overflow-hidden ${
+                  isGenerating
+                    ? "animate-shimmer text-white"
+                    : "bg-foreground text-background hover:bg-foreground/90 disabled:opacity-40"
+                } disabled:cursor-not-allowed`}
+              >
+                {isGenerating ? (
+                  <span className="relative z-10 flex items-center justify-center gap-2">
+                    <svg className="animate-spin" width="16" height="16" viewBox="0 0 24 24" fill="none" aria-hidden="true">
+                      <circle cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="2" strokeOpacity="0.3" />
+                      <path d="M12 2a10 10 0 0 1 10 10" stroke="currentColor" strokeWidth="2" strokeLinecap="round" />
+                    </svg>
+                    Generating Audio...
+                  </span>
+                ) : (
+                  <span className="relative z-10">Generate Audio</span>
+                )}
+              </button>
             </div>
           </aside>
         </div>

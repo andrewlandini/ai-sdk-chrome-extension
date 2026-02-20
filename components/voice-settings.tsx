@@ -401,12 +401,12 @@ export function VoiceSettings({ config, onChange }: VoiceSettingsProps) {
             );
           })}
         </div>
-        <input
-          type="text"
+        <textarea
+          rows={4}
           value={config.styleVibe}
           onChange={(e) => update({ styleVibe: e.target.value })}
           placeholder="Custom vibe, e.g. warm bedtime story, dramatic trailer..."
-          className="h-8 bg-background border border-border rounded-md px-2.5 text-xs text-foreground placeholder:text-muted-foreground/30 transition-colors focus-ring"
+          className="bg-background border border-border rounded-md px-2.5 py-2 text-xs text-foreground leading-relaxed placeholder:text-muted-foreground/30 transition-colors focus-ring resize-none"
         />
       </fieldset>
     </section>
