@@ -117,6 +117,16 @@ export async function upsertBlogPosts(posts: { url: string; title: string; descr
   return inserted;
 }
 
+export async function getAudioIdByUrl(url: string): Promise<string | null> {
+  const rows = await sql`SELECT audio_id FROM blog_posts_cache WHERE url = ${url} LIMIT 1`;
+  return rows.length > 0 ? (rows[0] as { audio_id: string }).audio_id : null;
+}
+
+export async function getGenerationCountByUrl(url: string): Promise<number> {
+  const rows = await sql`SELECT COUNT(*)::int as count FROM blog_audio WHERE url = ${url}`;
+  return (rows[0] as { count: number }).count;
+}
+
 export async function getCachedPostCount(): Promise<number> {
   const rows = await sql`SELECT COUNT(*)::int as count FROM blog_posts_cache`;
   return (rows[0] as { count: number }).count;
