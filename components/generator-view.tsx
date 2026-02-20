@@ -103,36 +103,6 @@ export function GeneratorView({
     [onScriptTitleChange, onScriptUrlChange]
   );
 
-  const handleGenerate = useCallback(async () => {
-    if (!script.trim() || !scriptUrl) return;
-    setIsGenerating(true);
-    setError(null);
-    try {
-      const response = await fetch("/api/generate", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          url: scriptUrl,
-          title: scriptTitle,
-          summary: script,
-          voiceId: voiceConfig.voiceId,
-          stability: voiceConfig.stability,
-          label: voiceConfig.label || undefined,
-        }),
-      });
-      const data = await response.json();
-      if (!response.ok) throw new Error(data.error || "Failed to generate audio");
-      onActiveEntryChange(data.entry);
-      onAutoplayChange(true);
-      mutateHistory();
-      mutateVersions();
-    } catch (err) {
-      setError(err instanceof Error ? err.message : "An unexpected error occurred");
-    } finally {
-      setIsGenerating(false);
-    }
-  }, [script, scriptUrl, scriptTitle, voiceConfig, mutateHistory, mutateVersions, onActiveEntryChange, onAutoplayChange]);
-
   const handleGenerateFromStyled = useCallback(
     async (styledScript: string) => {
       if (!styledScript.trim() || !scriptUrl) return;
@@ -291,7 +261,6 @@ export function GeneratorView({
             title={scriptTitle}
             isLoading={isGenerating}
             onScriptChange={onScriptChange}
-            onGenerate={handleGenerate}
           />
 
           {/* Style Agent */}
@@ -300,6 +269,7 @@ export function GeneratorView({
             onUseStyledScript={onScriptChange}
             isGeneratingAudio={isGenerating}
             onGenerateAudio={handleGenerateFromStyled}
+            styleVibe={voiceConfig.styleVibe}
           />
 
           {/* Player */}
