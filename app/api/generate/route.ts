@@ -108,7 +108,9 @@ export async function POST(request: Request) {
     stability,
   } = body;
 
+  console.log("[v0] Generate POST body:", { url, summaryLength: summary?.length, voiceId, title: title?.substring(0, 50) });
   if (!url || !summary) {
+    console.log("[v0] Generate 400: missing url or summary", { hasUrl: !!url, hasSummary: !!summary });
     return Response.json(
       { error: "URL and summary are required" },
       { status: 400 }
