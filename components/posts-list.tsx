@@ -240,7 +240,7 @@ export function PostsList({ entries, selectedUrl, activeId, onSelect, onPlay, on
                         return (
                           <span key={col.id} className={`${col.width} text-[10px] font-mono tabular-nums text-muted-foreground truncate`}>
                             {group.publishedDate
-                              ? new Date(group.publishedDate).toLocaleDateString("en-US", { month: "short", day: "numeric", year: "2-digit" })
+                              ? (() => { const d = new Date(group.publishedDate); return `${String(d.getFullYear()).slice(2)}/${String(d.getMonth() + 1).padStart(2, "0")}/${String(d.getDate()).padStart(2, "0")}`; })()
                               : ""}
                           </span>
                         );
