@@ -2,363 +2,211 @@
 
 import { useState, useCallback } from "react";
 import useSWR from "swr";
-import { UrlInput } from "@/components/url-input";
-import { WaveformPlayer } from "@/components/waveform-player";
-import { HistoryList } from "@/components/history-list";
-import { BlogCatalog } from "@/components/blog-catalog";
-import { ScriptEditor } from "@/components/script-editor";
-import { VoiceSettings, type VoiceConfig } from "@/components/voice-settings";
-import { VersionsList } from "@/components/versions-list";
-import { StyleAgent } from "@/components/style-agent";
+import { LibraryView } from "@/components/library-view";
+import { GeneratorView } from "@/components/generator-view";
 import { PromptEditorModal } from "@/components/prompt-editor-modal";
 import type { BlogAudio } from "@/lib/db";
 
 const fetcher = (url: string) => fetch(url).then((r) => r.json());
 
-type Tab = "url" | "catalog";
-
-const DEFAULT_VOICE_CONFIG: VoiceConfig = {
-  voiceId: "TX3LPaxmHKxFdv7VOQHJ",
-  stability: 0.5,
-  label: "",
-  testMode: false,
-};
+type View = "library" | "generator";
 
 export default function HomePage() {
-  const [tab, setTab] = useState<Tab>("url");
-  const [isGenerating, setIsGenerating] = useState(false);
-  const [isSummarizing, setIsSummarizing] = useState(false);
-  const [error, setError] = useState<string | null>(null);
+  const [view, setView] = useState<View>("generator");
+  const [sidebarCollapsed, setSidebarCollapsed] = useState(false);
+  const [promptEditorOpen, setPromptEditorOpen] = useState(false);
+
+  // Shared state for active playback
   const [activeEntry, setActiveEntry] = useState<BlogAudio | null>(null);
   const [autoplay, setAutoplay] = useState(false);
 
+  // Generator-specific script state
   const [script, setScript] = useState("");
   const [scriptTitle, setScriptTitle] = useState("");
   const [scriptUrl, setScriptUrl] = useState("");
-
-  const [voiceConfig, setVoiceConfig] =
-    useState<VoiceConfig>(DEFAULT_VOICE_CONFIG);
-  const [promptEditorOpen, setPromptEditorOpen] = useState(false);
 
   const { data: historyData, mutate: mutateHistory } = useSWR<{
     entries: BlogAudio[];
   }>("/api/history", fetcher);
 
-  const { data: versionsData, mutate: mutateVersions } = useSWR<{
-    versions: BlogAudio[];
-  }>(
-    scriptUrl ? `/api/versions?url=${encodeURIComponent(scriptUrl)}` : null,
-    fetcher
-  );
+  const entries = historyData?.entries ?? [];
 
-  const handleSummarize = useCallback(
-    async (url: string) => {
-      setIsSummarizing(true);
-      setError(null);
-      setScriptUrl(url);
-      try {
-        const response = await fetch("/api/summarize", {
-          method: "POST",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ url, testMode: voiceConfig.testMode }),
-        });
-        const data = await response.json();
-        if (!response.ok) throw new Error(data.error || "Failed to summarize");
-        setScript(data.summary);
-        setScriptTitle(data.title);
-        setScriptUrl(data.url);
-        mutateVersions();
-      } catch (err) {
-        setError(
-          err instanceof Error ? err.message : "An unexpected error occurred"
-        );
-      } finally {
-        setIsSummarizing(false);
-      }
-    },
-    [mutateVersions, voiceConfig.testMode]
-  );
+  const handlePlayFromLibrary = useCallback((entry: BlogAudio) => {
+    setActiveEntry(entry);
+    setAutoplay(true);
+  }, []);
 
-  const handleCatalogSelect = useCallback(
-    (url: string, title: string) => {
-      setScriptTitle(title);
-      handleSummarize(url);
-    },
-    [handleSummarize]
-  );
+  const handleOpenInGenerator = useCallback((entry: BlogAudio) => {
+    setScript(entry.summary || "");
+    setScriptTitle(entry.title || "");
+    setScriptUrl(entry.url);
+    setActiveEntry(entry);
+    setAutoplay(true);
+    setView("generator");
+  }, []);
 
-  const handleGenerate = useCallback(async () => {
-    if (!script.trim() || !scriptUrl) return;
-    setIsGenerating(true);
-    setError(null);
-    try {
-      const response = await fetch("/api/generate", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          url: scriptUrl,
-          title: scriptTitle,
-          summary: script,
-          voiceId: voiceConfig.voiceId,
-          stability: voiceConfig.stability,
-          label: voiceConfig.label || undefined,
-        }),
-      });
-      const data = await response.json();
-      if (!response.ok)
-        throw new Error(data.error || "Failed to generate audio");
-      setActiveEntry(data.entry);
-      setAutoplay(true);
-      mutateHistory();
-      mutateVersions();
-    } catch (err) {
-      setError(
-        err instanceof Error ? err.message : "An unexpected error occurred"
-      );
-    } finally {
-      setIsGenerating(false);
-    }
-  }, [
-    script,
-    scriptUrl,
-    scriptTitle,
-    voiceConfig,
-    mutateHistory,
-    mutateVersions,
-  ]);
-
-  const handleGenerateFromStyled = useCallback(async (styledScript: string) => {
-    if (!styledScript.trim() || !scriptUrl) return;
-    setIsGenerating(true);
-    setError(null);
-    try {
-      const response = await fetch("/api/generate", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          url: scriptUrl,
-          title: scriptTitle,
-          summary: styledScript,
-          voiceId: voiceConfig.voiceId,
-          stability: voiceConfig.stability,
-          label: voiceConfig.label ? `${voiceConfig.label} (styled)` : "styled",
-        }),
-      });
-      const data = await response.json();
-      if (!response.ok) throw new Error(data.error || "Failed to generate audio");
-      setActiveEntry(data.entry);
-      setAutoplay(true);
-      mutateHistory();
-      mutateVersions();
-    } catch (err) {
-      setError(err instanceof Error ? err.message : "An unexpected error occurred");
-    } finally {
-      setIsGenerating(false);
-    }
-  }, [scriptUrl, scriptTitle, voiceConfig, mutateHistory, mutateVersions]);
-
-  const handleDeleteVersion = useCallback(
-    async (version: BlogAudio) => {
+  const handleDeleteEntry = useCallback(
+    async (entry: BlogAudio) => {
       try {
         await fetch("/api/delete", {
           method: "DELETE",
           headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ id: version.id, audioUrl: version.audio_url }),
+          body: JSON.stringify({ id: entry.id, audioUrl: entry.audio_url }),
         });
-        if (activeEntry?.id === version.id) setActiveEntry(null);
-        mutateVersions();
+        if (activeEntry?.id === entry.id) setActiveEntry(null);
         mutateHistory();
       } catch (err) {
         console.error("Delete failed:", err);
       }
     },
-    [activeEntry, mutateVersions, mutateHistory]
+    [activeEntry, mutateHistory]
   );
 
-  const handleSelectVersion = useCallback((version: BlogAudio) => {
-    setActiveEntry(version);
-    setAutoplay(true);
-    setError(null);
-  }, []);
-
-  const handleSelectHistory = useCallback(
-    (entry: BlogAudio) => {
-      setActiveEntry(entry);
-      setAutoplay(true);
-      setError(null);
-      setScript(entry.summary || "");
-      setScriptTitle(entry.title || "");
-      setScriptUrl(entry.url);
-      mutateVersions();
+  const NAV_ITEMS = [
+    {
+      id: "generator" as View,
+      label: "Generator",
+      icon: (
+        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" aria-hidden="true">
+          <path d="M12 3c.132 0 .263 0 .393 0a7.5 7.5 0 0 0 7.92 12.446A9 9 0 1 1 12 3Z" />
+          <path d="M17 4a2 2 0 0 1 2 2" />
+          <path d="M21 8a6 6 0 0 1-6 6" />
+        </svg>
+      ),
     },
-    [mutateVersions]
-  );
-
-  const entries = historyData?.entries ?? [];
-  const versions = versionsData?.versions ?? [];
+    {
+      id: "library" as View,
+      label: "Library",
+      icon: (
+        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" aria-hidden="true">
+          <path d="M4 19.5A2.5 2.5 0 0 1 6.5 17H20" />
+          <path d="M6.5 2H20v20H6.5A2.5 2.5 0 0 1 4 19.5v-15A2.5 2.5 0 0 1 6.5 2z" />
+        </svg>
+      ),
+      badge: entries.length > 0 ? entries.length : undefined,
+    },
+  ];
 
   return (
-    <div className="min-h-screen flex flex-col">
-      {/* ── Nav ── */}
-      <nav className="h-12 border-b border-border flex items-center px-4 lg:px-6 flex-shrink-0">
+    <div className="h-screen flex flex-col overflow-hidden">
+      {/* ── Top bar ── */}
+      <header className="h-12 border-b border-border flex items-center px-4 flex-shrink-0 bg-background z-10">
         <div className="flex items-center gap-3">
           <svg height="16" viewBox="0 0 76 65" fill="currentColor" aria-hidden="true">
             <path d="M37.5274 0L75.0548 65H0L37.5274 0Z" />
           </svg>
-          <span className="text-border text-base select-none" aria-hidden="true">/</span>
-          <span className="text-sm font-medium">Blog Audio Generator</span>
+          <span className="text-border select-none" aria-hidden="true">/</span>
+          {!sidebarCollapsed && (
+            <span className="text-sm font-medium">Blog Audio</span>
+          )}
+          {sidebarCollapsed && (
+            <span className="text-sm font-medium">Blog Audio Generator</span>
+          )}
         </div>
-        <div className="ml-auto flex items-center gap-4">
+
+        <div className="ml-auto flex items-center gap-1">
           <button
             onClick={() => setPromptEditorOpen(true)}
-            className="flex items-center gap-1.5 text-xs text-muted hover:text-foreground transition-colors focus-ring rounded px-2 py-1"
+            className="flex items-center gap-1.5 text-xs text-muted hover:text-foreground transition-colors focus-ring rounded px-2 py-1.5 hover:bg-surface-2"
           >
             <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" aria-hidden="true">
               <path d="M12 20h9M16.5 3.5a2.121 2.121 0 0 1 3 3L7 19l-4 1 1-4L16.5 3.5z" />
             </svg>
-            <span>Prompts</span>
+            <span className="hidden sm:inline">Prompts</span>
           </button>
-          <span className="text-xs text-muted font-mono tabular-nums">
+          <span className="text-xs text-muted font-mono tabular-nums px-2">
             {entries.length} {entries.length === 1 ? "entry" : "entries"}
           </span>
         </div>
-      </nav>
+      </header>
 
-      {/* ── Page ── */}
-      <main className="flex-1 flex flex-col">
-        <div className="w-full max-w-[1200px] mx-auto px-4 lg:px-6 py-8 flex flex-col gap-8 flex-1">
-
-          {/* Page header */}
-          <header>
-            <h1 className="text-xl font-semibold tracking-tight text-balance">Blog Audio Generator</h1>
-            <p className="text-sm text-muted mt-1">
-              Turn any blog post into AI-generated audio. Paste a URL, edit the script, configure voice settings, and generate.
-            </p>
-          </header>
-
-          {/* ── Two-column layout ── */}
-          <div className="grid grid-cols-1 lg:grid-cols-[1fr_380px] gap-6 flex-1 items-start">
-
-            {/* ── Left: Content pipeline ── */}
-            <div className="flex flex-col gap-5">
-
-              {/* Step 1: Source */}
-              <section className="rounded-lg border border-border bg-surface-1 overflow-hidden" aria-labelledby="source-heading">
-                {/* Tabs */}
-                <div className="flex border-b border-border">
-                  <button
-                    onClick={() => setTab("url")}
-                    className={`relative px-4 py-3 text-sm font-medium transition-colors focus-ring ${
-                      tab === "url" ? "text-foreground" : "text-muted hover:text-foreground"
-                    }`}
-                    role="tab"
-                    aria-selected={tab === "url"}
-                  >
-                    Paste URL
-                    {tab === "url" && (
-                      <span className="absolute bottom-0 left-0 right-0 h-0.5 bg-foreground rounded-t" />
+      {/* ── Body ── */}
+      <div className="flex-1 flex overflow-hidden">
+        {/* ── Sidebar ── */}
+        <nav
+          className={`flex-shrink-0 border-r border-border bg-surface-1 flex flex-col transition-all duration-200 ${
+            sidebarCollapsed ? "w-[52px]" : "w-[200px]"
+          }`}
+        >
+          <div className="flex-1 py-2">
+            {NAV_ITEMS.map((item) => (
+              <button
+                key={item.id}
+                onClick={() => setView(item.id)}
+                className={`w-full flex items-center gap-3 px-3.5 py-2 text-sm transition-colors focus-ring ${
+                  view === item.id
+                    ? "text-foreground bg-surface-3"
+                    : "text-muted hover:text-foreground hover:bg-surface-2"
+                }`}
+                title={sidebarCollapsed ? item.label : undefined}
+              >
+                <span className="flex-shrink-0">{item.icon}</span>
+                {!sidebarCollapsed && (
+                  <>
+                    <span className="flex-1 text-left">{item.label}</span>
+                    {item.badge !== undefined && (
+                      <span className="text-[10px] font-mono tabular-nums text-muted bg-surface-3 px-1.5 py-0.5 rounded">
+                        {item.badge}
+                      </span>
                     )}
-                  </button>
-                  <button
-                    onClick={() => setTab("catalog")}
-                    className={`relative px-4 py-3 text-sm font-medium transition-colors focus-ring ${
-                      tab === "catalog" ? "text-foreground" : "text-muted hover:text-foreground"
-                    }`}
-                    role="tab"
-                    aria-selected={tab === "catalog"}
-                  >
-                    Vercel Blog
-                    {tab === "catalog" && (
-                      <span className="absolute bottom-0 left-0 right-0 h-0.5 bg-foreground rounded-t" />
-                    )}
-                  </button>
-                </div>
-
-                <div className="p-4">
-                  {tab === "url" && (
-                    <UrlInput onSubmit={handleSummarize} isLoading={isSummarizing} />
-                  )}
-                  {tab === "catalog" && (
-                    <BlogCatalog onSelect={handleCatalogSelect} />
-                  )}
-                </div>
-              </section>
-
-              {/* Status banner */}
-              {error && (
-                <div className="flex items-center gap-3 text-sm text-destructive border border-destructive/20 bg-destructive/5 rounded-lg px-4 py-3 animate-fade-in" role="alert">
-                  <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" aria-hidden="true">
-                    <circle cx="12" cy="12" r="10" />
-                    <path d="M12 8v4m0 4h.01" />
-                  </svg>
-                  <span>{error}</span>
-                </div>
-              )}
-
-              {isSummarizing && (
-                <div className="flex items-center gap-3 text-sm text-muted border border-border bg-surface-1 rounded-lg px-4 py-3 animate-fade-in">
-                  <svg className="animate-spin text-accent" width="16" height="16" viewBox="0 0 24 24" fill="none" aria-hidden="true">
-                    <circle cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="2" strokeOpacity="0.2" />
-                    <path d="M12 2a10 10 0 0 1 10 10" stroke="currentColor" strokeWidth="2" strokeLinecap="round" />
-                  </svg>
-                  <span>Scraping and generating script...</span>
-                </div>
-              )}
-
-              {/* Step 2: Script editor */}
-              <ScriptEditor
-                script={script}
-                title={scriptTitle}
-                isLoading={isGenerating}
-                onScriptChange={setScript}
-                onGenerate={handleGenerate}
-              />
-
-              {/* Style Agent (optional) */}
-              <StyleAgent
-                sourceScript={script}
-                onUseStyledScript={setScript}
-                isGeneratingAudio={isGenerating}
-                onGenerateAudio={handleGenerateFromStyled}
-              />
-
-              {/* Audio Player */}
-              {activeEntry && (
-                <div className="animate-fade-in">
-                  <WaveformPlayer
-                    key={activeEntry.id}
-                    audioUrl={activeEntry.audio_url}
-                    title={activeEntry.title || "Untitled"}
-                    summary={activeEntry.summary || ""}
-                    url={activeEntry.url}
-                    autoplay={autoplay}
-                  />
-                </div>
-              )}
-
-              {/* Versions */}
-              {scriptUrl && (
-                <VersionsList
-                  versions={versions}
-                  activeId={activeEntry?.id ?? null}
-                  onSelect={handleSelectVersion}
-                  onDelete={handleDeleteVersion}
-                />
-              )}
-            </div>
-
-            {/* ── Right: Settings + History ── */}
-            <aside className="flex flex-col gap-5 lg:sticky lg:top-6 lg:self-start">
-              <VoiceSettings config={voiceConfig} onChange={setVoiceConfig} />
-              <HistoryList
-                entries={entries}
-                activeId={activeEntry?.id ?? null}
-                onSelect={handleSelectHistory}
-              />
-            </aside>
+                  </>
+                )}
+              </button>
+            ))}
           </div>
-        </div>
-      </main>
+
+          {/* Collapse toggle */}
+          <div className="border-t border-border p-2">
+            <button
+              onClick={() => setSidebarCollapsed(!sidebarCollapsed)}
+              className="w-full flex items-center justify-center p-2 text-muted hover:text-foreground transition-colors rounded hover:bg-surface-2 focus-ring"
+              aria-label={sidebarCollapsed ? "Expand sidebar" : "Collapse sidebar"}
+            >
+              <svg
+                width="14"
+                height="14"
+                viewBox="0 0 24 24"
+                fill="none"
+                stroke="currentColor"
+                strokeWidth="2"
+                className={`transition-transform ${sidebarCollapsed ? "rotate-180" : ""}`}
+                aria-hidden="true"
+              >
+                <path d="M11 17l-5-5 5-5M18 17l-5-5 5-5" />
+              </svg>
+            </button>
+          </div>
+        </nav>
+
+        {/* ── Main content area ── */}
+        <main className="flex-1 overflow-hidden">
+          {view === "library" && (
+            <LibraryView
+              entries={entries}
+              activeId={activeEntry?.id ?? null}
+              onPlay={handlePlayFromLibrary}
+              onOpenInGenerator={handleOpenInGenerator}
+              onDelete={handleDeleteEntry}
+              mutateHistory={mutateHistory}
+            />
+          )}
+          {view === "generator" && (
+            <GeneratorView
+              script={script}
+              scriptTitle={scriptTitle}
+              scriptUrl={scriptUrl}
+              activeEntry={activeEntry}
+              autoplay={autoplay}
+              onScriptChange={setScript}
+              onScriptTitleChange={setScriptTitle}
+              onScriptUrlChange={setScriptUrl}
+              onActiveEntryChange={setActiveEntry}
+              onAutoplayChange={setAutoplay}
+              mutateHistory={mutateHistory}
+            />
+          )}
+        </main>
+      </div>
 
       {/* Prompt Editor Modal */}
       <PromptEditorModal

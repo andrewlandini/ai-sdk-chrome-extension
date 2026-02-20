@@ -110,10 +110,10 @@ export function VoiceSettings({ config, onChange }: VoiceSettingsProps) {
 
   return (
     <section
-      className="rounded-lg border border-border bg-surface-1 overflow-hidden"
+      className="flex flex-col gap-0"
       aria-labelledby="voice-heading"
     >
-      <div className="border-b border-border px-4 py-3 flex items-center justify-between">
+      <div className="pb-4 flex items-center justify-between">
         <div className="flex items-center gap-2">
           <h2 id="voice-heading" className="text-sm font-medium text-foreground">
             Voice Settings
@@ -140,7 +140,7 @@ export function VoiceSettings({ config, onChange }: VoiceSettingsProps) {
         </button>
       </div>
 
-      <div className="p-4 flex flex-col gap-5">
+      <div className="flex flex-col gap-5">
         {/* Credits bar */}
         {credits && (
           <div className="flex flex-col gap-2">
