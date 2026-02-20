@@ -1,6 +1,6 @@
 import { experimental_generateSpeech as generateSpeech } from "ai";
 import { elevenlabs } from "@ai-sdk/elevenlabs";
-import { put } from "@vercel/blob";
+import { put, del } from "@vercel/blob";
 import { insertBlogAudio, getAudioIdByUrl, getGenerationCountByUrl } from "@/lib/db";
 
 export const maxDuration = 300;
@@ -196,16 +196,23 @@ export async function POST(request: Request) {
         const versionNum = genCount + 1;
         const versionLabel = `${slug}_v${versionNum}`;
 
-        const entry = await insertBlogAudio({
-          url,
-          title: title || "Untitled",
-          summary,
-          audio_url: blob.url,
-          voice_id: voiceId,
-          model_id: MODEL,
-          stability,
-          label: versionLabel,
-        });
+        let entry;
+        try {
+          entry = await insertBlogAudio({
+            url,
+            title: title || "Untitled",
+            summary,
+            audio_url: blob.url,
+            voice_id: voiceId,
+            model_id: MODEL,
+            stability,
+            label: versionLabel,
+          });
+        } catch (dbErr) {
+          // Clean up orphaned blob if DB insert fails
+          try { await del(blob.url); } catch { /* best effort */ }
+          throw dbErr;
+        }
 
         send({
           type: "done",

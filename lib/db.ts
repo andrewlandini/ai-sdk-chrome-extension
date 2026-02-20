@@ -210,8 +210,8 @@ export async function updatePromptPreset(id: number, data: {
 }
 
 export async function setDefaultPromptPreset(id: number): Promise<void> {
-  await sql`UPDATE prompt_presets SET is_default = false WHERE is_default = true`;
-  await sql`UPDATE prompt_presets SET is_default = true WHERE id = ${id}`;
+  // Use a single statement to atomically swap the default
+  await sql`UPDATE prompt_presets SET is_default = (id = ${id})`;
 }
 
 export async function deletePromptPreset(id: number): Promise<void> {
