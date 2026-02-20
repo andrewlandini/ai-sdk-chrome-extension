@@ -72,7 +72,7 @@ export default function HomePage() {
   const { name: productName, fading: nameFading, advance: advanceName } = useProductName();
   const [promptEditorOpen, setPromptEditorOpen] = useState(false);
   const [loadingScripts, setLoadingScripts] = useState(false);
-  const [scriptProgress, setScriptProgress] = useState({ done: 0, total: 0 });
+  const [scriptProgress, setScriptProgress] = useState<{ done: number; total: number; currentTitle?: string }>({ done: 0, total: 0 });
 
   // Active selection
   const [activeEntry, setActiveEntry] = useState<BlogAudio | null>(null);
@@ -213,23 +213,25 @@ export default function HomePage() {
     // Get all cached posts without scripts
     const res = await fetch("/api/history");
     const data = await res.json();
-    const allEntries: BlogAudio[] = data.entries ?? [];
+    const allEntries: (BlogAudio & { cached_script?: string | null })[] = data.entries ?? [];
 
-    // Unique URLs from cached posts (id === -1 means no audio, just cached post)
-    // We want all unique URLs that don't already have a script loaded
+    // Only process posts that don't already have a cached script
     const uniqueUrls = new Map<string, string>();
     for (const entry of allEntries) {
-      if (!uniqueUrls.has(entry.url)) {
+      if (!uniqueUrls.has(entry.url) && !entry.cached_script) {
         uniqueUrls.set(entry.url, entry.title || "Untitled");
       }
     }
 
     const urlList = Array.from(uniqueUrls.entries());
+    if (urlList.length === 0) return;
+
     setLoadingScripts(true);
     setScriptProgress({ done: 0, total: urlList.length });
 
     for (let i = 0; i < urlList.length; i++) {
-      const [url] = urlList[i];
+      const [url, title] = urlList[i];
+      setScriptProgress({ done: i, total: urlList.length, currentTitle: title });
       try {
         const sumRes = await fetch("/api/summarize", {
           method: "POST",
@@ -244,6 +246,8 @@ export default function HomePage() {
             headers: { "Content-Type": "application/json" },
             body: JSON.stringify({ url, script: sumData.summary }),
           });
+          // Refresh the list so this post shows its script immediately
+          mutateHistory();
         }
       } catch (err) {
         console.error(`Failed to load script for ${url}:`, err);
@@ -285,7 +289,10 @@ export default function HomePage() {
                 <circle cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="2" strokeOpacity="0.2" />
                 <path d="M12 2a10 10 0 0 1 10 10" stroke="currentColor" strokeWidth="2" strokeLinecap="round" />
               </svg>
-              <span>{scriptProgress.done}/{scriptProgress.total}</span>
+              <span className="font-mono tabular-nums">{scriptProgress.done}/{scriptProgress.total}</span>
+              {scriptProgress.currentTitle && (
+                <span className="text-muted truncate max-w-[200px]">{scriptProgress.currentTitle}</span>
+              )}
             </>
           ) : (
             <>

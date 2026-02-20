@@ -39,6 +39,7 @@ interface BlogPostGroup {
   title: string;
   generations: BlogAudio[];
   latestDate: string;
+  hasScript: boolean;
 }
 
 interface PostsListProps {
@@ -120,12 +121,16 @@ export function PostsList({ entries, selectedUrl, activeId, onSelect, onPlay, on
     const map = new Map<string, BlogPostGroup>();
     for (const entry of entries) {
       const key = entry.url;
+      const entryWithScript = entry as BlogAudio & { cached_script?: string | null };
       if (!map.has(key)) {
-        map.set(key, { url: key, title: entry.title || "Untitled", generations: [], latestDate: entry.created_at });
+        map.set(key, { url: key, title: entry.title || "Untitled", generations: [], latestDate: entry.created_at, hasScript: !!entryWithScript.cached_script });
       }
       const group = map.get(key)!;
       if (entry.id !== -1) {
         group.generations.push(entry);
+      }
+      if (entryWithScript.cached_script) {
+        group.hasScript = true;
       }
       if (entry.title && new Date(entry.created_at) > new Date(group.latestDate)) {
         group.title = entry.title;
@@ -236,7 +241,7 @@ export function PostsList({ entries, selectedUrl, activeId, onSelect, onPlay, on
                         </svg>
                       </button>
                     ) : (
-                      <span className="w-2 h-2 rounded-full bg-border/50" />
+                      <span className={`w-2 h-2 rounded-full ${group.hasScript ? "bg-success/60" : "bg-border/50"}`} />
                     )}
                   </span>
 
