@@ -1,11 +1,12 @@
 import { generateText } from "ai";
 import { scrapeBlogPost } from "@/lib/scraper";
+import { getActivePromptPreset } from "@/lib/db";
 
 export const maxDuration = 60;
 
 export async function POST(request: Request) {
   try {
-    const { url, testMode } = await request.json();
+    const { url, testMode, customSystemPrompt, customTestPrompt } = await request.json();
 
     if (!url || typeof url !== "string") {
       return Response.json({ error: "URL is required" }, { status: 400 });
@@ -20,10 +21,26 @@ export async function POST(request: Request) {
     // Scrape the blog post
     const scraped = await scrapeBlogPost(url);
 
-    // Generate summary / script with AI
-    const systemPrompt = testMode
-      ? "You are a webpage content summarizer. Write exactly ONE short paragraph (2-3 sentences, max 30 words) summarizing the main point of this page. This is a test/preview generation to check voice settings. Use clear, conversational language that flows naturally when spoken aloud. Return only the summary text, nothing else."
-      : "You are a webpage content summarizer. You are given a webpage (text, url, title) and you create a compelling trailer-like overview (max 50 words) that captures the main ideas and explains what readers will find valuable. Present the content in an engaging way that highlights the key insights and practical value without being overly promotional. Focus on what the page actually offers and why it matters. Use clear, conversational language that flows naturally when spoken aloud, as this summary will be read out loud as audio. Return only the summary (just text, no headings, no titles, no markdown), nothing else!";
+    // Determine which prompt to use:
+    // 1. Custom prompts passed from the client (prompt editor)
+    // 2. Active preset from the database
+    // 3. Hardcoded fallback
+    let systemPrompt: string;
+
+    if (testMode && customTestPrompt) {
+      systemPrompt = customTestPrompt;
+    } else if (!testMode && customSystemPrompt) {
+      systemPrompt = customSystemPrompt;
+    } else {
+      const activePreset = await getActivePromptPreset();
+      if (activePreset) {
+        systemPrompt = testMode ? activePreset.test_prompt : activePreset.system_prompt;
+      } else {
+        systemPrompt = testMode
+          ? "You are a blog-to-audio script writer. Write exactly ONE short paragraph (2-3 sentences, max 30 words) summarizing the main point of this page. Return only the text."
+          : "You are a blog-to-audio script writer. Reproduce the blog post content verbatim but summarize code blocks like an instructor. Return only the script text.";
+      }
+    }
 
     const { text: summary } = await generateText({
       model: "openai/gpt-4o-mini",
@@ -42,8 +59,7 @@ export async function POST(request: Request) {
     });
   } catch (error) {
     console.error("Summarize error:", error);
-    const message =
-      error instanceof Error ? error.message : "An unexpected error occurred";
+    const message = error instanceof Error ? error.message : "An unexpected error occurred";
     return Response.json({ error: message }, { status: 500 });
   }
 }

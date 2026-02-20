@@ -9,6 +9,7 @@ import { BlogCatalog } from "@/components/blog-catalog";
 import { ScriptEditor } from "@/components/script-editor";
 import { VoiceSettings, type VoiceConfig } from "@/components/voice-settings";
 import { VersionsList } from "@/components/versions-list";
+import { PromptEditorModal } from "@/components/prompt-editor-modal";
 import type { BlogAudio } from "@/lib/db";
 
 const fetcher = (url: string) => fetch(url).then((r) => r.json());
@@ -38,6 +39,7 @@ export default function HomePage() {
 
   const [voiceConfig, setVoiceConfig] =
     useState<VoiceConfig>(DEFAULT_VOICE_CONFIG);
+  const [promptEditorOpen, setPromptEditorOpen] = useState(false);
 
   const { data: historyData, mutate: mutateHistory } = useSWR<{
     entries: BlogAudio[];
@@ -179,7 +181,16 @@ export default function HomePage() {
           <span className="text-border text-base select-none" aria-hidden="true">/</span>
           <span className="text-sm font-medium">Blog Audio Generator</span>
         </div>
-        <div className="ml-auto">
+        <div className="ml-auto flex items-center gap-4">
+          <button
+            onClick={() => setPromptEditorOpen(true)}
+            className="flex items-center gap-1.5 text-xs text-muted hover:text-foreground transition-colors focus-ring rounded px-2 py-1"
+          >
+            <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" aria-hidden="true">
+              <path d="M12 20h9M16.5 3.5a2.121 2.121 0 0 1 3 3L7 19l-4 1 1-4L16.5 3.5z" />
+            </svg>
+            <span>Prompts</span>
+          </button>
           <span className="text-xs text-muted font-mono tabular-nums">
             {entries.length} {entries.length === 1 ? "entry" : "entries"}
           </span>
@@ -313,6 +324,12 @@ export default function HomePage() {
           </div>
         </div>
       </main>
+
+      {/* Prompt Editor Modal */}
+      <PromptEditorModal
+        open={promptEditorOpen}
+        onClose={() => setPromptEditorOpen(false)}
+      />
     </div>
   );
 }
