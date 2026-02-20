@@ -141,12 +141,8 @@ export function VoiceSettings({ config, onChange }: VoiceSettingsProps) {
 
   return (
     <section className="flex flex-col gap-5" aria-labelledby="voice-heading">
-      {/* Header */}
-      <div className="flex items-center justify-between">
-        <div className="flex items-center gap-2">
-          <h2 id="voice-heading" className="text-sm font-semibold tracking-tight">Voice Settings</h2>
-          <span className="text-[10px] font-mono text-accent bg-accent/10 px-1.5 py-0.5 rounded">v3</span>
-        </div>
+      {/* Test mode toggle */}
+      <div className="flex items-center justify-end">
         <button
           onClick={() => update({ testMode: !config.testMode })}
           aria-pressed={config.testMode}

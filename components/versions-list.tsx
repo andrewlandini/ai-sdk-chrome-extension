@@ -63,7 +63,7 @@ export function VersionsList({
       </div>
 
       {/* Rows */}
-      <div className="max-h-[200px] overflow-y-auto" role="list">
+      <div role="list">
         {versions.map((v) => {
           const isActive = v.id === activeId;
           const voiceName = v.voice_id
