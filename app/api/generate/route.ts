@@ -116,7 +116,13 @@ export async function POST(request: Request) {
   }
 
   // Create a job record so the client can poll for status after refresh
-  const job = await createGenerationJob(url, title || "Untitled");
+  let job;
+  try {
+    job = await createGenerationJob(url, title || "Untitled");
+  } catch (err) {
+    console.error("Failed to create generation job:", err);
+    return Response.json({ error: "Failed to start generation job" }, { status: 500 });
+  }
 
   const encoder = new TextEncoder();
 

@@ -395,8 +395,12 @@ function HomePage() {
       });
 
       if (!response.ok) {
-        const data = await response.json();
-        throw new Error(data.error || "Failed to generate audio");
+        let errorMsg = "Failed to generate audio";
+        try {
+          const data = await response.json();
+          errorMsg = data.error || errorMsg;
+        } catch { /* response may not be JSON */ }
+        throw new Error(errorMsg);
       }
 
       const reader = response.body?.getReader();
