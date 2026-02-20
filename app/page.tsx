@@ -79,6 +79,7 @@ export default function HomePage() {
   const { data: credits } = useSWR<CreditsData>("/api/credits", fetcher, { refreshInterval: 30000 });
   const creditsPercent = credits ? Math.round((credits.characterCount / credits.characterLimit) * 100) : 0;
   const [promptEditorOpen, setPromptEditorOpen] = useState(false);
+  const [contentFocused, setContentFocused] = useState(false);
   const [sidebarOpen, setSidebarOpen] = useState(false);
   const [activeTab, setActiveTab] = useState<"content" | "voiceover" | "settings">("content");
   const [loadingScripts, setLoadingScripts] = useState(false);
@@ -552,7 +553,11 @@ export default function HomePage() {
         <div className="flex-1 min-w-0 flex flex-col xl:flex-row overflow-hidden">
 
           {/* Content column -- full height, verbatim blog script */}
-          <div className={`flex-1 min-w-0 flex-col overflow-hidden border-r border-border ${activeTab === "content" ? "flex" : "hidden md:flex"}`}>
+          <div
+            className={`flex-1 min-w-0 flex-col overflow-hidden border-r border-border ${activeTab === "content" ? "flex" : "hidden md:flex"}`}
+            onFocus={() => setContentFocused(true)}
+            onBlur={(e) => { if (!e.currentTarget.contains(e.relatedTarget)) setContentFocused(false); }}
+          >
             <div className="flex items-center justify-between px-3 py-2 border-b border-border flex-shrink-0">
               <div className="flex items-center gap-2">
                 <span className="text-sm font-semibold tracking-tight">Content</span>
@@ -785,6 +790,7 @@ export default function HomePage() {
                   onHistoryChange={setStyleHistory}
                   externalScript={selectedHistoryScript}
                   styleVibe={voiceConfig.styleVibe}
+                  dimmed={contentFocused}
                 />
               </div>
 

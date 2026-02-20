@@ -19,6 +19,7 @@ interface StyleAgentProps {
   onHistoryChange?: (history: HistoryEntry[]) => void;
   externalScript?: string | null;
   styleVibe?: string;
+  dimmed?: boolean;
 }
 
 export type { HistoryEntry as StyleHistoryEntry };
@@ -31,6 +32,7 @@ export function StyleAgent({
   onHistoryChange,
   externalScript,
   styleVibe = "",
+  dimmed = false,
 }: StyleAgentProps) {
   const styleInstructions = styleVibe;
   const [styledScript, setStyledScript] = useState("");
@@ -138,7 +140,7 @@ export function StyleAgent({
           value={styledScript}
           onChange={(e) => { setStyledScript(e.target.value); onStyledScriptChange?.(e.target.value); }}
           aria-label="Styled audio script with Audio Tags"
-          className="flex-1 w-full bg-transparent text-sm font-mono leading-relaxed text-foreground p-4 resize-none border-none focus:outline-none overflow-y-auto transition-opacity duration-300 opacity-30 hover:opacity-100 focus:opacity-100"
+          className={`flex-1 w-full bg-transparent text-sm font-mono leading-relaxed text-foreground p-4 resize-none border-none focus:outline-none overflow-y-auto transition-opacity duration-300 ${dimmed ? "opacity-30 hover:opacity-100 focus:opacity-100" : ""}`}
         />
       ) : (
         <div className="flex-1 flex items-center justify-center px-4 text-center">
