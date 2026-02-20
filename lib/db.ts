@@ -59,28 +59,24 @@ export interface VoicePreset {
   id: number;
   name: string;
   voice_id: string;
-  model_id: string;
   stability: number;
-  similarity_boost: number;
   created_at: string;
 }
 
 export async function getAllPresets(): Promise<VoicePreset[]> {
-  const rows = await sql`SELECT * FROM voice_presets ORDER BY created_at DESC`;
+  const rows = await sql`SELECT id, name, voice_id, stability, created_at FROM voice_presets ORDER BY created_at DESC`;
   return rows as VoicePreset[];
 }
 
 export async function insertPreset(data: {
   name: string;
   voice_id: string;
-  model_id: string;
   stability: number;
-  similarity_boost: number;
 }): Promise<VoicePreset> {
   const rows = await sql`
     INSERT INTO voice_presets (name, voice_id, model_id, stability, similarity_boost)
-    VALUES (${data.name}, ${data.voice_id}, ${data.model_id}, ${data.stability}, ${data.similarity_boost})
-    RETURNING *
+    VALUES (${data.name}, ${data.voice_id}, ${"eleven_v3"}, ${data.stability}, ${0})
+    RETURNING id, name, voice_id, stability, created_at
   `;
   return rows[0] as VoicePreset;
 }

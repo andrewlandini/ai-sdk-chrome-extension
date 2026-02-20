@@ -113,13 +113,11 @@ export function VoiceSettings({ config, onChange }: VoiceSettingsProps) {
       await fetch("/api/presets", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          name: presetName.trim(),
-          voice_id: config.voiceId,
-          model_id: "eleven_v3",
-          stability: config.stability,
-          similarity_boost: 0,
-        }),
+      body: JSON.stringify({
+        name: presetName.trim(),
+        voice_id: config.voiceId,
+        stability: config.stability,
+      }),
       });
       setPresetName("");
       setShowSaveInput(false);

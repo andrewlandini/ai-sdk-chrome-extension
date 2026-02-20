@@ -1,13 +1,18 @@
 import { NextResponse } from "next/server";
-import { neon } from "@neondatabase/serverless";
-
-const sql = neon(process.env.DATABASE_URL!);
+import { upsertBlogPosts, getCachedBlogPosts } from "@/lib/db";
 
 export async function POST(req: Request) {
   try {
     const { url } = await req.json();
     if (!url || typeof url !== "string") {
       return NextResponse.json({ error: "URL is required" }, { status: 400 });
+    }
+
+    // Validate URL
+    try {
+      new URL(url);
+    } catch {
+      return NextResponse.json({ error: "Invalid URL" }, { status: 400 });
     }
 
     // Scrape the page title
@@ -31,20 +36,17 @@ export async function POST(req: Request) {
       // Use slug-based title as fallback
     }
 
-    // Upsert into blog_posts_cache
-    const rows = await sql`
-      INSERT INTO blog_posts_cache (url, title)
-      VALUES (${url}, ${title})
-      ON CONFLICT (url) DO UPDATE SET title = COALESCE(NULLIF(EXCLUDED.title, ''), blog_posts_cache.title)
-      RETURNING id, url, title, created_at
-    `;
+    // Upsert into blog_posts_cache using db.ts
+    await upsertBlogPosts([{ url, title }]);
 
-    const post = rows[0];
+    // Fetch the inserted/updated post to return its data
+    const posts = await getCachedBlogPosts();
+    const post = posts.find((p) => p.url === url);
 
     return NextResponse.json({
-      id: post.id,
-      url: post.url,
-      title: post.title,
+      id: post?.id ?? null,
+      url,
+      title: post?.title ?? title,
     });
   } catch (err) {
     console.error("Add post error:", err);

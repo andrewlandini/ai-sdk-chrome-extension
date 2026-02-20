@@ -16,8 +16,7 @@ export async function GET() {
 
 export async function POST(request: Request) {
   try {
-    const { name, voice_id, model_id, stability, similarity_boost } =
-      await request.json();
+    const { name, voice_id, stability } = await request.json();
 
     if (!name?.trim()) {
       return NextResponse.json(
@@ -29,9 +28,7 @@ export async function POST(request: Request) {
     const preset = await insertPreset({
       name: name.trim(),
       voice_id,
-      model_id,
       stability,
-      similarity_boost,
     });
 
     return NextResponse.json({ preset });
