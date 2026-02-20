@@ -738,7 +738,7 @@ function HomePage() {
       <div className="flex-1 flex overflow-hidden">
 
         {/* Fixed posts sidebar -- desktop */}
-        <aside className="hidden md:flex md:w-[220px] lg:w-[280px] xl:w-[400px] 2xl:w-[640px] flex-shrink-0 border-r border-border bg-surface-1 flex-col overflow-hidden">
+        <aside className="hidden md:flex md:flex-1 min-w-0 border-r border-border bg-surface-1 flex-col overflow-hidden">
           <div className="flex items-center justify-between px-3 py-2 border-b border-border flex-shrink-0">
             <div className="flex items-center gap-2">
               <span className="text-sm font-semibold tracking-tight">Blog Posts</span>
@@ -794,7 +794,7 @@ function HomePage() {
         </aside>
 
         {/* Workspace: content | (voice over + voice settings + versions) */}
-        <div className="flex-1 min-w-0 flex flex-col xl:flex-row overflow-hidden">
+        <div className="flex-[3] min-w-0 flex flex-col xl:flex-row overflow-hidden">
 
           {/* Content column -- full height, verbatim blog script */}
           <div
@@ -1043,7 +1043,7 @@ function HomePage() {
             </div>
 
             {/* Voice Settings panel -- full height */}
-            <aside className={`w-full xl:w-[380px] flex-shrink-0 border-t xl:border-t-0 xl:border-l border-border flex-col overflow-hidden bg-surface-1 ${activeTab === "settings" ? "flex" : "hidden xl:flex"}`}>
+            <aside className={`w-full xl:flex-1 min-w-0 border-t xl:border-t-0 xl:border-l border-border flex-col overflow-hidden bg-surface-1 ${activeTab === "settings" ? "flex" : "hidden xl:flex"}`}>
               <div className="flex items-center justify-between px-3 py-2 border-b border-border flex-shrink-0">
                 <div className="flex items-center gap-2">
                   <span className="text-sm font-semibold tracking-tight">Voice Settings</span>
