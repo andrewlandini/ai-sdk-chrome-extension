@@ -2,109 +2,202 @@
 
 import { useState, useCallback } from "react";
 import useSWR from "swr";
-import { LibraryView } from "@/components/library-view";
-import { GeneratorView } from "@/components/generator-view";
+import { PostsList } from "@/components/posts-list";
+import { ScriptEditor } from "@/components/script-editor";
+import { StyleAgent } from "@/components/style-agent";
+import { VoiceSettings, type VoiceConfig } from "@/components/voice-settings";
+import { VersionsList } from "@/components/versions-list";
+import { WaveformPlayer } from "@/components/waveform-player";
 import { PromptEditorModal } from "@/components/prompt-editor-modal";
 import type { BlogAudio } from "@/lib/db";
 
 const fetcher = (url: string) => fetch(url).then((r) => r.json());
 
-type View = "library" | "generator";
+const DEFAULT_VOICE_CONFIG: VoiceConfig = {
+  voiceId: "TX3LPaxmHKxFdv7VOQHJ",
+  stability: 0,
+  label: "",
+  testMode: false,
+};
 
 export default function HomePage() {
-  const [view, setView] = useState<View>("generator");
-  const [sidebarCollapsed, setSidebarCollapsed] = useState(false);
   const [promptEditorOpen, setPromptEditorOpen] = useState(false);
 
-  // Shared state for active playback
+  // Active selection
   const [activeEntry, setActiveEntry] = useState<BlogAudio | null>(null);
   const [autoplay, setAutoplay] = useState(false);
 
-  // Generator-specific script state
+  // Generator state
   const [script, setScript] = useState("");
   const [scriptTitle, setScriptTitle] = useState("");
   const [scriptUrl, setScriptUrl] = useState("");
+  const [isGenerating, setIsGenerating] = useState(false);
+  const [isSummarizing, setIsSummarizing] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+  const [voiceConfig, setVoiceConfig] = useState<VoiceConfig>(DEFAULT_VOICE_CONFIG);
 
-  const { data: historyData, mutate: mutateHistory } = useSWR<{
-    entries: BlogAudio[];
-  }>("/api/history", fetcher);
-
+  // Data
+  const { data: historyData, mutate: mutateHistory } = useSWR<{ entries: BlogAudio[] }>("/api/history", fetcher);
   const entries = historyData?.entries ?? [];
 
-  const handlePlayFromLibrary = useCallback((entry: BlogAudio) => {
-    setActiveEntry(entry);
-    setAutoplay(true);
-  }, []);
-
-  const handleOpenInGenerator = useCallback((entry: BlogAudio) => {
-    setScript(entry.summary || "");
-    setScriptTitle(entry.title || "");
-    setScriptUrl(entry.url);
-    setActiveEntry(entry);
-    setAutoplay(true);
-    setView("generator");
-  }, []);
-
-  const handleDeleteEntry = useCallback(
-    async (entry: BlogAudio) => {
-      try {
-        await fetch("/api/delete", {
-          method: "DELETE",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ id: entry.id, audioUrl: entry.audio_url }),
-        });
-        if (activeEntry?.id === entry.id) setActiveEntry(null);
-        mutateHistory();
-      } catch (err) {
-        console.error("Delete failed:", err);
-      }
-    },
-    [activeEntry, mutateHistory]
+  const { data: versionsData, mutate: mutateVersions } = useSWR<{ versions: BlogAudio[] }>(
+    scriptUrl ? `/api/versions?url=${encodeURIComponent(scriptUrl)}` : null,
+    fetcher
   );
+  const versions = versionsData?.versions ?? [];
 
-  const NAV_ITEMS = [
-    {
-      id: "generator" as View,
-      label: "Generator",
-      icon: (
-        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" aria-hidden="true">
-          <path d="M12 3c.132 0 .263 0 .393 0a7.5 7.5 0 0 0 7.92 12.446A9 9 0 1 1 12 3Z" />
-          <path d="M17 4a2 2 0 0 1 2 2" />
-          <path d="M21 8a6 6 0 0 1-6 6" />
-        </svg>
-      ),
-    },
-    {
-      id: "library" as View,
-      label: "Library",
-      icon: (
-        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" aria-hidden="true">
-          <path d="M4 19.5A2.5 2.5 0 0 1 6.5 17H20" />
-          <path d="M6.5 2H20v20H6.5A2.5 2.5 0 0 1 4 19.5v-15A2.5 2.5 0 0 1 6.5 2z" />
-        </svg>
-      ),
-      badge: entries.length > 0 ? entries.length : undefined,
-    },
-  ];
+  // ── Handlers ──
+
+  const handleSelectPost = useCallback((url: string, title: string) => {
+    setScriptUrl(url);
+    setScriptTitle(title);
+    setScript("");
+    setError(null);
+    setActiveEntry(null);
+  }, []);
+
+  const handleGenerateScript = useCallback(async () => {
+    if (!scriptUrl) return;
+    setIsSummarizing(true);
+    setError(null);
+    try {
+      const response = await fetch("/api/summarize", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ url: scriptUrl, testMode: voiceConfig.testMode }),
+      });
+      const data = await response.json();
+      if (!response.ok) throw new Error(data.error || "Failed to summarize");
+      setScript(data.summary);
+      setScriptTitle(data.title);
+      setScriptUrl(data.url);
+      mutateVersions();
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "An unexpected error occurred");
+    } finally {
+      setIsSummarizing(false);
+    }
+  }, [scriptUrl, voiceConfig.testMode, mutateVersions]);
+
+  const handleGenerateAudio = useCallback(async () => {
+    if (!script.trim() || !scriptUrl) return;
+    setIsGenerating(true);
+    setError(null);
+    try {
+      const response = await fetch("/api/generate", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          url: scriptUrl,
+          title: scriptTitle,
+          summary: script,
+          voiceId: voiceConfig.voiceId,
+          stability: voiceConfig.stability,
+          label: voiceConfig.label || undefined,
+        }),
+      });
+      const data = await response.json();
+      if (!response.ok) throw new Error(data.error || "Failed to generate audio");
+      setActiveEntry(data.entry);
+      setAutoplay(true);
+      mutateHistory();
+      mutateVersions();
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "An unexpected error occurred");
+    } finally {
+      setIsGenerating(false);
+    }
+  }, [script, scriptUrl, scriptTitle, voiceConfig, mutateHistory, mutateVersions]);
+
+  const handleGenerateFromStyled = useCallback(async (styledScript: string) => {
+    if (!styledScript.trim() || !scriptUrl) return;
+    setIsGenerating(true);
+    setError(null);
+    try {
+      const response = await fetch("/api/generate", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          url: scriptUrl,
+          title: scriptTitle,
+          summary: styledScript,
+          voiceId: voiceConfig.voiceId,
+          stability: voiceConfig.stability,
+          label: voiceConfig.label ? `${voiceConfig.label} (styled)` : "styled",
+        }),
+      });
+      const data = await response.json();
+      if (!response.ok) throw new Error(data.error || "Failed to generate audio");
+      setActiveEntry(data.entry);
+      setAutoplay(true);
+      mutateHistory();
+      mutateVersions();
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "An unexpected error occurred");
+    } finally {
+      setIsGenerating(false);
+    }
+  }, [scriptUrl, scriptTitle, voiceConfig, mutateHistory, mutateVersions]);
+
+  const handleDeleteVersion = useCallback(async (version: BlogAudio) => {
+    try {
+      await fetch("/api/delete", {
+        method: "DELETE",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ id: version.id, audioUrl: version.audio_url }),
+      });
+      if (activeEntry?.id === version.id) setActiveEntry(null);
+      mutateVersions();
+      mutateHistory();
+    } catch (err) {
+      console.error("Delete failed:", err);
+    }
+  }, [activeEntry, mutateVersions, mutateHistory]);
+
+  const handleSelectVersion = useCallback((version: BlogAudio) => {
+    setActiveEntry(version);
+    setAutoplay(true);
+    setError(null);
+  }, []);
+
+  const handlePlayFromList = useCallback((entry: BlogAudio) => {
+    setActiveEntry(entry);
+    setAutoplay(true);
+    setScriptUrl(entry.url);
+    setScriptTitle(entry.title || "");
+    setScript(entry.summary || "");
+  }, []);
+
+  const handleDeleteEntry = useCallback(async (entry: BlogAudio) => {
+    try {
+      await fetch("/api/delete", {
+        method: "DELETE",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ id: entry.id, audioUrl: entry.audio_url }),
+      });
+      if (activeEntry?.id === entry.id) setActiveEntry(null);
+      mutateHistory();
+    } catch (err) {
+      console.error("Delete failed:", err);
+    }
+  }, [activeEntry, mutateHistory]);
 
   return (
     <div className="h-screen flex flex-col overflow-hidden">
       {/* ── Top bar ── */}
-      <header className="h-12 border-b border-border flex items-center px-4 flex-shrink-0 bg-background z-10">
-        <div className="flex items-center gap-3">
+      <header className="h-12 border-b border-border flex items-center px-4 flex-shrink-0 bg-background z-10 gap-4">
+        <div className="flex items-center gap-3 flex-shrink-0">
           <svg height="16" viewBox="0 0 76 65" fill="currentColor" aria-hidden="true">
             <path d="M37.5274 0L75.0548 65H0L37.5274 0Z" />
           </svg>
           <span className="text-border select-none" aria-hidden="true">/</span>
-          {!sidebarCollapsed && (
-            <span className="text-sm font-medium">Blog Audio</span>
-          )}
-          {sidebarCollapsed && (
-            <span className="text-sm font-medium">Blog Audio Generator</span>
-          )}
+          <span className="text-sm font-medium">Blog Audio</span>
         </div>
 
-        <div className="ml-auto flex items-center gap-1">
+        {/* URL paste input */}
+        <AddPostInput mutateHistory={mutateHistory} />
+
+        <div className="flex items-center gap-1 flex-shrink-0">
           <button
             onClick={() => setPromptEditorOpen(true)}
             className="flex items-center gap-1.5 text-xs text-muted hover:text-foreground transition-colors focus-ring rounded px-2 py-1.5 hover:bg-surface-2"
@@ -112,7 +205,7 @@ export default function HomePage() {
             <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" aria-hidden="true">
               <path d="M12 20h9M16.5 3.5a2.121 2.121 0 0 1 3 3L7 19l-4 1 1-4L16.5 3.5z" />
             </svg>
-            <span className="hidden sm:inline">Prompts</span>
+            <span>Prompts</span>
           </button>
           <span className="text-xs text-muted font-mono tabular-nums px-2">
             {entries.length} {entries.length === 1 ? "entry" : "entries"}
@@ -120,92 +213,128 @@ export default function HomePage() {
         </div>
       </header>
 
-      {/* ── Body ── */}
+      {/* ── Three-column layout ── */}
       <div className="flex-1 flex overflow-hidden">
-        {/* ── Sidebar ── */}
-        <nav
-          className={`flex-shrink-0 border-r border-border bg-surface-1 flex flex-col transition-all duration-200 ${
-            sidebarCollapsed ? "w-[52px]" : "w-[200px]"
-          }`}
-        >
-          <div className="flex-1 py-2">
-            {NAV_ITEMS.map((item) => (
-              <button
-                key={item.id}
-                onClick={() => setView(item.id)}
-                className={`w-full flex items-center gap-3 px-3.5 py-2 text-sm transition-colors focus-ring ${
-                  view === item.id
-                    ? "text-foreground bg-surface-3"
-                    : "text-muted hover:text-foreground hover:bg-surface-2"
-                }`}
-                title={sidebarCollapsed ? item.label : undefined}
-              >
-                <span className="flex-shrink-0">{item.icon}</span>
-                {!sidebarCollapsed && (
-                  <>
-                    <span className="flex-1 text-left">{item.label}</span>
-                    {item.badge !== undefined && (
-                      <span className="text-[10px] font-mono tabular-nums text-muted bg-surface-3 px-1.5 py-0.5 rounded">
-                        {item.badge}
-                      </span>
+
+        {/* Column 1: Posts list */}
+        <aside className="w-[320px] flex-shrink-0 border-r border-border overflow-hidden bg-surface-1">
+          <PostsList
+            entries={entries}
+            selectedUrl={scriptUrl}
+            activeId={activeEntry?.id ?? null}
+            onSelect={handleSelectPost}
+            onPlay={handlePlayFromList}
+            onDelete={handleDeleteEntry}
+          />
+        </aside>
+
+        {/* Column 2: Generator */}
+        <main className="flex-1 overflow-y-auto">
+          <div className="max-w-[780px] mx-auto px-6 py-5 flex flex-col gap-4">
+            {!scriptUrl ? (
+              <div className="flex items-center justify-center h-64">
+                <div className="text-center">
+                  <p className="text-sm text-muted">Select a blog post from the list</p>
+                  <p className="text-xs text-muted-foreground mt-1">
+                    or paste a URL in the top bar to add one
+                  </p>
+                </div>
+              </div>
+            ) : (
+              <>
+                {/* Selected post header */}
+                <div className="flex items-start justify-between gap-4">
+                  <div className="min-w-0">
+                    <h2 className="text-base font-semibold tracking-tight truncate">{scriptTitle || "Untitled"}</h2>
+                    <a
+                      href={scriptUrl}
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      className="text-[11px] text-muted font-mono truncate block hover:text-accent transition-colors"
+                    >
+                      {scriptUrl}
+                    </a>
+                  </div>
+                  <button
+                    onClick={handleGenerateScript}
+                    disabled={isSummarizing}
+                    className="flex items-center gap-2 h-9 rounded-md bg-foreground text-background px-4 text-xs font-medium transition-colors hover:bg-foreground/90 disabled:opacity-40 disabled:cursor-not-allowed flex-shrink-0 focus-ring"
+                  >
+                    {isSummarizing ? (
+                      <>
+                        <svg className="animate-spin" width="13" height="13" viewBox="0 0 24 24" fill="none" aria-hidden="true">
+                          <circle cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="2" strokeOpacity="0.2" />
+                          <path d="M12 2a10 10 0 0 1 10 10" stroke="currentColor" strokeWidth="2" strokeLinecap="round" />
+                        </svg>
+                        <span>Generating...</span>
+                      </>
+                    ) : (
+                      <span>{script ? "Regenerate Script" : "Generate Script"}</span>
                     )}
-                  </>
+                  </button>
+                </div>
+
+                {/* Error / status */}
+                {error && (
+                  <div className="flex items-center gap-3 text-xs text-destructive border border-destructive/20 bg-destructive/5 rounded-lg px-4 py-2.5" role="alert">
+                    <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" aria-hidden="true">
+                      <circle cx="12" cy="12" r="10" /><path d="M12 8v4m0 4h.01" />
+                    </svg>
+                    <span>{error}</span>
+                  </div>
                 )}
-              </button>
-            ))}
-          </div>
 
-          {/* Collapse toggle */}
-          <div className="border-t border-border p-2">
-            <button
-              onClick={() => setSidebarCollapsed(!sidebarCollapsed)}
-              className="w-full flex items-center justify-center p-2 text-muted hover:text-foreground transition-colors rounded hover:bg-surface-2 focus-ring"
-              aria-label={sidebarCollapsed ? "Expand sidebar" : "Collapse sidebar"}
-            >
-              <svg
-                width="14"
-                height="14"
-                viewBox="0 0 24 24"
-                fill="none"
-                stroke="currentColor"
-                strokeWidth="2"
-                className={`transition-transform ${sidebarCollapsed ? "rotate-180" : ""}`}
-                aria-hidden="true"
-              >
-                <path d="M11 17l-5-5 5-5M18 17l-5-5 5-5" />
-              </svg>
-            </button>
-          </div>
-        </nav>
+                {/* Script editor */}
+                <ScriptEditor
+                  script={script}
+                  title={scriptTitle}
+                  isLoading={isGenerating}
+                  onScriptChange={setScript}
+                  onGenerate={handleGenerateAudio}
+                />
 
-        {/* ── Main content area ── */}
-        <main className="flex-1 overflow-hidden">
-          {view === "library" && (
-            <LibraryView
-              entries={entries}
-              activeId={activeEntry?.id ?? null}
-              onPlay={handlePlayFromLibrary}
-              onOpenInGenerator={handleOpenInGenerator}
-              onDelete={handleDeleteEntry}
-              mutateHistory={mutateHistory}
-            />
-          )}
-          {view === "generator" && (
-            <GeneratorView
-              script={script}
-              scriptTitle={scriptTitle}
-              scriptUrl={scriptUrl}
-              activeEntry={activeEntry}
-              autoplay={autoplay}
-              onScriptChange={setScript}
-              onScriptTitleChange={setScriptTitle}
-              onScriptUrlChange={setScriptUrl}
-              onActiveEntryChange={setActiveEntry}
-              onAutoplayChange={setAutoplay}
-              mutateHistory={mutateHistory}
-            />
-          )}
+                {/* Style Agent */}
+                <StyleAgent
+                  sourceScript={script}
+                  onUseStyledScript={setScript}
+                  isGeneratingAudio={isGenerating}
+                  onGenerateAudio={handleGenerateFromStyled}
+                />
+
+                {/* Player */}
+                {activeEntry && (
+                  <div className="animate-fade-in">
+                    <WaveformPlayer
+                      key={activeEntry.id}
+                      audioUrl={activeEntry.audio_url}
+                      title={activeEntry.title || "Untitled"}
+                      summary={activeEntry.summary || ""}
+                      url={activeEntry.url}
+                      autoplay={autoplay}
+                    />
+                  </div>
+                )}
+
+                {/* Versions */}
+                {scriptUrl && (
+                  <VersionsList
+                    versions={versions}
+                    activeId={activeEntry?.id ?? null}
+                    onSelect={handleSelectVersion}
+                    onDelete={handleDeleteVersion}
+                  />
+                )}
+              </>
+            )}
+          </div>
         </main>
+
+        {/* Column 3: Voice settings */}
+        <aside className="w-[300px] flex-shrink-0 border-l border-border overflow-y-auto bg-surface-1">
+          <div className="p-4">
+            <VoiceSettings config={voiceConfig} onChange={setVoiceConfig} />
+          </div>
+        </aside>
       </div>
 
       {/* Prompt Editor Modal */}
@@ -214,5 +343,88 @@ export default function HomePage() {
         onClose={() => setPromptEditorOpen(false)}
       />
     </div>
+  );
+}
+
+/* ── Add Post Input (top bar) ── */
+
+function AddPostInput({ mutateHistory }: { mutateHistory: () => void }) {
+  const [url, setUrl] = useState("");
+  const [isAdding, setIsAdding] = useState(false);
+  const [message, setMessage] = useState<string | null>(null);
+
+  const handleAdd = async (e: React.FormEvent) => {
+    e.preventDefault();
+    const trimmed = url.trim();
+    if (!trimmed) return;
+    try {
+      new URL(trimmed);
+    } catch {
+      setMessage("Invalid URL");
+      return;
+    }
+    setIsAdding(true);
+    setMessage(null);
+    try {
+      const res = await fetch("/api/add-post", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ url: trimmed }),
+      });
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.error);
+      setUrl("");
+      setMessage(`Added: ${data.title}`);
+      mutateHistory();
+      setTimeout(() => setMessage(null), 3000);
+    } catch (err) {
+      setMessage(err instanceof Error ? err.message : "Failed to add");
+    } finally {
+      setIsAdding(false);
+    }
+  };
+
+  return (
+    <form onSubmit={handleAdd} className="flex-1 flex items-center gap-2 max-w-xl">
+      <div className="relative flex-1">
+        <svg
+          width="14"
+          height="14"
+          viewBox="0 0 24 24"
+          fill="none"
+          stroke="currentColor"
+          strokeWidth="2"
+          className="absolute left-2.5 top-1/2 -translate-y-1/2 text-muted-foreground"
+          aria-hidden="true"
+        >
+          <path d="M10 13a5 5 0 0 0 7.54.54l3-3a5 5 0 0 0-7.07-7.07l-1.72 1.71" />
+          <path d="M14 11a5 5 0 0 0-7.54-.54l-3 3a5 5 0 0 0 7.07 7.07l1.71-1.71" />
+        </svg>
+        <input
+          type="url"
+          value={url}
+          onChange={(e) => {
+            setUrl(e.target.value);
+            if (message) setMessage(null);
+          }}
+          placeholder="Paste blog URL to add..."
+          disabled={isAdding}
+          className="w-full h-8 rounded-md border border-border bg-surface-2 pl-8 pr-3 text-xs text-foreground font-mono placeholder:text-muted-foreground/30 focus:outline-none focus:border-accent transition-colors disabled:opacity-50"
+          aria-label="Add blog post URL"
+        />
+      </div>
+      <button
+        type="submit"
+        disabled={isAdding || !url.trim()}
+        className="h-8 px-3 rounded-md bg-foreground text-background text-xs font-medium hover:bg-foreground/90 disabled:opacity-40 disabled:cursor-not-allowed transition-colors focus-ring flex-shrink-0"
+      >
+        {isAdding ? "Adding..." : "Add"}
+      </button>
+      {message && (
+        <span className={`text-[11px] flex-shrink-0 ${message.startsWith("Added") ? "text-success" : "text-destructive"}`}>
+          {message}
+        </span>
+      )}
+    </form>
   );
 }
