@@ -6,7 +6,7 @@ export const maxDuration = 60;
 
 export async function POST(request: Request) {
   try {
-    const { url, testMode, customSystemPrompt, customTestPrompt } = await request.json();
+    const { url, testMode, customSystemPrompt, customTestPrompt, model: requestModel } = await request.json();
 
     if (!url || typeof url !== "string") {
       return Response.json({ error: "URL is required" }, { status: 400 });
@@ -26,6 +26,7 @@ export async function POST(request: Request) {
     // 2. Active preset from the database
     // 3. Hardcoded fallback
     let systemPrompt: string;
+    let selectedModel: string = requestModel || "openai/gpt-4o-mini";
 
     if (testMode && customTestPrompt) {
       systemPrompt = customTestPrompt;
@@ -35,6 +36,7 @@ export async function POST(request: Request) {
       const activePreset = await getActivePromptPreset();
       if (activePreset) {
         systemPrompt = testMode ? activePreset.test_prompt : activePreset.system_prompt;
+        if (!requestModel) selectedModel = activePreset.model;
       } else {
         systemPrompt = testMode
           ? "You are a blog-to-audio script writer. Write exactly ONE short paragraph (2-3 sentences, max 30 words) summarizing the main point of this page. Return only the text."
@@ -43,7 +45,7 @@ export async function POST(request: Request) {
     }
 
     const { text: summary } = await generateText({
-      model: "openai/gpt-4o-mini",
+      model: selectedModel,
       system: systemPrompt,
       prompt: JSON.stringify({
         text: scraped.text,
