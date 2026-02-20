@@ -277,42 +277,17 @@ export function VoiceSettings({ config, onChange }: VoiceSettingsProps) {
         )}
       </fieldset>
 
-      {/* Version label + Stability */}
-      <div className="flex gap-3">
-        <fieldset className="flex-1 flex flex-col gap-1.5">
-          <legend className="text-xs text-muted font-medium">Version Label</legend>
-          <input
-            type="text"
-            value={config.label}
-            onChange={(e) => update({ label: e.target.value })}
-            placeholder="e.g. v1-warm-slow"
-            className="h-8 bg-background border border-border rounded-md px-2.5 text-xs text-foreground font-mono placeholder:text-muted-foreground/40 transition-colors focus-ring"
-          />
-        </fieldset>
-        <fieldset className="w-[140px] flex flex-col gap-1.5">
-          <div className="flex items-center justify-between">
-            <legend className="text-xs text-muted font-medium">Stability</legend>
-            <output className="text-xs text-foreground font-mono tabular-nums">
-              {config.stability.toFixed(2)}
-            </output>
-          </div>
-          <div className="flex items-center gap-2">
-            <input
-              type="range"
-              min="0"
-              max="1"
-              step="0.05"
-              value={config.stability}
-              onChange={(e) => update({ stability: parseFloat(e.target.value) })}
-              className="flex-1 focus-ring rounded"
-            />
-          </div>
-          <div className="flex justify-between text-[9px] text-muted-foreground -mt-0.5">
-            <span>Creative</span>
-            <span>Robust</span>
-          </div>
-        </fieldset>
-      </div>
+      {/* Version label */}
+      <fieldset className="flex flex-col gap-1.5">
+        <legend className="text-xs text-muted font-medium">Version Label</legend>
+        <input
+          type="text"
+          value={config.label}
+          onChange={(e) => update({ label: e.target.value })}
+          placeholder="e.g. v1-warm-slow"
+          className="h-8 bg-background border border-border rounded-md px-2.5 text-xs text-foreground font-mono placeholder:text-muted-foreground/40 transition-colors focus-ring"
+        />
+      </fieldset>
 
       {/* Voice */}
       <fieldset className="flex flex-col gap-2">
@@ -371,6 +346,29 @@ export function VoiceSettings({ config, onChange }: VoiceSettingsProps) {
               </div>
             );
           })}
+        </div>
+      </fieldset>
+
+      {/* Stability */}
+      <fieldset className="flex flex-col gap-1.5">
+        <div className="flex items-center justify-between">
+          <legend className="text-xs text-muted font-medium">Stability</legend>
+          <output className="text-xs text-foreground font-mono tabular-nums">
+            {config.stability.toFixed(2)}
+          </output>
+        </div>
+        <input
+          type="range"
+          min="0"
+          max="1"
+          step="0.05"
+          value={config.stability}
+          onChange={(e) => update({ stability: parseFloat(e.target.value) })}
+          className="w-full focus-ring rounded"
+        />
+        <div className="flex justify-between text-[9px] text-muted-foreground -mt-0.5">
+          <span>Creative</span>
+          <span>Robust</span>
         </div>
       </fieldset>
     </section>
