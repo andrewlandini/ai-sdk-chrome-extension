@@ -184,7 +184,15 @@ export default function HomePage() {
       setScript(result.summary);
       setScriptTitle(result.title);
       setScriptUrl(result.url);
+
+      // Save to cache (same as Load Scripts)
+      await fetch("/api/save-script", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ url: result.url, script: result.summary }),
+      });
       mutateVersions();
+      mutateHistory();
     } catch (err) {
       if (err instanceof DOMException && err.name === "AbortError") {
         // User stopped generation -- keep whatever text streamed so far
@@ -195,7 +203,7 @@ export default function HomePage() {
       summarizeAbortRef.current = null;
       setIsSummarizing(false);
     }
-  }, [scriptUrl, mutateVersions, streamSummarize]);
+  }, [scriptUrl, mutateVersions, mutateHistory, streamSummarize]);
 
   const handleGenerateFromStyled = useCallback(async (styledScript: string) => {
     if (!styledScript.trim() || !scriptUrl) return;
