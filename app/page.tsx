@@ -21,6 +21,7 @@ const DEFAULT_VOICE_CONFIG: VoiceConfig = {
   stability: 0.5,
   similarityBoost: 0.75,
   label: "",
+  testMode: false,
 };
 
 export default function HomePage() {
@@ -58,7 +59,7 @@ export default function HomePage() {
         const response = await fetch("/api/summarize", {
           method: "POST",
           headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ url }),
+          body: JSON.stringify({ url, testMode: voiceConfig.testMode }),
         });
         const data = await response.json();
         if (!response.ok) throw new Error(data.error || "Failed to summarize");
@@ -74,7 +75,7 @@ export default function HomePage() {
         setIsSummarizing(false);
       }
     },
-    [mutateVersions]
+    [mutateVersions, voiceConfig.testMode]
   );
 
   const handleCatalogSelect = useCallback(
