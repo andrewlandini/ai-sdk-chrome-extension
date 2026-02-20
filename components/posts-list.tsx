@@ -14,10 +14,10 @@ interface ColumnDef {
 }
 
 const DEFAULT_COLUMNS: ColumnDef[] = [
+  { id: "age", label: "Date", width: "w-14 flex-shrink-0", align: "left" },
   { id: "title", label: "Title", width: "flex-1 min-w-0", align: "left" },
   { id: "slug", label: "Slug", width: "w-[140px] flex-shrink-0", align: "left" },
   { id: "gens", label: "Gens", width: "w-12 flex-shrink-0", align: "center" },
-  { id: "age", label: "Age", width: "w-12 flex-shrink-0", align: "right" },
 ];
 
 const VOICE_NAMES: Record<string, string> = {
@@ -264,7 +264,7 @@ export function PostsList({ entries, selectedUrl, activeId, onSelect, onPlay, on
                         );
                       case "age":
                         return (
-                          <span key={col.id} className={`${col.width} text-right text-[10px] text-muted-foreground font-mono tabular-nums`}>
+                          <span key={col.id} className={`${col.width} text-left text-[10px] text-muted-foreground font-mono tabular-nums`}>
                             {formatRelative(group.latestDate)}
                           </span>
                         );
