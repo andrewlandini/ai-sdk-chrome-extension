@@ -1,6 +1,7 @@
 "use client";
 
 import { useState, useCallback, useRef, useEffect } from "react";
+import { useSearchParams, useRouter } from "next/navigation";
 import useSWR from "swr";
 import { PostsList } from "@/components/posts-list";
 import { ScriptEditor } from "@/components/script-editor";
@@ -74,7 +75,30 @@ const DEFAULT_VOICE_CONFIG: VoiceConfig = {
   styleVibe: "Confident and genuinely excited about the content, but grounded and conversational -- not over the top",
 };
 
+function slugFromUrl(url: string): string {
+  try {
+    const path = new URL(url).pathname;
+    return path.split("/").filter(Boolean).pop() || "untitled";
+  } catch { return "untitled"; }
+}
+
+const SESSION_KEY = "aether-session";
+
+function loadSession() {
+  if (typeof window === "undefined") return null;
+  try {
+    const raw = sessionStorage.getItem(SESSION_KEY);
+    return raw ? JSON.parse(raw) : null;
+  } catch { return null; }
+}
+
+function saveSession(data: Record<string, unknown>) {
+  try { sessionStorage.setItem(SESSION_KEY, JSON.stringify(data)); } catch { /* ignore */ }
+}
+
 export default function HomePage() {
+  const searchParams = useSearchParams();
+  const router = useRouter();
   const { name: productName, fading: nameFading, advance: advanceName } = useProductName();
   const { data: credits } = useSWR<CreditsData>("/api/credits", fetcher, { refreshInterval: 30000 });
   const creditsPercent = credits ? Math.round((credits.characterCount / credits.characterLimit) * 100) : 0;
@@ -104,10 +128,48 @@ export default function HomePage() {
   const [historyOpen, setHistoryOpen] = useState(false);
   const [selectedHistoryScript, setSelectedHistoryScript] = useState<string | null>(null);
   const historyRef = useRef<HTMLDivElement>(null);
+  const restoredRef = useRef(false);
+
+  // ── Restore session on mount ──
+  useEffect(() => {
+    if (restoredRef.current) return;
+    restoredRef.current = true;
+    const s = loadSession();
+    if (!s) return;
+    if (s.scriptUrl) setScriptUrl(s.scriptUrl);
+    if (s.scriptTitle) setScriptTitle(s.scriptTitle);
+    if (s.script) setScript(s.script);
+    if (s.styledScript) setStyledScript(s.styledScript);
+    if (s.activeTab) setActiveTab(s.activeTab);
+    if (s.voiceConfig) setVoiceConfig({ ...DEFAULT_VOICE_CONFIG, ...s.voiceConfig });
+  }, []);
+
+  // ── Persist session on change ──
+  useEffect(() => {
+    if (!restoredRef.current) return;
+    saveSession({ scriptUrl, scriptTitle, script, styledScript, activeTab, voiceConfig });
+  }, [scriptUrl, scriptTitle, script, styledScript, activeTab, voiceConfig]);
 
   // Data
   const { data: historyData, mutate: mutateHistory } = useSWR<{ entries: BlogAudio[] }>("/api/history", fetcher);
   const entries = historyData?.entries ?? [];
+
+  // ── Restore from URL ?post=slug ──
+  const urlRestoredRef = useRef(false);
+  useEffect(() => {
+    if (urlRestoredRef.current || entries.length === 0) return;
+    const postSlug = searchParams.get("post");
+    if (!postSlug) return;
+    // Find matching entry by slug
+    const match = entries.find((e) => slugFromUrl(e.url) === postSlug);
+    if (match) {
+      urlRestoredRef.current = true;
+      setScriptUrl(match.url);
+      setScriptTitle(match.title || "");
+      const cachedScript = (match as BlogAudio & { cached_script?: string | null })?.cached_script;
+      setScript(cachedScript || "");
+    }
+  }, [entries, searchParams]);
 
   const { data: versionsData, mutate: mutateVersions } = useSWR<{ versions: BlogAudio[] }>(
     scriptUrl ? `/api/versions?url=${encodeURIComponent(scriptUrl)}` : null,
@@ -128,11 +190,15 @@ export default function HomePage() {
     setSidebarOpen(false);
     advanceName();
 
+    // Push slug to URL
+    const slug = slugFromUrl(url);
+    router.replace(`?post=${encodeURIComponent(slug)}`, { scroll: false });
+
     // Check if there's a cached script for this post
     const entry = entries.find((e) => e.url === url);
     const cachedScript = (entry as BlogAudio & { cached_script?: string | null })?.cached_script;
     setScript(cachedScript || "");
-  }, [entries, advanceName]);
+  }, [entries, advanceName, router]);
 
   // Helper: stream summarize API and progressively build script text
   const streamSummarize = useCallback(async (
@@ -298,12 +364,13 @@ export default function HomePage() {
   }, []);
 
   const handlePlayFromList = useCallback((entry: BlogAudio) => {
-    setActiveEntry(entry);
-    setAutoplay(true);
-    setScriptUrl(entry.url);
-    setScriptTitle(entry.title || "");
-    setScript(entry.summary || "");
-  }, []);
+  setActiveEntry(entry);
+  setAutoplay(true);
+  setScriptUrl(entry.url);
+  setScriptTitle(entry.title || "");
+  setScript(entry.summary || "");
+  router.replace(`?post=${encodeURIComponent(slugFromUrl(entry.url))}`, { scroll: false });
+  }, [router]);
 
   const handleDeleteEntry = useCallback(async (entry: BlogAudio) => {
     try {
@@ -497,11 +564,11 @@ export default function HomePage() {
               />
             </div>
 
-            {/* Audio Versions */}
+            {/* Versions */}
             <div className="flex-shrink-0 border-t border-border">
               <div className="flex items-center justify-between px-3 py-2 border-b border-border">
                 <div className="flex items-center gap-2">
-                  <span className="text-sm font-semibold tracking-tight">Audio Versions</span>
+                  <span className="text-sm font-semibold tracking-tight">Versions</span>
                   <span className="text-[10px] font-mono text-accent bg-accent/10 px-1.5 py-0.5 rounded">{versions.length}</span>
                 </div>
               </div>
@@ -572,11 +639,11 @@ export default function HomePage() {
             />
           </div>
 
-          {/* Audio Versions */}
+          {/* Versions */}
           <div className="flex-shrink-0 border-t border-border">
             <div className="flex items-center justify-between px-3 py-2 border-b border-border">
               <div className="flex items-center gap-2">
-                <span className="text-sm font-semibold tracking-tight">Audio Versions</span>
+                <span className="text-sm font-semibold tracking-tight">Versions</span>
                 <span className="text-[10px] font-mono text-accent bg-accent/10 px-1.5 py-0.5 rounded">{versions.length}</span>
               </div>
             </div>
@@ -741,7 +808,7 @@ export default function HomePage() {
           {/* Right side: (Voice Over + Versions) | Voice Settings */}
           <div className={`flex-[2] min-w-0 flex-col xl:flex-row overflow-hidden ${activeTab !== "content" ? "flex" : "hidden md:flex"}`}>
 
-            {/* Voice Over column + Audio Versions below */}
+            {/* Voice Over column + Versions below */}
             <div className={`flex-1 min-w-0 flex-col overflow-hidden ${activeTab === "voiceover" ? "flex" : "hidden md:flex"}`}>
               {/* Voice Over header */}
               <div className="flex items-center justify-between px-3 py-2 border-b border-border flex-shrink-0">
@@ -866,7 +933,7 @@ export default function HomePage() {
                 </div>
               </div>
               <div className="flex-1 overflow-y-auto p-4">
-                <VoiceSettings config={voiceConfig} onChange={setVoiceConfig} />
+                <VoiceSettings config={voiceConfig} onChange={setVoiceConfig} isGenerating={isGenerating} generateStatus={generateStatus} />
               </div>
 
             </aside>

@@ -41,9 +41,11 @@ function getVoiceName(id: string) {
 interface VoiceSettingsProps {
   config: VoiceConfig;
   onChange: (config: VoiceConfig) => void;
+  isGenerating?: boolean;
+  generateStatus?: string;
 }
 
-export function VoiceSettings({ config, onChange }: VoiceSettingsProps) {
+export function VoiceSettings({ config, onChange, isGenerating = false, generateStatus = "" }: VoiceSettingsProps) {
   const update = (partial: Partial<VoiceConfig>) =>
     onChange({ ...config, ...partial });
 
@@ -316,6 +318,26 @@ export function VoiceSettings({ config, onChange }: VoiceSettingsProps) {
         </div>
       </fieldset>
 
+      {/* Generation progress */}
+      {isGenerating && (
+        <div className="flex flex-col gap-1.5 pt-3 border-t border-border">
+          <div className="flex items-center gap-2">
+            <svg className="animate-spin flex-shrink-0 text-accent" width="12" height="12" viewBox="0 0 24 24" fill="none" aria-hidden="true">
+              <circle cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="2" strokeOpacity="0.2" />
+              <path d="M12 2a10 10 0 0 1 10 10" stroke="currentColor" strokeWidth="2" strokeLinecap="round" />
+            </svg>
+            <span className="text-[11px] text-accent font-medium">Generating audio...</span>
+          </div>
+          <div className="w-full h-1.5 bg-surface-2 rounded-full overflow-hidden">
+            <div className="h-full bg-accent rounded-full animate-pulse transition-all" style={{ width: "100%" }} />
+          </div>
+          {generateStatus && (
+            <p className="text-[10px] text-muted font-mono truncate">
+              {generateStatus}
+            </p>
+          )}
+        </div>
+      )}
 
     </section>
   );
