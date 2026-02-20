@@ -483,6 +483,7 @@ export default function HomePage() {
                   title={scriptTitle}
                   isLoading={isGenerating}
                   isStreaming={isSummarizing || loadingScripts}
+                  isStyled={!!styledScript.trim()}
                   onScriptChange={setScript}
                 />
               )}

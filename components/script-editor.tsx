@@ -5,6 +5,7 @@ interface ScriptEditorProps {
   title: string;
   isLoading: boolean;
   isStreaming?: boolean;
+  isStyled?: boolean;
   onScriptChange: (script: string) => void;
 }
 
@@ -12,6 +13,7 @@ export function ScriptEditor({
   script,
   isLoading,
   isStreaming,
+  isStyled,
   onScriptChange,
 }: ScriptEditorProps) {
   const wordCount = script.trim().split(/\s+/).filter(Boolean).length;
@@ -27,7 +29,7 @@ export function ScriptEditor({
         disabled={isLoading}
         aria-label="Blog post script content"
         className={`flex-1 w-full bg-transparent text-sm font-mono leading-relaxed text-foreground p-4 resize-none border-none focus:outline-none placeholder:text-muted-foreground/30 disabled:opacity-50 overflow-y-auto transition-opacity duration-300 ${
-          script && !isStreaming
+          script && !isStreaming && isStyled
             ? "opacity-30 hover:opacity-100 focus:opacity-100"
             : ""
         }`}
