@@ -1,7 +1,24 @@
 "use client";
 
-import { useState, useMemo } from "react";
+import { useState, useMemo, useCallback, useRef } from "react";
 import type { BlogAudio } from "@/lib/db";
+
+/* ── Column definitions ── */
+type ColumnId = "title" | "slug" | "gens" | "age";
+
+interface ColumnDef {
+  id: ColumnId;
+  label: string;
+  width: string; // Tailwind width class
+  align: "left" | "center" | "right";
+}
+
+const DEFAULT_COLUMNS: ColumnDef[] = [
+  { id: "title", label: "Title", width: "flex-1 min-w-0", align: "left" },
+  { id: "slug", label: "Slug", width: "w-[140px] flex-shrink-0", align: "right" },
+  { id: "gens", label: "Gens", width: "w-12 flex-shrink-0", align: "center" },
+  { id: "age", label: "Age", width: "w-12 flex-shrink-0", align: "right" },
+];
 
 const VOICE_NAMES: Record<string, string> = {
   TX3LPaxmHKxFdv7VOQHJ: "Liam",
@@ -59,6 +76,46 @@ function slugFromUrl(url: string): string {
 export function PostsList({ entries, selectedUrl, activeId, onSelect, onPlay, onDelete }: PostsListProps) {
   const [search, setSearch] = useState("");
   const [expandedUrl, setExpandedUrl] = useState<string | null>(null);
+  const [columns, setColumns] = useState<ColumnDef[]>(DEFAULT_COLUMNS);
+  const dragCol = useRef<number | null>(null);
+  const dragOverCol = useRef<number | null>(null);
+  const [draggingIdx, setDraggingIdx] = useState<number | null>(null);
+  const [dragOverIdx, setDragOverIdx] = useState<number | null>(null);
+
+  const handleDragStart = useCallback((idx: number) => {
+    dragCol.current = idx;
+    setDraggingIdx(idx);
+  }, []);
+
+  const handleDragOver = useCallback((e: React.DragEvent, idx: number) => {
+    e.preventDefault();
+    dragOverCol.current = idx;
+    setDragOverIdx(idx);
+  }, []);
+
+  const handleDrop = useCallback(() => {
+    const from = dragCol.current;
+    const to = dragOverCol.current;
+    if (from !== null && to !== null && from !== to) {
+      setColumns((prev) => {
+        const next = [...prev];
+        const [moved] = next.splice(from, 1);
+        next.splice(to, 0, moved);
+        return next;
+      });
+    }
+    dragCol.current = null;
+    dragOverCol.current = null;
+    setDraggingIdx(null);
+    setDragOverIdx(null);
+  }, []);
+
+  const handleDragEnd = useCallback(() => {
+    dragCol.current = null;
+    dragOverCol.current = null;
+    setDraggingIdx(null);
+    setDragOverIdx(null);
+  }, []);
 
   const groups = useMemo(() => {
     const map = new Map<string, BlogPostGroup>();
@@ -107,13 +164,26 @@ export function PostsList({ entries, selectedUrl, activeId, onSelect, onPlay, on
         <span className="text-[10px] text-muted font-mono tabular-nums flex-shrink-0">{groups.length} posts</span>
       </div>
 
-      {/* Column headers */}
+      {/* Column headers -- draggable */}
       <div className="flex-shrink-0 flex items-center h-7 px-3 border-b border-border text-[10px] text-muted-foreground uppercase tracking-wider font-medium select-none bg-surface-2/50">
         <span className="w-5 flex-shrink-0" />
-        <span className="flex-1 min-w-0">Title</span>
-        <span className="w-[140px] flex-shrink-0 text-right pr-1">Slug</span>
-        <span className="w-12 flex-shrink-0 text-center">Gens</span>
-        <span className="w-12 flex-shrink-0 text-right">Age</span>
+        {columns.map((col, idx) => (
+          <span
+            key={col.id}
+            draggable
+            onDragStart={() => handleDragStart(idx)}
+            onDragOver={(e) => handleDragOver(e, idx)}
+            onDrop={handleDrop}
+            onDragEnd={handleDragEnd}
+            className={`${col.width} cursor-grab active:cursor-grabbing transition-all ${
+              col.align === "right" ? "text-right pr-1" : col.align === "center" ? "text-center" : ""
+            } ${draggingIdx === idx ? "opacity-40" : ""} ${
+              dragOverIdx === idx && draggingIdx !== idx ? "border-l-2 border-l-accent" : ""
+            }`}
+          >
+            {col.label}
+          </span>
+        ))}
       </div>
 
       {/* Rows */}
@@ -171,25 +241,37 @@ export function PostsList({ entries, selectedUrl, activeId, onSelect, onPlay, on
                     )}
                   </span>
 
-                  {/* Title */}
-                  <span className={`flex-1 min-w-0 truncate ${isSelected ? "text-foreground font-medium" : "text-muted group-hover:text-foreground"} transition-colors`}>
-                    {group.title}
-                  </span>
-
-                  {/* Slug */}
-                  <span className="w-[140px] flex-shrink-0 text-right text-[10px] text-muted-foreground font-mono truncate pr-1" title={group.url}>
-                    {slugFromUrl(group.url)}
-                  </span>
-
-                  {/* Gen count */}
-                  <span className={`w-12 flex-shrink-0 text-center font-mono tabular-nums ${genCount > 0 ? "text-foreground" : "text-muted-foreground/40"}`}>
-                    {genCount}
-                  </span>
-
-                  {/* Age */}
-                  <span className="w-12 flex-shrink-0 text-right text-[10px] text-muted-foreground font-mono tabular-nums">
-                    {formatRelative(group.latestDate)}
-                  </span>
+                  {/* Dynamic columns */}
+                  {columns.map((col) => {
+                    switch (col.id) {
+                      case "title":
+                        return (
+                          <span key={col.id} className={`${col.width} truncate ${isSelected ? "text-foreground font-medium" : "text-muted group-hover:text-foreground"} transition-colors`}>
+                            {group.title}
+                          </span>
+                        );
+                      case "slug":
+                        return (
+                          <span key={col.id} className={`${col.width} text-right text-[10px] text-muted-foreground font-mono truncate pr-1`} title={group.url}>
+                            {slugFromUrl(group.url)}
+                          </span>
+                        );
+                      case "gens":
+                        return (
+                          <span key={col.id} className={`${col.width} text-center font-mono tabular-nums ${genCount > 0 ? "text-foreground" : "text-muted-foreground/40"}`}>
+                            {genCount}
+                          </span>
+                        );
+                      case "age":
+                        return (
+                          <span key={col.id} className={`${col.width} text-right text-[10px] text-muted-foreground font-mono tabular-nums`}>
+                            {formatRelative(group.latestDate)}
+                          </span>
+                        );
+                      default:
+                        return null;
+                    }
+                  })}
                 </div>
 
                 {/* Expanded sub-rows */}
