@@ -47,9 +47,7 @@ export function ScriptEditor({
         placeholder="Click Generate Script to create an audio script from the blog post..."
         disabled={isLoading}
         aria-label="Audio script text"
-        className={`w-full bg-transparent text-sm font-mono leading-relaxed text-foreground p-4 resize-y border-none focus:outline-none placeholder:text-muted-foreground/30 disabled:opacity-50 ${
-          script ? "min-h-[160px] max-h-[440px]" : "min-h-[64px] max-h-[440px]"
-        }`}
+        className="w-full h-[200px] bg-transparent text-sm font-mono leading-relaxed text-foreground p-4 resize-none border-none focus:outline-none placeholder:text-muted-foreground/30 disabled:opacity-50 overflow-y-auto"
       />
 
       {/* Footer */}

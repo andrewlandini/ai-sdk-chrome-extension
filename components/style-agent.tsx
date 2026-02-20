@@ -159,7 +159,7 @@ export function StyleAgent({
             value={styledScript}
             onChange={(e) => setStyledScript(e.target.value)}
             aria-label="Styled audio script with Audio Tags"
-            className="w-full min-h-[180px] max-h-[400px] bg-transparent text-sm font-mono leading-relaxed text-foreground p-4 resize-y border-none focus:outline-none"
+            className="w-full h-[200px] bg-transparent text-sm font-mono leading-relaxed text-foreground p-4 resize-none border-none focus:outline-none overflow-y-auto"
           />
           <div className="border-t border-border px-4 py-3 flex items-center justify-between gap-4">
             <p className="text-xs text-muted hidden sm:block">
@@ -185,7 +185,7 @@ export function StyleAgent({
           </div>
         </>
       ) : (
-        <div className="px-4 py-10 text-center">
+        <div className="h-[200px] flex items-center justify-center px-4 text-center">
           <p className="text-sm text-muted">
             {isRunning
               ? "Analyzing script and applying performance direction..."

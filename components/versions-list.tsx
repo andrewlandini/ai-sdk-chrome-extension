@@ -9,13 +9,16 @@ interface VersionsListProps {
   onDelete: (version: BlogAudio) => void;
 }
 
-function formatDate(dateStr: string): string {
-  return new Date(dateStr).toLocaleDateString("en-US", {
-    month: "short",
-    day: "numeric",
-    hour: "2-digit",
-    minute: "2-digit",
-  });
+function formatRelative(dateStr: string): string {
+  const diff = Date.now() - new Date(dateStr).getTime();
+  const mins = Math.floor(diff / 60000);
+  if (mins < 1) return "now";
+  if (mins < 60) return `${mins}m`;
+  const hours = Math.floor(mins / 60);
+  if (hours < 24) return `${hours}h`;
+  const days = Math.floor(hours / 24);
+  if (days < 30) return `${days}d`;
+  return new Date(dateStr).toLocaleDateString("en-US", { month: "short", day: "numeric" });
 }
 
 const VOICE_NAMES: Record<string, string> = {
@@ -41,27 +44,26 @@ export function VersionsList({
 }: VersionsListProps) {
   if (versions.length === 0) {
     return (
-      <div className="rounded-md border border-dashed border-border px-4 py-3 text-center">
-        <p className="text-xs text-muted-foreground">No audio versions yet</p>
+      <div className="flex items-center justify-center h-8">
+        <p className="text-[10px] text-muted-foreground">No audio versions yet</p>
       </div>
     );
   }
 
   return (
-    <section
-      className="rounded-lg border border-border bg-surface-1 overflow-hidden"
-      aria-labelledby="versions-heading"
-    >
-      <div className="border-b border-border px-4 py-3 flex items-center justify-between">
-        <h2 id="versions-heading" className="text-sm font-medium text-foreground">
-          Versions
-        </h2>
-        <span className="text-xs text-muted font-mono tabular-nums">
-          {versions.length}
-        </span>
+    <div className="flex flex-col overflow-hidden">
+      {/* Column headers -- matching PostsList style */}
+      <div className="flex items-center h-7 px-3 border-b border-border text-[10px] text-muted-foreground uppercase tracking-wider font-medium select-none bg-surface-2/50">
+        <span className="w-4 flex-shrink-0" />
+        <span className="flex-1 min-w-0">Label</span>
+        <span className="w-16 flex-shrink-0 text-center">Voice</span>
+        <span className="w-10 flex-shrink-0 text-center">Stab</span>
+        <span className="w-10 flex-shrink-0 text-right">Age</span>
+        <span className="w-14 flex-shrink-0" />
       </div>
 
-      <div className="divide-y divide-border">
+      {/* Rows */}
+      <div className="max-h-[200px] overflow-y-auto" role="list">
         {versions.map((v) => {
           const isActive = v.id === activeId;
           const voiceName = v.voice_id
@@ -69,83 +71,77 @@ export function VersionsList({
             : "Default";
 
           return (
-            <button
+            <div
               key={v.id}
               onClick={() => onSelect(v)}
-              className={`w-full text-left px-4 py-3 flex items-center gap-3 transition-colors group focus-ring ${
-                isActive ? "bg-surface-2" : "hover:bg-surface-2"
+              role="button"
+              tabIndex={0}
+              onKeyDown={(e) => { if (e.key === "Enter") onSelect(v); }}
+              className={`flex items-center h-8 px-3 border-b border-border/60 cursor-pointer transition-colors group text-xs ${
+                isActive
+                  ? "bg-accent/8 border-l-2 border-l-accent"
+                  : "hover:bg-surface-2 border-l-2 border-l-transparent"
               }`}
             >
-              <span
-                className={`w-1.5 h-1.5 rounded-full flex-shrink-0 ${
-                  isActive ? "bg-accent" : "bg-border"
-                }`}
-                aria-hidden="true"
-              />
+              {/* Status dot */}
+              <span className="w-4 flex-shrink-0 flex items-center justify-center">
+                <span className={`w-1.5 h-1.5 rounded-full ${isActive ? "bg-accent" : "bg-border/50"}`} />
+              </span>
 
-              <span className={`text-sm font-mono flex-shrink-0 ${isActive ? "text-foreground" : "text-muted"}`}>
+              {/* Label */}
+              <span className={`flex-1 min-w-0 truncate font-mono ${isActive ? "text-foreground font-medium" : "text-muted group-hover:text-foreground"} transition-colors`}>
                 {v.label || `#${v.id}`}
               </span>
 
-              <div className="flex items-center gap-1.5 flex-1 min-w-0 overflow-hidden">
-                <span className="text-[11px] text-muted-foreground bg-surface-3 rounded px-1.5 py-0.5 font-mono flex-shrink-0">
-                  {voiceName}
-                </span>
-                {v.stability !== null && (
-                  <span className="text-[11px] text-muted-foreground bg-surface-3 rounded px-1.5 py-0.5 font-mono flex-shrink-0">
-                    S:{v.stability.toFixed(1)}
-                  </span>
-                )}
-
-              </div>
-
-              <span className="text-[11px] text-muted-foreground font-mono tabular-nums flex-shrink-0 hidden sm:block">
-                {formatDate(v.created_at)}
+              {/* Voice */}
+              <span className="w-16 flex-shrink-0 text-center text-[10px] text-muted-foreground font-mono truncate">
+                {voiceName}
               </span>
 
-              <a
-                href={v.audio_url}
-                download={`${(v.title || "audio").toLowerCase().replace(/[^a-z0-9]+/g, "-").replace(/(^-|-$)/g, "")}--${voiceName.toLowerCase()}--${(v.label || `v${v.id}`).toLowerCase().replace(/[^a-z0-9]+/g, "-").replace(/(^-|-$)/g, "")}.mp3`}
-                onClick={(e) => e.stopPropagation()}
-                className="opacity-0 group-hover:opacity-100 transition-opacity p-1 text-muted-foreground hover:text-foreground flex-shrink-0 focus-ring rounded"
-                aria-label="Download version"
-              >
-                <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" aria-hidden="true">
-                  <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4" />
-                  <polyline points="7 10 12 15 17 10" />
-                  <line x1="12" y1="15" x2="12" y2="3" />
-                </svg>
-              </a>
-              <span
-                onClick={(e) => {
-                  e.stopPropagation();
-                  if (window.confirm(`Delete "${v.label || `version #${v.id}`}"? This cannot be undone.`)) {
-                    onDelete(v);
-                  }
-                }}
-                role="button"
-                tabIndex={0}
-                onKeyDown={(e) => {
-                  if (e.key === "Enter" || e.key === " ") {
+              {/* Stability */}
+              <span className="w-10 flex-shrink-0 text-center text-[10px] text-muted-foreground font-mono tabular-nums">
+                {v.stability !== null ? v.stability.toFixed(1) : "--"}
+              </span>
+
+              {/* Age */}
+              <span className="w-10 flex-shrink-0 text-right text-[10px] text-muted-foreground font-mono tabular-nums">
+                {formatRelative(v.created_at)}
+              </span>
+
+              {/* Actions */}
+              <span className="w-14 flex-shrink-0 flex items-center justify-end gap-0.5">
+                <a
+                  href={v.audio_url}
+                  download={`${(v.title || "audio").toLowerCase().replace(/[^a-z0-9]+/g, "-").replace(/(^-|-$)/g, "")}--${voiceName.toLowerCase()}--${(v.label || `v${v.id}`).toLowerCase().replace(/[^a-z0-9]+/g, "-").replace(/(^-|-$)/g, "")}.mp3`}
+                  onClick={(e) => e.stopPropagation()}
+                  className="opacity-0 group-hover:opacity-100 p-1 text-muted-foreground hover:text-foreground transition-all focus-ring rounded"
+                  aria-label="Download version"
+                >
+                  <svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" aria-hidden="true">
+                    <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4" />
+                    <polyline points="7 10 12 15 17 10" />
+                    <line x1="12" y1="15" x2="12" y2="3" />
+                  </svg>
+                </a>
+                <button
+                  onClick={(e) => {
                     e.stopPropagation();
-                    e.preventDefault();
                     if (window.confirm(`Delete "${v.label || `version #${v.id}`}"? This cannot be undone.`)) {
                       onDelete(v);
                     }
-                  }
-                }}
-                className="opacity-0 group-hover:opacity-100 transition-opacity p-1 text-muted-foreground hover:text-destructive flex-shrink-0 focus-ring rounded"
-                aria-label="Delete version"
-              >
-                <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" aria-hidden="true">
-                  <polyline points="3 6 5 6 21 6" />
-                  <path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2" />
-                </svg>
+                  }}
+                  className="opacity-0 group-hover:opacity-100 p-1 text-muted-foreground hover:text-destructive transition-all focus-ring rounded"
+                  aria-label="Delete version"
+                >
+                  <svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" aria-hidden="true">
+                    <path d="M18 6L6 18M6 6l12 12" />
+                  </svg>
+                </button>
               </span>
-            </button>
+            </div>
           );
         })}
       </div>
-    </section>
+    </div>
   );
 }
