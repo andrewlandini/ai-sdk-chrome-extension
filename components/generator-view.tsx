@@ -19,7 +19,6 @@ const DEFAULT_VOICE_CONFIG: VoiceConfig = {
   voiceId: "TX3LPaxmHKxFdv7VOQHJ",
   stability: 0,
   label: "",
-  testMode: false,
   styleVibe: "Confident and genuinely excited about the content, but grounded and conversational -- not over the top",
 };
 
@@ -74,7 +73,7 @@ export function GeneratorView({
         const response = await fetch("/api/summarize", {
           method: "POST",
           headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ url, testMode: voiceConfig.testMode }),
+          body: JSON.stringify({ url }),
         });
         const data = await response.json();
         if (!response.ok) throw new Error(data.error || "Failed to summarize");
@@ -88,7 +87,7 @@ export function GeneratorView({
         setIsSummarizing(false);
       }
     },
-    [mutateVersions, voiceConfig.testMode, onScriptChange, onScriptTitleChange, onScriptUrlChange]
+    [mutateVersions, onScriptChange, onScriptTitleChange, onScriptUrlChange]
   );
 
   // Catalog select only populates the URL/title -- user must click Generate Script

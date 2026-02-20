@@ -64,7 +64,6 @@ const DEFAULT_VOICE_CONFIG: VoiceConfig = {
   voiceId: "TX3LPaxmHKxFdv7VOQHJ",
   stability: 0,
   label: "",
-  testMode: false,
   styleVibe: "Confident and genuinely excited about the content, but grounded and conversational -- not over the top",
 };
 
@@ -120,12 +119,12 @@ export default function HomePage() {
   // Helper: stream summarize API and progressively build script text
   const streamSummarize = useCallback(async (
     url: string,
-    options: { testMode?: boolean; onDelta?: (accumulated: string) => void } = {}
+    options: { onDelta?: (accumulated: string) => void } = {}
   ): Promise<{ title: string; summary: string; url: string }> => {
     const response = await fetch("/api/summarize", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ url, testMode: options.testMode }),
+      body: JSON.stringify({ url }),
     });
 
     if (!response.ok) {
@@ -159,7 +158,6 @@ export default function HomePage() {
     setError(null);
     try {
       const result = await streamSummarize(scriptUrl, {
-        testMode: voiceConfig.testMode,
         onDelta: (text) => setScript(text),
       });
       setScript(result.summary);
@@ -171,7 +169,7 @@ export default function HomePage() {
     } finally {
       setIsSummarizing(false);
     }
-  }, [scriptUrl, voiceConfig.testMode, mutateVersions, streamSummarize]);
+  }, [scriptUrl, mutateVersions, streamSummarize]);
 
   const handleGenerateFromStyled = useCallback(async (styledScript: string) => {
     if (!styledScript.trim() || !scriptUrl) return;
@@ -485,6 +483,7 @@ export default function HomePage() {
                   title={scriptTitle}
                   isLoading={isGenerating}
                   isStreaming={isSummarizing || loadingScripts}
+                  isStyled={!!styledScript.trim()}
                   onScriptChange={setScript}
                 />
               )}

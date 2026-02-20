@@ -6,7 +6,7 @@ export const maxDuration = 60;
 
 export async function POST(request: Request) {
   try {
-    const { url, testMode, customSystemPrompt, customTestPrompt, model: requestModel } = await request.json();
+    const { url, customSystemPrompt, model: requestModel } = await request.json();
 
     if (!url || typeof url !== "string") {
       return Response.json({ error: "URL is required" }, { status: 400 });
@@ -25,19 +25,15 @@ export async function POST(request: Request) {
     let systemPrompt: string;
     let selectedModel: string = requestModel || "openai/gpt-4o";
 
-    if (testMode && customTestPrompt) {
-      systemPrompt = customTestPrompt;
-    } else if (!testMode && customSystemPrompt) {
+    if (customSystemPrompt) {
       systemPrompt = customSystemPrompt;
     } else {
       const activePreset = await getActivePromptPreset();
       if (activePreset) {
-        systemPrompt = testMode ? activePreset.test_prompt : activePreset.system_prompt;
+        systemPrompt = activePreset.system_prompt;
         if (!requestModel) selectedModel = activePreset.model;
       } else {
-        systemPrompt = testMode
-          ? "You are a blog-to-audio script writer. Write exactly ONE short paragraph (2-3 sentences, max 30 words) summarizing the main point of this page. Return only the text."
-          : "You are a blog-to-audio script writer. Reproduce the blog post content verbatim but summarize code blocks like an instructor. Return only the script text.";
+        systemPrompt = "You are a blog-to-audio script writer. Reproduce the blog post content verbatim but summarize code blocks like an instructor. Return only the script text.";
       }
     }
 

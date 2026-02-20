@@ -18,7 +18,6 @@ const MODELS = [
 
 const PROMPT_TABS = [
   { id: "system" as const, label: "Script Prompt", modelKey: "model" as const, defaultModel: "openai/gpt-4o", desc: "AI model for generating spoken scripts from blog posts" },
-  { id: "test" as const, label: "Test Prompt", modelKey: "model" as const, defaultModel: "openai/gpt-4o", desc: "Uses the same model as Script Prompt (test mode)" },
   { id: "blog" as const, label: "Blog Fetch", modelKey: "blogFetchModel" as const, defaultModel: "openai/gpt-4o-mini", desc: "AI model for parsing blog listing pages to discover posts" },
   { id: "style" as const, label: "Style Agent", modelKey: "styleAgentModel" as const, defaultModel: "openai/gpt-4o", desc: "AI model for adding v3 Audio Tags to scripts" },
 ];
@@ -49,7 +48,6 @@ interface PromptPreset {
   id: number;
   name: string;
   system_prompt: string;
-  test_prompt: string;
   blog_fetch_prompt: string | null;
   model: string;
   blog_fetch_model: string;
@@ -72,7 +70,6 @@ export function PromptEditorModal({ open, onClose }: PromptEditorModalProps) {
   const [selectedId, setSelectedId] = useState<number | null>(null);
   const [name, setName] = useState("");
   const [systemPrompt, setSystemPrompt] = useState("");
-  const [testPrompt, setTestPrompt] = useState("");
   const [blogFetchPrompt, setBlogFetchPrompt] = useState(DEFAULT_BLOG_FETCH_PROMPT);
   const [model, setModel] = useState("openai/gpt-4o");
   const [blogFetchModel, setBlogFetchModel] = useState("openai/gpt-4o-mini");
@@ -103,7 +100,6 @@ export function PromptEditorModal({ open, onClose }: PromptEditorModalProps) {
     setSelectedId(preset.id);
     setName(preset.name);
     setSystemPrompt(preset.system_prompt);
-    setTestPrompt(preset.test_prompt);
     setBlogFetchPrompt(preset.blog_fetch_prompt || DEFAULT_BLOG_FETCH_PROMPT);
     setModel(preset.model || "openai/gpt-4o");
     setBlogFetchModel(preset.blog_fetch_model || "openai/gpt-4o-mini");
@@ -115,28 +111,26 @@ export function PromptEditorModal({ open, onClose }: PromptEditorModalProps) {
   const getTabPrompt = (tab: PromptTab) => {
     switch (tab) {
       case "system": return systemPrompt;
-      case "test": return testPrompt;
       case "blog": return blogFetchPrompt;
-      case "style": return ""; // style agent prompt is hardcoded server-side
+      case "style": return "";
     }
   };
   const setTabPrompt = (tab: PromptTab, val: string) => {
     switch (tab) {
       case "system": setSystemPrompt(val); break;
-      case "test": setTestPrompt(val); break;
       case "blog": setBlogFetchPrompt(val); break;
     }
   };
   const getTabModel = (tab: PromptTab) => {
     switch (tab) {
-      case "system": case "test": return model;
+      case "system": return model;
       case "blog": return blogFetchModel;
       case "style": return styleAgentModel;
     }
   };
   const setTabModel = (tab: PromptTab, val: string) => {
     switch (tab) {
-      case "system": case "test": setModel(val); break;
+      case "system": setModel(val); break;
       case "blog": setBlogFetchModel(val); break;
       case "style": setStyleAgentModel(val); break;
     }
@@ -145,15 +139,14 @@ export function PromptEditorModal({ open, onClose }: PromptEditorModalProps) {
   const getPayload = useCallback(() => ({
     name,
     system_prompt: systemPrompt,
-    test_prompt: testPrompt,
     blog_fetch_prompt: blogFetchPrompt,
     model,
     blog_fetch_model: blogFetchModel,
     style_agent_model: styleAgentModel,
-  }), [name, systemPrompt, testPrompt, blogFetchPrompt, model, blogFetchModel, styleAgentModel]);
+  }), [name, systemPrompt, blogFetchPrompt, model, blogFetchModel, styleAgentModel]);
 
   const handleSave = useCallback(async () => {
-    if (!name.trim() || !systemPrompt.trim() || !testPrompt.trim()) return;
+    if (!name.trim() || !systemPrompt.trim()) return;
     setIsSaving(true);
     setMessage(null);
     try {
@@ -180,10 +173,10 @@ export function PromptEditorModal({ open, onClose }: PromptEditorModalProps) {
     } finally {
       setIsSaving(false);
     }
-  }, [selectedId, name, systemPrompt, testPrompt, getPayload, mutate]);
+  }, [selectedId, name, systemPrompt, getPayload, mutate]);
 
   const handleSaveAsNew = useCallback(async () => {
-    if (!name.trim() || !systemPrompt.trim() || !testPrompt.trim()) return;
+    if (!name.trim() || !systemPrompt.trim()) return;
     setIsSaving(true);
     setMessage(null);
     try {
@@ -202,7 +195,7 @@ export function PromptEditorModal({ open, onClose }: PromptEditorModalProps) {
     } finally {
       setIsSaving(false);
     }
-  }, [name, systemPrompt, testPrompt, getPayload, mutate]);
+  }, [name, systemPrompt, getPayload, mutate]);
 
   const handleSetDefault = useCallback(async () => {
     if (!selectedId) return;
@@ -245,7 +238,6 @@ export function PromptEditorModal({ open, onClose }: PromptEditorModalProps) {
     setSelectedId(null);
     setName("");
     setSystemPrompt("");
-    setTestPrompt("");
     setBlogFetchPrompt(DEFAULT_BLOG_FETCH_PROMPT);
     setModel("openai/gpt-4o");
     setBlogFetchModel("openai/gpt-4o-mini");
@@ -270,7 +262,7 @@ export function PromptEditorModal({ open, onClose }: PromptEditorModalProps) {
   useEffect(() => {
     // Skip auto-save if we just loaded a preset or if prompts are empty
     if (hasLoadedPreset.current) return;
-    if (!systemPrompt.trim() && !testPrompt.trim()) return;
+    if (!systemPrompt.trim()) return;
     // Must have a name to save
     if (!name.trim()) return;
 
@@ -309,7 +301,7 @@ export function PromptEditorModal({ open, onClose }: PromptEditorModalProps) {
       if (autoSaveTimer.current) clearTimeout(autoSaveTimer.current);
     };
   // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [systemPrompt, testPrompt, blogFetchPrompt, model, blogFetchModel, styleAgentModel]);
+  }, [systemPrompt, blogFetchPrompt, model, blogFetchModel, styleAgentModel]);
 
   const activePreset = presets.find((p) => p.id === selectedId);
   const isDefault = activePreset?.is_default ?? false;
@@ -414,16 +406,13 @@ export function PromptEditorModal({ open, onClose }: PromptEditorModalProps) {
                     <button
                       key={m.id}
                       onClick={() => setTabModel(activeTab, m.id)}
-                      disabled={activeTab === "test"}
                       className={`px-2 py-0.5 rounded text-[10px] font-medium transition-colors focus-ring ${
                         getTabModel(activeTab) === m.id
                           ? "bg-foreground text-background"
-                          : activeTab === "test"
-                          ? "border border-border/50 text-muted/40 cursor-not-allowed"
                           : "border border-border text-muted hover:text-foreground hover:border-border-hover"
                       }`}
                       aria-pressed={getTabModel(activeTab) === m.id}
-                      title={activeTab === "test" ? "Test mode uses the Script Prompt model" : m.label}
+                      title={m.label}
                     >
                       {m.label}
                     </button>
@@ -496,7 +485,7 @@ export function PromptEditorModal({ open, onClose }: PromptEditorModalProps) {
               )}
               <button
                 onClick={handleSave}
-                disabled={isSaving || !name.trim() || !systemPrompt.trim() || !testPrompt.trim()}
+                disabled={isSaving || !name.trim() || !systemPrompt.trim()}
                 className="h-7 px-3 rounded bg-foreground text-background text-[11px] font-medium hover:bg-foreground/90 transition-colors disabled:opacity-40 disabled:cursor-not-allowed focus-ring"
               >
                 {isSaving ? "Saving..." : selectedId ? "Save" : "Create"}
