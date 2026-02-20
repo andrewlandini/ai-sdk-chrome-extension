@@ -1,58 +1,56 @@
-import {
-  generateText,
-  experimental_generateSpeech as generateSpeech,
-} from "ai";
+import { experimental_generateSpeech as generateSpeech } from "ai";
 import { elevenlabs } from "@ai-sdk/elevenlabs";
 import { put } from "@vercel/blob";
-import { findByUrl, insertBlogAudio } from "@/lib/db";
-import { scrapeBlogPost } from "@/lib/scraper";
+import { insertBlogAudio } from "@/lib/db";
 
 export const maxDuration = 60;
 
 export async function POST(request: Request) {
   try {
-    const { url } = await request.json();
+    const body = await request.json();
+    const {
+      url,
+      title,
+      summary,
+      voiceId = "JBFqnCBsd6RMkjVDRZzb",
+      modelId = "eleven_flash_v2_5",
+      stability,
+      similarityBoost,
+      label,
+    } = body;
 
-    if (!url || typeof url !== "string") {
-      return Response.json({ error: "URL is required" }, { status: 400 });
+    if (!url || !summary) {
+      return Response.json(
+        { error: "URL and summary are required" },
+        { status: 400 }
+      );
     }
 
-    // Validate URL format
-    try {
-      new URL(url);
-    } catch {
-      return Response.json({ error: "Invalid URL format" }, { status: 400 });
+    // Build provider options for ElevenLabs voice settings
+    const providerOptions: Record<string, Record<string, unknown>> = {
+      elevenlabs: {},
+    };
+
+    if (stability !== undefined || similarityBoost !== undefined) {
+      providerOptions.elevenlabs.voiceSettings = {
+        ...(stability !== undefined && { stability }),
+        ...(similarityBoost !== undefined && { similarity_boost: similarityBoost }),
+      };
     }
-
-    // Check if already processed
-    const existing = await findByUrl(url);
-    if (existing) {
-      return Response.json({ entry: existing, cached: true });
-    }
-
-    // Scrape the blog post
-    const scraped = await scrapeBlogPost(url);
-
-    // Generate summary with AI
-    const { text: summary } = await generateText({
-      model: "xai/grok-3-fast",
-      system:
-        "You are a webpage content summarizer. You are given a webpage (text, url, title) and you create a compelling trailer-like overview (max 50 words) that captures the main ideas and explains what readers will find valuable. Present the content in an engaging way that highlights the key insights and practical value without being overly promotional. Focus on what the page actually offers and why it matters. Use clear, conversational language that flows naturally when spoken aloud, as this summary will be read out loud as audio. Return only the summary (just text, no headings, no titles, no markdown), nothing else!",
-      prompt: JSON.stringify({
-        text: scraped.text,
-        url: scraped.url,
-        title: scraped.title,
-      }),
-    });
 
     // Generate speech with ElevenLabs
     const { audio } = await generateSpeech({
-      model: elevenlabs.speech("eleven_flash_v2_5"),
+      model: elevenlabs.speech(modelId),
       text: summary,
+      voice: voiceId,
+      providerOptions,
     });
 
     // Upload to Vercel Blob
-    const filename = `blog-audio/${Date.now()}-${encodeURIComponent(scraped.title.substring(0, 50))}.mp3`;
+    const timestamp = Date.now();
+    const slug = (title || "audio").substring(0, 50).replace(/[^a-zA-Z0-9]/g, "-");
+    const versionLabel = label || `v${timestamp}`;
+    const filename = `blog-audio/${timestamp}-${slug}-${versionLabel}.mp3`;
     const blob = await put(filename, Buffer.from(audio.uint8Array), {
       access: "public",
       contentType: audio.mediaType || "audio/mpeg",
@@ -61,12 +59,17 @@ export async function POST(request: Request) {
     // Save to database
     const entry = await insertBlogAudio({
       url,
-      title: scraped.title,
+      title: title || "Untitled",
       summary,
       audio_url: blob.url,
+      voice_id: voiceId,
+      model_id: modelId,
+      stability,
+      similarity_boost: similarityBoost,
+      label: versionLabel,
     });
 
-    return Response.json({ entry, cached: false });
+    return Response.json({ entry });
   } catch (error) {
     console.error("Generate error:", error);
     const message =
