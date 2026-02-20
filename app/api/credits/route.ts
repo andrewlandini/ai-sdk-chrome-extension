@@ -1,39 +1,61 @@
+import { getCachedCredits, upsertCachedCredits } from "@/lib/db";
+
 export const dynamic = "force-dynamic";
 
-export async function GET() {
+async function fetchFromElevenLabs() {
   const apiKey = process.env.ELEVENLABS_API_KEY;
-  if (!apiKey) {
-    return Response.json(
-      { error: "ELEVENLABS_API_KEY not configured" },
-      { status: 500 }
-    );
-  }
+  if (!apiKey) return null;
 
   try {
     const res = await fetch("https://api.elevenlabs.io/v1/user/subscription", {
       headers: { "xi-api-key": apiKey },
     });
-
-    if (!res.ok) {
-      return Response.json(
-        { error: "Failed to fetch ElevenLabs subscription" },
-        { status: res.status }
-      );
-    }
-
+    if (!res.ok) return null;
     const data = await res.json();
-
-    return Response.json({
-      tier: data.tier,
-      characterCount: data.character_count,
-      characterLimit: data.character_limit,
-      nextResetUnix: data.next_character_count_reset_unix,
-    });
-  } catch (error) {
-    console.error("Credits fetch error:", error);
-    return Response.json(
-      { error: "Failed to fetch credits" },
-      { status: 500 }
-    );
+    return {
+      tier: data.tier as string,
+      characterCount: data.character_count as number,
+      characterLimit: data.character_limit as number,
+      nextResetUnix: data.next_character_count_reset_unix as number,
+    };
+  } catch {
+    return null;
   }
+}
+
+export async function GET(request: Request) {
+  const { searchParams } = new URL(request.url);
+  const refresh = searchParams.get("refresh") === "true";
+
+  // If refresh requested (after generation), fetch live from ElevenLabs and save to DB
+  if (refresh) {
+    const live = await fetchFromElevenLabs();
+    if (live) {
+      await upsertCachedCredits(live);
+      return Response.json(live);
+    }
+  }
+
+  // Otherwise read from Neon cache
+  const cached = await getCachedCredits();
+  if (cached) {
+    return Response.json({
+      tier: cached.tier,
+      characterCount: cached.characterCount,
+      characterLimit: cached.characterLimit,
+      nextResetUnix: cached.nextResetUnix,
+    });
+  }
+
+  // First load fallback: fetch from ElevenLabs and seed the cache
+  const live = await fetchFromElevenLabs();
+  if (live) {
+    await upsertCachedCredits(live);
+    return Response.json(live);
+  }
+
+  return Response.json(
+    { error: "Credits unavailable" },
+    { status: 503 }
+  );
 }

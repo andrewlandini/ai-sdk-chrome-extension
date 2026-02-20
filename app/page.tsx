@@ -59,7 +59,11 @@ function useProductName() {
   return { name, fading, advance };
 }
 
-const fetcher = (url: string) => fetch(url).then((r) => r.json());
+const fetcher = async (url: string) => {
+  const res = await fetch(url);
+  if (!res.ok) throw new Error(`Fetch failed: ${res.status}`);
+  return res.json();
+};
 
 type CreditsData = {
   tier: string;
@@ -108,8 +112,13 @@ function HomePage() {
   const searchParams = useSearchParams();
   const router = useRouter();
   const { name: productName, fading: nameFading, advance: advanceName } = useProductName();
-  const { data: credits } = useSWR<CreditsData>("/api/credits", fetcher, { refreshInterval: 30000 });
-  const creditsPercent = credits ? Math.round((credits.characterCount / credits.characterLimit) * 100) : 0;
+  const { data: credits, mutate: mutateCredits } = useSWR<CreditsData>("/api/credits", fetcher, {
+    revalidateOnFocus: false,
+    revalidateOnReconnect: false,
+  });
+  const creditsPercent = credits?.characterCount != null && credits?.characterLimit
+    ? Math.round((credits.characterCount / credits.characterLimit) * 100)
+    : 0;
   const [promptEditorOpen, setPromptEditorOpen] = useState(false);
   const [contentFocused, setContentFocused] = useState(false);
   const [sidebarOpen, setSidebarOpen] = useState(false);
@@ -128,6 +137,8 @@ function HomePage() {
   const [styledScript, setStyledScript] = useState("");
   const [isGenerating, setIsGenerating] = useState(false);
   const [generateStatus, setGenerateStatus] = useState("");
+  const [activeJobId, setActiveJobId] = useState<number | null>(null);
+  const jobPollRef = useRef<ReturnType<typeof setInterval> | null>(null);
   const [isSummarizing, setIsSummarizing] = useState(false);
   const summarizeAbortRef = useRef<AbortController | null>(null);
   const [error, setError] = useState<string | null>(null);
@@ -171,14 +182,76 @@ function HomePage() {
     if (!restoredRef.current) return;
     if (saveTimerRef.current) clearTimeout(saveTimerRef.current);
     saveTimerRef.current = setTimeout(() => {
-      saveSession({ scriptUrl, scriptTitle, script, styledScript, activeTab, voiceConfig });
+      saveSession({ scriptUrl, scriptTitle, script, styledScript, activeTab, voiceConfig, activeJobId });
     }, 500);
     return () => { if (saveTimerRef.current) clearTimeout(saveTimerRef.current); };
-  }, [scriptUrl, scriptTitle, script, styledScript, activeTab, voiceConfig]);
+  }, [scriptUrl, scriptTitle, script, styledScript, activeTab, voiceConfig, activeJobId]);
 
   // Data
   const { data: historyData, mutate: mutateHistory } = useSWR<{ entries: BlogAudio[] }>("/api/history", fetcher);
   const entries = historyData?.entries ?? [];
+
+  // ── Poll for active generation job ──
+  // Use refs for SWR mutators to keep startJobPoll stable (initialized in effects below)
+  const mutateHistoryRef = useRef<(() => void) | null>(null);
+  const mutateVersionsRef = useRef<(() => void) | null>(null);
+  const mutateCreditsRef = useRef<(() => void) | null>(null);
+
+  const startJobPoll = useCallback((jobId: number) => {
+    if (jobPollRef.current) clearInterval(jobPollRef.current);
+    setIsGenerating(true);
+    setActiveJobId(jobId);
+
+    jobPollRef.current = setInterval(async () => {
+      try {
+        const res = await fetch(`/api/generation-jobs?jobId=${jobId}`);
+        if (!res.ok) return;
+        const data = await res.json();
+        const job = data.job;
+        if (!job) return;
+
+        setGenerateStatus(job.message || "Generating...");
+
+        if (job.status === "done") {
+          clearInterval(jobPollRef.current!);
+          jobPollRef.current = null;
+          setIsGenerating(false);
+          setGenerateStatus("");
+          setActiveJobId(null);
+          mutateHistoryRef.current?.();
+          mutateVersionsRef.current?.();
+          mutateCreditsRef.current?.();
+          // If the job produced an entry, auto-select it
+          if (job.result_entry_id) {
+            const histData = await fetch("/api/history").then((r) => r.json());
+            const entry = histData.entries?.find((e: BlogAudio) => e.id === job.result_entry_id);
+            if (entry) {
+              setActiveEntry(entry);
+              setAutoplay(true);
+            }
+          }
+        } else if (job.status === "error") {
+          clearInterval(jobPollRef.current!);
+          jobPollRef.current = null;
+          setIsGenerating(false);
+          setGenerateStatus("");
+          setActiveJobId(null);
+          setError(job.message || "Generation failed");
+        }
+      } catch {
+        // Ignore poll errors, keep trying
+      }
+    }, 2000);
+  }, []);
+
+  // Restore active job on mount
+  useEffect(() => {
+    const s = loadSession();
+    if (s?.activeJobId) {
+      startJobPoll(s.activeJobId);
+    }
+    return () => { if (jobPollRef.current) clearInterval(jobPollRef.current); };
+  }, [startJobPoll]);
 
   // ── Restore from URL ?post=slug ──
   const urlRestoredRef = useRef(false);
@@ -202,6 +275,11 @@ function HomePage() {
     fetcher
   );
   const versions = versionsData?.versions ?? [];
+
+  // Sync mutator refs (declared above, populated here after all SWR hooks)
+  useEffect(() => { mutateHistoryRef.current = mutateHistory; }, [mutateHistory]);
+  useEffect(() => { mutateVersionsRef.current = mutateVersions; }, [mutateVersions]);
+  useEffect(() => { mutateCreditsRef.current = mutateCredits; }, [mutateCredits]);
 
   // ── Handlers ──
 
@@ -325,6 +403,7 @@ function HomePage() {
       const decoder = new TextDecoder();
       let buffer = "";
       let finalEntry = null;
+      let jobId: number | null = null;
 
       if (reader) {
         while (true) {
@@ -339,7 +418,10 @@ function HomePage() {
             if (!line.trim()) continue;
             try {
               const event = JSON.parse(line);
-              if (event.type === "status") {
+              if (event.type === "job") {
+                jobId = event.jobId;
+                setActiveJobId(jobId);
+              } else if (event.type === "status") {
                 setGenerateStatus(event.message);
               } else if (event.type === "done") {
                 finalEntry = event.entry;
@@ -359,14 +441,17 @@ function HomePage() {
         setAutoplay(true);
         mutateHistory();
         mutateVersions();
+        mutateCredits();
       }
+      setActiveJobId(null);
     } catch (err) {
       setError(err instanceof Error ? err.message : "An unexpected error occurred");
     } finally {
       setIsGenerating(false);
       setGenerateStatus("");
+      setActiveJobId(null);
     }
-  }, [scriptUrl, scriptTitle, voiceConfig, mutateHistory, mutateVersions, isGenerating]);
+  }, [scriptUrl, scriptTitle, voiceConfig, mutateHistory, mutateVersions, mutateCredits, isGenerating]);
 
   const handleDeleteVersion = useCallback(async (version: BlogAudio) => {
     try {
@@ -552,7 +637,7 @@ function HomePage() {
               />
             </div>
             <span className="text-[10px] text-muted font-mono tabular-nums hidden sm:inline">
-              {credits.characterCount.toLocaleString()}/{credits.characterLimit.toLocaleString()}
+              {(credits.characterCount ?? 0).toLocaleString()}/{(credits.characterLimit ?? 0).toLocaleString()}
             </span>
           </div>
         )}
