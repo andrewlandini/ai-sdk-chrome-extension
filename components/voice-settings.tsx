@@ -369,42 +369,7 @@ export function VoiceSettings({ config, onChange }: VoiceSettingsProps) {
         </div>
       </fieldset>
 
-      {/* Style / Vibe */}
-      <fieldset className="flex flex-col gap-2">
-        <legend className="text-xs text-muted font-medium">Style / Vibe</legend>
-        <div className="flex flex-wrap gap-1">
-          {[
-            { label: "Confident", value: "Confident and genuinely excited about the content, but grounded and conversational -- not over the top" },
-            { label: "Calm narrator", value: "Calm, measured narrator with a warm tone -- like a documentary voiceover" },
-            { label: "Podcast host", value: "Friendly podcast host, casual and upbeat, speaking to the audience like a friend" },
-            { label: "Newscast", value: "Professional news anchor delivery -- clear, authoritative, with crisp pacing" },
-            { label: "Storyteller", value: "Engaging storyteller, building suspense and drawing listeners in with pacing and emphasis" },
-            { label: "Minimal", value: "Minimal, understated delivery -- let the words speak for themselves with no embellishment" },
-          ].map((preset) => {
-            const isActive = config.styleVibe === preset.value;
-            return (
-              <button
-                key={preset.label}
-                onClick={() => update({ styleVibe: isActive ? "" : preset.value })}
-                className={`h-6 px-2 rounded text-[10px] font-medium transition-colors focus-ring ${
-                  isActive
-                    ? "bg-accent/15 text-accent border border-accent/30"
-                    : "bg-surface-2 text-muted-foreground border border-transparent hover:text-foreground hover:border-border"
-                }`}
-              >
-                {preset.label}
-              </button>
-            );
-          })}
-        </div>
-        <textarea
-          rows={4}
-          value={config.styleVibe}
-          onChange={(e) => update({ styleVibe: e.target.value })}
-          placeholder="Custom vibe, e.g. warm bedtime story, dramatic trailer..."
-          className="bg-background border border-border rounded-md px-2.5 py-2 text-xs text-foreground leading-relaxed placeholder:text-muted-foreground/30 transition-colors focus-ring resize-none"
-        />
-      </fieldset>
+
     </section>
   );
 }
