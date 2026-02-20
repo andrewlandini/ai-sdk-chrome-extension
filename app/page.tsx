@@ -362,8 +362,8 @@ export default function HomePage() {
 
           {/* Generator panel -- always visible, empty when nothing selected */}
           <div className="flex-1 min-w-0 flex flex-col overflow-hidden">
-            {/* Top: header + script editor (fixed) */}
-            <div className="flex-shrink-0 px-5 pt-4 pb-2 flex flex-col gap-3 border-b border-border">
+            {/* Top: header + script + style (scrollable) */}
+            <div className="flex-1 min-h-0 overflow-y-auto px-5 pt-4 pb-2 flex flex-col gap-3 border-b border-border">
               {/* Selected post header */}
               {scriptUrl && (
                 <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3">

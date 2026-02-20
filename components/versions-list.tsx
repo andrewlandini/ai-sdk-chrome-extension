@@ -61,7 +61,7 @@ export function VersionsList({
         </span>
       </div>
 
-      <div className="divide-y divide-border">
+      <div className="divide-y divide-border max-h-[240px] overflow-y-auto">
         {versions.map((v) => {
           const isActive = v.id === activeId;
           const voiceName = v.voice_id
