@@ -1,6 +1,6 @@
 import { neon } from "@neondatabase/serverless";
 
-const sql = neon(process.env.DATABASE_URL!);
+export const sql = neon(process.env.DATABASE_URL!);
 
 // ── Blog Audio ──
 
@@ -94,6 +94,7 @@ export interface CachedBlogPost {
   description: string | null;
   date: string | null;
   category: string | null;
+  script: string | null;
   created_at: string;
 }
 

@@ -22,7 +22,8 @@ const DEFAULT_VOICE_CONFIG: VoiceConfig = {
 
 export default function HomePage() {
   const [promptEditorOpen, setPromptEditorOpen] = useState(false);
-  const [postsDrawerOpen, setPostsDrawerOpen] = useState(false);
+  const [loadingScripts, setLoadingScripts] = useState(false);
+  const [scriptProgress, setScriptProgress] = useState({ done: 0, total: 0 });
 
   // Active selection
   const [activeEntry, setActiveEntry] = useState<BlogAudio | null>(null);
@@ -52,11 +53,14 @@ export default function HomePage() {
   const handleSelectPost = useCallback((url: string, title: string) => {
     setScriptUrl(url);
     setScriptTitle(title);
-    setScript("");
     setError(null);
     setActiveEntry(null);
-    setPostsDrawerOpen(false);
-  }, []);
+
+    // Check if there's a cached script for this post
+    const entry = entries.find((e) => e.url === url);
+    const cachedScript = (entry as BlogAudio & { cached_script?: string | null })?.cached_script;
+    setScript(cachedScript || "");
+  }, [entries]);
 
   const handleGenerateScript = useCallback(async () => {
     if (!scriptUrl) return;
@@ -184,34 +188,68 @@ export default function HomePage() {
     }
   }, [activeEntry, mutateHistory]);
 
+  const handleLoadScripts = useCallback(async () => {
+    // Get all cached posts without scripts
+    const res = await fetch("/api/history");
+    const data = await res.json();
+    const allEntries: BlogAudio[] = data.entries ?? [];
+
+    // Unique URLs from cached posts (id === -1 means no audio, just cached post)
+    // We want all unique URLs that don't already have a script loaded
+    const uniqueUrls = new Map<string, string>();
+    for (const entry of allEntries) {
+      if (!uniqueUrls.has(entry.url)) {
+        uniqueUrls.set(entry.url, entry.title || "Untitled");
+      }
+    }
+
+    const urlList = Array.from(uniqueUrls.entries());
+    setLoadingScripts(true);
+    setScriptProgress({ done: 0, total: urlList.length });
+
+    for (let i = 0; i < urlList.length; i++) {
+      const [url] = urlList[i];
+      try {
+        const sumRes = await fetch("/api/summarize", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ url }),
+        });
+        if (sumRes.ok) {
+          const sumData = await sumRes.json();
+          // Save script to blog_posts_cache
+          await fetch("/api/save-script", {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({ url, script: sumData.summary }),
+          });
+        }
+      } catch (err) {
+        console.error(`Failed to load script for ${url}:`, err);
+      }
+      setScriptProgress({ done: i + 1, total: urlList.length });
+    }
+
+    setLoadingScripts(false);
+    mutateHistory();
+  }, [mutateHistory]);
+
   return (
     <div className="h-screen flex flex-col overflow-hidden">
       {/* ── Top bar ── */}
       <header className="h-12 border-b border-border flex items-center px-4 flex-shrink-0 bg-background z-10 gap-4">
         <div className="flex items-center gap-3 flex-shrink-0">
-          <button
-            onClick={() => setPostsDrawerOpen((o) => !o)}
-            className={`flex items-center gap-1.5 text-xs font-medium transition-colors focus-ring rounded px-2 py-1.5 ${
-              postsDrawerOpen ? "bg-surface-3 text-foreground" : "text-muted hover:text-foreground hover:bg-surface-2"
-            }`}
-            aria-label={postsDrawerOpen ? "Close posts list" : "Open posts list"}
-          >
-            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" aria-hidden="true">
-              <line x1="3" y1="6" x2="21" y2="6" />
-              <line x1="3" y1="12" x2="21" y2="12" />
-              <line x1="3" y1="18" x2="21" y2="18" />
-            </svg>
-            <span>Posts</span>
-            <span className="text-[10px] text-muted font-mono tabular-nums">{entries.length}</span>
-          </button>
+          <svg height="16" viewBox="0 0 76 65" fill="currentColor" aria-hidden="true">
+            <path d="M37.5274 0L75.0548 65H0L37.5274 0Z" />
+          </svg>
           <span className="text-border select-none" aria-hidden="true">/</span>
           <span className="text-sm font-medium truncate">{scriptTitle || "Blog Audio"}</span>
         </div>
 
-        {/* URL paste input */}
-        <AddPostInput mutateHistory={mutateHistory} />
+        {/* Spacer to push right items */}
+        <div className="flex-1" />
 
-        <div className="flex items-center gap-1 flex-shrink-0">
+        <div className="flex items-center gap-2 flex-shrink-0">
           <button
             onClick={() => setPromptEditorOpen(true)}
             className="flex items-center gap-1.5 text-xs text-muted hover:text-foreground transition-colors focus-ring rounded px-2 py-1.5 hover:bg-surface-2"
@@ -221,61 +259,65 @@ export default function HomePage() {
             </svg>
             <span>Prompts</span>
           </button>
+
+          {/* URL paste input */}
+          <AddPostInput mutateHistory={mutateHistory} />
         </div>
       </header>
 
-      {/* ── Posts drawer overlay ── */}
-      {postsDrawerOpen && (
-        <div className="fixed inset-0 z-30 flex" role="dialog" aria-label="Blog posts list">
-          {/* Backdrop */}
-          <div
-            className="absolute inset-0 bg-background/60 backdrop-blur-sm"
-            onClick={() => setPostsDrawerOpen(false)}
-            aria-hidden="true"
-          />
-          {/* Drawer panel */}
-          <aside className="relative z-10 w-full max-w-lg h-full border-r border-border bg-background shadow-2xl flex flex-col animate-in slide-in-from-left duration-200">
-            <div className="flex items-center justify-between px-3 py-2 border-b border-border flex-shrink-0">
+      {/* ── Main layout: sidebar + workspace ── */}
+      <div className="flex-1 flex overflow-hidden">
+
+        {/* Fixed posts sidebar */}
+        <aside className="hidden md:flex w-[320px] flex-shrink-0 border-r border-border bg-surface-1 flex-col overflow-hidden">
+          <div className="flex items-center justify-between px-3 py-2 border-b border-border flex-shrink-0">
+            <div className="flex items-center gap-2">
               <span className="text-xs font-medium">Blog Posts</span>
-              <button
-                onClick={() => setPostsDrawerOpen(false)}
-                className="p-1.5 text-muted hover:text-foreground transition-colors focus-ring rounded"
-                aria-label="Close posts list"
-              >
-                <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" aria-hidden="true">
-                  <path d="M18 6L6 18M6 6l12 12" />
-                </svg>
-              </button>
+              <span className="text-[10px] text-muted font-mono tabular-nums">{entries.length}</span>
             </div>
-            <div className="flex-1 min-h-0 overflow-hidden">
-              <PostsList
-                entries={entries}
-                selectedUrl={scriptUrl}
-                activeId={activeEntry?.id ?? null}
-                onSelect={handleSelectPost}
-                onPlay={handlePlayFromList}
-                onDelete={handleDeleteEntry}
-              />
-            </div>
-          </aside>
-        </div>
-      )}
-
-      {/* ── Main content ── */}
-      <div className="flex-1 flex flex-col overflow-hidden">
-
-        {/* Workspace: generator + voice settings side by side (stacks on mobile) */}
-        <div className="flex-1 min-h-0 flex flex-col lg:flex-row overflow-hidden">
-
-          {/* Generator panel */}
-          <div className="flex-1 min-w-0 overflow-y-auto">
-            <div className="w-full px-5 py-4 flex flex-col gap-3">
-              {!scriptUrl ? (
-                <div className="flex items-center justify-center min-h-[80px]">
-                  <p className="text-xs text-muted-foreground">Open Posts to select a blog post, or paste a URL above</p>
-                </div>
-              ) : (
+            <button
+              onClick={handleLoadScripts}
+              disabled={loadingScripts}
+              className="flex items-center gap-1.5 h-6 px-2 rounded-md bg-surface-2 border border-border text-[10px] font-medium text-muted hover:text-foreground hover:bg-surface-3 disabled:opacity-50 disabled:cursor-not-allowed transition-colors focus-ring"
+            >
+              {loadingScripts ? (
                 <>
+                  <svg className="animate-spin" width="10" height="10" viewBox="0 0 24 24" fill="none" aria-hidden="true">
+                    <circle cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="2" strokeOpacity="0.2" />
+                    <path d="M12 2a10 10 0 0 1 10 10" stroke="currentColor" strokeWidth="2" strokeLinecap="round" />
+                  </svg>
+                  <span>{scriptProgress.done}/{scriptProgress.total}</span>
+                </>
+              ) : (
+                <span>Load Scripts</span>
+              )}
+            </button>
+          </div>
+          <div className="flex-1 min-h-0 overflow-hidden">
+            <PostsList
+              entries={entries}
+              selectedUrl={scriptUrl}
+              activeId={activeEntry?.id ?? null}
+              onSelect={handleSelectPost}
+              onPlay={handlePlayFromList}
+              onDelete={handleDeleteEntry}
+            />
+          </div>
+        </aside>
+
+        {/* Workspace: generator + voice settings side by side */}
+        <div className="flex-1 min-w-0 flex flex-col lg:flex-row overflow-hidden">
+
+          {/* Generator panel -- fixed layout: script top, player middle, style bottom */}
+          <div className="flex-1 min-w-0 flex flex-col overflow-hidden">
+            {!scriptUrl ? (
+              <div className="flex-1 flex items-center justify-center">
+                <p className="text-xs text-muted-foreground">Select a blog post from the sidebar, or paste a URL above</p>
+              </div>
+            ) : (
+              <>
+                {/* Top: header + script editor (fixed) */}
+                <div className="flex-shrink-0 px-5 pt-4 pb-2 flex flex-col gap-3 border-b border-border">
                   {/* Selected post header */}
                   <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3">
                     <div className="min-w-0 flex-1">
@@ -289,42 +331,23 @@ export default function HomePage() {
                         {scriptUrl}
                       </a>
                     </div>
-                    <div className="flex items-center gap-2 flex-shrink-0">
-                      <button
-                        onClick={handleGenerateScript}
-                        disabled={isSummarizing}
-                        className="flex items-center gap-2 h-8 rounded-md bg-surface-2 border border-border text-foreground px-3 text-xs font-medium transition-colors hover:bg-surface-3 disabled:opacity-40 disabled:cursor-not-allowed focus-ring"
-                      >
-                        {isSummarizing ? (
-                          <>
-                            <svg className="animate-spin" width="12" height="12" viewBox="0 0 24 24" fill="none" aria-hidden="true">
-                              <circle cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="2" strokeOpacity="0.2" />
-                              <path d="M12 2a10 10 0 0 1 10 10" stroke="currentColor" strokeWidth="2" strokeLinecap="round" />
-                            </svg>
-                            <span>Generating...</span>
-                          </>
-                        ) : (
-                          <span>{script ? "Regenerate Script" : "Generate Script"}</span>
-                        )}
-                      </button>
-                      <button
-                        onClick={handleGenerateAudio}
-                        disabled={isGenerating || !script.trim()}
-                        className="flex items-center gap-2 h-8 rounded-md bg-foreground text-background px-3 text-xs font-medium transition-colors hover:bg-foreground/90 disabled:opacity-40 disabled:cursor-not-allowed focus-ring"
-                      >
-                        {isGenerating ? (
-                          <>
-                            <svg className="animate-spin" width="12" height="12" viewBox="0 0 24 24" fill="none" aria-hidden="true">
-                              <circle cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="2" strokeOpacity="0.2" />
-                              <path d="M12 2a10 10 0 0 1 10 10" stroke="currentColor" strokeWidth="2" strokeLinecap="round" />
-                            </svg>
-                            <span>Generating...</span>
-                          </>
-                        ) : (
-                          <span>Generate Audio</span>
-                        )}
-                      </button>
-                    </div>
+                    <button
+                      onClick={handleGenerateScript}
+                      disabled={isSummarizing}
+                      className="flex items-center gap-2 h-8 rounded-md bg-surface-2 border border-border text-foreground px-3 text-xs font-medium transition-colors hover:bg-surface-3 disabled:opacity-40 disabled:cursor-not-allowed focus-ring flex-shrink-0"
+                    >
+                      {isSummarizing ? (
+                        <>
+                          <svg className="animate-spin" width="12" height="12" viewBox="0 0 24 24" fill="none" aria-hidden="true">
+                            <circle cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="2" strokeOpacity="0.2" />
+                            <path d="M12 2a10 10 0 0 1 10 10" stroke="currentColor" strokeWidth="2" strokeLinecap="round" />
+                          </svg>
+                          <span>Generating...</span>
+                        </>
+                      ) : (
+                        <span>{script ? "Regenerate Script" : "Generate Script"}</span>
+                      )}
+                    </button>
                   </div>
 
                   {/* Error */}
@@ -345,17 +368,11 @@ export default function HomePage() {
                     onScriptChange={setScript}
                     onGenerate={handleGenerateAudio}
                   />
+                </div>
 
-                  {/* Style Agent */}
-                  <StyleAgent
-                    sourceScript={script}
-                    onUseStyledScript={setScript}
-                    isGeneratingAudio={isGenerating}
-                    onGenerateAudio={handleGenerateFromStyled}
-                  />
-
-                  {/* Player */}
-                  {activeEntry && (
+                {/* Middle: player (scrollable area if needed) */}
+                {activeEntry && (
+                  <div className="flex-shrink-0 px-5 py-3 border-b border-border">
                     <WaveformPlayer
                       key={activeEntry.id}
                       audioUrl={activeEntry.audio_url}
@@ -364,30 +381,41 @@ export default function HomePage() {
                       url={activeEntry.url}
                       autoplay={autoplay}
                     />
-                  )}
+                  </div>
+                )}
 
-                  {/* Versions */}
-                  {scriptUrl && (
-                    <VersionsList
-                      versions={versions}
-                      activeId={activeEntry?.id ?? null}
-                      onSelect={handleSelectVersion}
-                      onDelete={handleDeleteVersion}
-                    />
-                  )}
-                </>
-              )}
-            </div>
+                {/* Bottom: style agent (fixed) */}
+                <div className="flex-shrink-0 px-5 py-3 mt-auto">
+                  <StyleAgent
+                    sourceScript={script}
+                    onUseStyledScript={setScript}
+                    isGeneratingAudio={isGenerating}
+                    onGenerateAudio={handleGenerateFromStyled}
+                  />
+                </div>
+              </>
+            )}
           </div>
 
-          {/* Voice settings panel -- right of generator on desktop, below on mobile */}
+          {/* Voice settings + versions panel */}
           <aside className="w-full lg:w-[380px] flex-shrink-0 border-t lg:border-t-0 lg:border-l border-border overflow-y-auto bg-surface-1">
-            <div className="p-4">
+            <div className="p-4 flex flex-col gap-4">
               <VoiceSettings config={voiceConfig} onChange={setVoiceConfig} />
+
+              {/* Versions list */}
+              {scriptUrl && (
+                <div className="border-t border-border pt-4">
+                  <VersionsList
+                    versions={versions}
+                    activeId={activeEntry?.id ?? null}
+                    onSelect={handleSelectVersion}
+                    onDelete={handleDeleteVersion}
+                  />
+                </div>
+              )}
             </div>
           </aside>
         </div>
-
       </div>
 
       {/* Prompt Editor Modal */}
@@ -438,7 +466,7 @@ function AddPostInput({ mutateHistory }: { mutateHistory: () => void }) {
   };
 
   return (
-    <form onSubmit={handleAdd} className="flex-1 flex items-center gap-2 max-w-xl">
+    <form onSubmit={handleAdd} className="flex items-center gap-2 w-72">
       <div className="relative flex-1">
         <svg
           width="14"

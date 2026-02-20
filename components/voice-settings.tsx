@@ -373,7 +373,7 @@ export function VoiceSettings({ config, onChange }: VoiceSettingsProps) {
                         ? "opacity-0 cursor-default"
                         : isPlaying
                           ? isSelected ? "text-background" : "text-accent"
-                          : isSelected ? "text-background/60 hover:text-background" : "text-foreground/40 hover:text-foreground opacity-0 group-hover:opacity-100"
+                          : isSelected ? "text-background/70 hover:text-background" : "text-foreground/60 hover:text-foreground"
                     }`}
                   >
                     {isPlaying ? (
