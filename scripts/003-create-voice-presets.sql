@@ -1,0 +1,9 @@
+CREATE TABLE IF NOT EXISTS voice_presets (
+  id SERIAL PRIMARY KEY,
+  name TEXT NOT NULL,
+  voice_id TEXT NOT NULL,
+  model_id TEXT NOT NULL,
+  stability REAL NOT NULL DEFAULT 0.5,
+  similarity_boost REAL NOT NULL DEFAULT 0.75,
+  created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW()
+);

@@ -1,0 +1,8 @@
+CREATE TABLE IF NOT EXISTS blog_audio (
+  id SERIAL PRIMARY KEY,
+  url TEXT UNIQUE NOT NULL,
+  title TEXT,
+  summary TEXT,
+  audio_url TEXT NOT NULL,
+  created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW()
+);
