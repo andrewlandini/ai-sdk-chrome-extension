@@ -94,7 +94,7 @@ export function PromptEditorModal({ open, onClose }: PromptEditorModalProps) {
   useEffect(() => {
     if (presets.length > 0 && selectedId === null) {
       const def = presets.find((p) => p.is_default) || presets[0];
-      loadPreset(def);
+      loadPresetWrapped(def);
     }
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [presets, selectedId]);
@@ -253,6 +253,64 @@ export function PromptEditorModal({ open, onClose }: PromptEditorModalProps) {
     setMessage(null);
   }, []);
 
+  // Auto-save: debounce prompt/model changes and save as a new preset or update existing
+  const autoSaveTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const hasLoadedPreset = useRef(false);
+
+  // Track when a preset is loaded to skip the first auto-save trigger
+  const loadPresetOriginal = loadPreset;
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  const loadPresetWrapped = useCallback((preset: PromptPreset) => {
+    hasLoadedPreset.current = true;
+    loadPresetOriginal(preset);
+    // Reset flag after a tick so subsequent edits trigger auto-save
+    setTimeout(() => { hasLoadedPreset.current = false; }, 100);
+  }, []);
+
+  useEffect(() => {
+    // Skip auto-save if we just loaded a preset or if prompts are empty
+    if (hasLoadedPreset.current) return;
+    if (!systemPrompt.trim() && !testPrompt.trim()) return;
+    // Must have a name to save
+    if (!name.trim()) return;
+
+    if (autoSaveTimer.current) clearTimeout(autoSaveTimer.current);
+
+    autoSaveTimer.current = setTimeout(async () => {
+      const payload = getPayload();
+      try {
+        if (selectedId) {
+          // Update existing preset
+          await fetch("/api/prompt-presets", {
+            method: "PUT",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({ id: selectedId, ...payload }),
+          });
+        } else {
+          // Create new preset with auto-generated name
+          const autoName = name.trim() || `Preset ${new Date().toLocaleTimeString()}`;
+          const res = await fetch("/api/prompt-presets", {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({ ...payload, name: autoName }),
+          });
+          const data = await res.json();
+          if (data.preset) {
+            setSelectedId(data.preset.id);
+          }
+        }
+        mutate();
+      } catch {
+        // Silent fail on auto-save
+      }
+    }, 1500);
+
+    return () => {
+      if (autoSaveTimer.current) clearTimeout(autoSaveTimer.current);
+    };
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [systemPrompt, testPrompt, blogFetchPrompt, model, blogFetchModel, styleAgentModel]);
+
   const activePreset = presets.find((p) => p.id === selectedId);
   const isDefault = activePreset?.is_default ?? false;
   const currentTabConfig = PROMPT_TABS.find((t) => t.id === activeTab)!;
@@ -298,7 +356,7 @@ export function PromptEditorModal({ open, onClose }: PromptEditorModalProps) {
                 {presets.map((preset) => (
                   <button
                     key={preset.id}
-                    onClick={() => loadPreset(preset)}
+                    onClick={() => loadPresetWrapped(preset)}
                     className={`flex items-center gap-1.5 px-2 py-1.5 rounded text-xs text-left transition-colors focus-ring ${
                       selectedId === preset.id
                         ? "bg-surface-3 text-foreground"
