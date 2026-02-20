@@ -130,24 +130,34 @@ export default function HomePage() {
   const historyRef = useRef<HTMLDivElement>(null);
   const restoredRef = useRef(false);
 
-  // ── Restore session on mount ──
+  // ── Restore session on mount (skip post selection if URL has ?post= param) ──
   useEffect(() => {
     if (restoredRef.current) return;
     restoredRef.current = true;
     const s = loadSession();
     if (!s) return;
-    if (s.scriptUrl) setScriptUrl(s.scriptUrl);
-    if (s.scriptTitle) setScriptTitle(s.scriptTitle);
-    if (s.script) setScript(s.script);
-    if (s.styledScript) setStyledScript(s.styledScript);
+    const hasUrlParam = searchParams.get("post");
+    // Only restore post-specific state if there's no URL param (URL takes priority)
+    if (!hasUrlParam) {
+      if (s.scriptUrl) setScriptUrl(s.scriptUrl);
+      if (s.scriptTitle) setScriptTitle(s.scriptTitle);
+      if (s.script) setScript(s.script);
+      if (s.styledScript) setStyledScript(s.styledScript);
+    }
+    // Always restore non-post state
     if (s.activeTab) setActiveTab(s.activeTab);
     if (s.voiceConfig) setVoiceConfig({ ...DEFAULT_VOICE_CONFIG, ...s.voiceConfig });
-  }, []);
+  }, [searchParams]);
 
-  // ── Persist session on change ──
+  // ── Persist session on change (debounced to avoid excessive writes) ──
+  const saveTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   useEffect(() => {
     if (!restoredRef.current) return;
-    saveSession({ scriptUrl, scriptTitle, script, styledScript, activeTab, voiceConfig });
+    if (saveTimerRef.current) clearTimeout(saveTimerRef.current);
+    saveTimerRef.current = setTimeout(() => {
+      saveSession({ scriptUrl, scriptTitle, script, styledScript, activeTab, voiceConfig });
+    }, 500);
+    return () => { if (saveTimerRef.current) clearTimeout(saveTimerRef.current); };
   }, [scriptUrl, scriptTitle, script, styledScript, activeTab, voiceConfig]);
 
   // Data
@@ -368,7 +378,9 @@ export default function HomePage() {
   setAutoplay(true);
   setScriptUrl(entry.url);
   setScriptTitle(entry.title || "");
-  setScript(entry.summary || "");
+  // Use cached_script (original content script) if available, not summary (which is the styled/audio script)
+  const cachedScript = (entry as BlogAudio & { cached_script?: string | null })?.cached_script;
+  setScript(cachedScript || entry.summary || "");
   router.replace(`?post=${encodeURIComponent(slugFromUrl(entry.url))}`, { scroll: false });
   }, [router]);
 
