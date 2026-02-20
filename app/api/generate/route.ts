@@ -6,7 +6,7 @@ import { insertBlogAudio, getAudioIdByUrl, getGenerationCountByUrl } from "@/lib
 export const maxDuration = 300;
 
 const MODEL = "eleven_v3";
-const MAX_CHARS = 4800; // leave headroom under 5000 limit
+const MAX_CHARS = 4000;
 
 // Map voice IDs to human-readable names for filenames
 const VOICE_MAP: Record<string, string> = {
@@ -25,47 +25,40 @@ const VOICE_MAP: Record<string, string> = {
 };
 
 /**
- * Split text into chunks at sentence boundaries, each under MAX_CHARS.
+ * Split text into chunks at paragraph boundaries, each under MAX_CHARS.
+ * Never splits in the middle of a paragraph. If a single paragraph exceeds
+ * MAX_CHARS it gets its own chunk (ElevenLabs will handle it).
  */
 function chunkText(text: string): string[] {
   if (text.length <= MAX_CHARS) return [text];
 
+  // Split into paragraphs (double newline, or single newline with blank line)
+  const paragraphs = text.split(/\n\s*\n/).map((p) => p.trim()).filter(Boolean);
+
   const chunks: string[] = [];
-  let remaining = text;
+  let current = "";
 
-  while (remaining.length > 0) {
-    if (remaining.length <= MAX_CHARS) {
-      chunks.push(remaining);
-      break;
-    }
+  for (const para of paragraphs) {
+    // Check if adding this paragraph would exceed the limit
+    const combined = current ? `${current}\n\n${para}` : para;
 
-    // Find last sentence boundary within limit
-    const slice = remaining.slice(0, MAX_CHARS);
-    let splitAt = -1;
-
-    // Try splitting at sentence endings: . ! ? followed by space/newline
-    for (let i = slice.length - 1; i >= Math.floor(MAX_CHARS * 0.5); i--) {
-      if (
-        (slice[i] === "." || slice[i] === "!" || slice[i] === "?") &&
-        (i + 1 >= slice.length || slice[i + 1] === " " || slice[i + 1] === "\n")
-      ) {
-        splitAt = i + 1;
-        break;
+    if (combined.length <= MAX_CHARS) {
+      // Fits -- accumulate into current chunk
+      current = combined;
+    } else {
+      // Doesn't fit -- push current chunk (if any) and start fresh
+      if (current) {
+        chunks.push(current);
       }
+      // Start new chunk with this paragraph (even if it exceeds MAX_CHARS
+      // on its own -- never break a paragraph)
+      current = para;
     }
+  }
 
-    // Fallback: split at last space
-    if (splitAt === -1) {
-      splitAt = slice.lastIndexOf(" ");
-    }
-
-    // Worst case: hard split
-    if (splitAt <= 0) {
-      splitAt = MAX_CHARS;
-    }
-
-    chunks.push(remaining.slice(0, splitAt).trim());
-    remaining = remaining.slice(splitAt).trim();
+  // Push the last chunk
+  if (current) {
+    chunks.push(current);
   }
 
   return chunks;
