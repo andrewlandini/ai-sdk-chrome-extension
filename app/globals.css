@@ -14,8 +14,8 @@
   --color-destructive: #ef4444;
   --color-waveform-base: #333333;
   --color-waveform-played: #ffffff;
-  --font-sans: var(--font-geist-sans);
-  --font-mono: var(--font-geist-mono);
+  --font-sans: "Geist", "Geist Fallback";
+  --font-mono: "Geist Mono", "Geist Mono Fallback";
 }
 
 * {
