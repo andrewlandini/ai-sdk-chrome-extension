@@ -345,7 +345,7 @@ export default function HomePage() {
                 <span className="text-sm font-semibold tracking-tight">Content</span>
                 <span className="text-[10px] font-mono text-accent bg-accent/10 px-1.5 py-0.5 rounded">Source</span>
               </div>
-              {scriptUrl && (
+              {script && scriptUrl && (
                 <button
                   onClick={handleGenerateScript}
                   disabled={isSummarizing}
@@ -357,10 +357,10 @@ export default function HomePage() {
                         <circle cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="2" strokeOpacity="0.2" />
                         <path d="M12 2a10 10 0 0 1 10 10" stroke="currentColor" strokeWidth="2" strokeLinecap="round" />
                       </svg>
-                      <span>Generating...</span>
+                      <span>Regenerating...</span>
                     </>
                   ) : (
-                    <span>{script ? "Regenerate" : "Generate Script"}</span>
+                    <span>Regenerate</span>
                   )}
                 </button>
               )}
@@ -374,12 +374,69 @@ export default function HomePage() {
                   <span>{error}</span>
                 </div>
               )}
-              <ScriptEditor
-                script={script}
-                title={scriptTitle}
-                isLoading={isGenerating}
-                onScriptChange={setScript}
-              />
+
+              {/* Centered Generate Script CTA when no script yet */}
+              {!script && scriptUrl && !isSummarizing && (
+                <div className="flex-1 flex flex-col items-center justify-center h-full px-8 py-12 gap-4">
+                  <div className="w-12 h-12 rounded-full bg-accent/10 flex items-center justify-center">
+                    <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" className="text-accent" aria-hidden="true">
+                      <path d="M12 3c.132 0 .263 0 .393 0a7.5 7.5 0 0 0 7.92 12.446A9 9 0 1 1 12 3Z" />
+                      <path d="M17 4a2 2 0 0 1 2 2" />
+                      <path d="M21 8a6 6 0 0 1-6 6" />
+                    </svg>
+                  </div>
+                  <div className="text-center">
+                    <p className="text-sm font-medium text-foreground mb-1">Ready to generate</p>
+                    <p className="text-xs text-muted max-w-[240px]">Extract an audio-ready script from the selected blog post.</p>
+                  </div>
+                  <button
+                    onClick={handleGenerateScript}
+                    className="flex items-center justify-center gap-2 h-11 rounded-lg bg-accent text-primary-foreground px-6 text-sm font-semibold transition-colors hover:bg-accent-hover focus-ring"
+                  >
+                    <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" aria-hidden="true">
+                      <path d="M5 12h14M12 5l7 7-7 7" />
+                    </svg>
+                    Generate Script
+                  </button>
+                </div>
+              )}
+
+              {/* Summarizing spinner */}
+              {!script && isSummarizing && (
+                <div className="flex-1 flex flex-col items-center justify-center h-full px-8 py-12 gap-4">
+                  <div className="w-12 h-12 rounded-full bg-accent/10 flex items-center justify-center">
+                    <svg className="animate-spin text-accent" width="24" height="24" viewBox="0 0 24 24" fill="none" aria-hidden="true">
+                      <circle cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="2" strokeOpacity="0.2" />
+                      <path d="M12 2a10 10 0 0 1 10 10" stroke="currentColor" strokeWidth="2" strokeLinecap="round" />
+                    </svg>
+                  </div>
+                  <p className="text-sm text-muted">Generating script from blog post...</p>
+                </div>
+              )}
+
+              {/* No post selected */}
+              {!script && !scriptUrl && !isSummarizing && (
+                <div className="flex-1 flex flex-col items-center justify-center h-full px-8 py-12 gap-3">
+                  <div className="w-12 h-12 rounded-full bg-surface-2 flex items-center justify-center">
+                    <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" className="text-muted" aria-hidden="true">
+                      <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8Z" />
+                      <path d="M14 2v6h6" />
+                      <path d="M16 13H8M16 17H8M10 9H8" />
+                    </svg>
+                  </div>
+                  <p className="text-sm text-muted">Select a blog post to get started</p>
+                </div>
+              )}
+
+              {/* Script editor when script exists */}
+              {script && (
+                <ScriptEditor
+                  script={script}
+                  title={scriptTitle}
+                  isLoading={isGenerating}
+                  onScriptChange={setScript}
+                />
+              )}
             </div>
           </div>
 
