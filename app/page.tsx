@@ -307,105 +307,99 @@ export default function HomePage() {
         {/* Workspace: generator + voice settings side by side */}
         <div className="flex-1 min-w-0 flex flex-col lg:flex-row overflow-hidden">
 
-          {/* Generator panel -- fixed layout: script top, player middle, style bottom */}
+          {/* Generator panel -- always visible, empty when nothing selected */}
           <div className="flex-1 min-w-0 flex flex-col overflow-hidden">
-            {!scriptUrl ? (
-              <div className="flex-1 flex items-center justify-center">
-                <p className="text-xs text-muted-foreground">Select a blog post from the sidebar, or paste a URL above</p>
-              </div>
-            ) : (
-              <>
-                {/* Top: header + script editor (fixed) */}
-                <div className="flex-shrink-0 px-5 pt-4 pb-2 flex flex-col gap-3 border-b border-border">
-                  {/* Selected post header */}
-                  <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3">
-                    <div className="min-w-0 flex-1">
-                      <h2 className="text-sm font-semibold tracking-tight truncate">{scriptTitle || "Untitled"}</h2>
-                      <a
-                        href={scriptUrl}
-                        target="_blank"
-                        rel="noopener noreferrer"
-                        className="text-[11px] text-muted font-mono truncate block hover:text-accent transition-colors"
-                      >
-                        {scriptUrl}
-                      </a>
-                    </div>
-                    <button
-                      onClick={handleGenerateScript}
-                      disabled={isSummarizing}
-                      className="flex items-center gap-2 h-8 rounded-md bg-surface-2 border border-border text-foreground px-3 text-xs font-medium transition-colors hover:bg-surface-3 disabled:opacity-40 disabled:cursor-not-allowed focus-ring flex-shrink-0"
+            {/* Top: header + script editor (fixed) */}
+            <div className="flex-shrink-0 px-5 pt-4 pb-2 flex flex-col gap-3 border-b border-border">
+              {/* Selected post header */}
+              {scriptUrl && (
+                <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3">
+                  <div className="min-w-0 flex-1">
+                    <h2 className="text-sm font-semibold tracking-tight truncate">{scriptTitle || "Untitled"}</h2>
+                    <a
+                      href={scriptUrl}
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      className="text-[11px] text-muted font-mono truncate block hover:text-accent transition-colors"
                     >
-                      {isSummarizing ? (
-                        <>
-                          <svg className="animate-spin" width="12" height="12" viewBox="0 0 24 24" fill="none" aria-hidden="true">
-                            <circle cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="2" strokeOpacity="0.2" />
-                            <path d="M12 2a10 10 0 0 1 10 10" stroke="currentColor" strokeWidth="2" strokeLinecap="round" />
-                          </svg>
-                          <span>Generating...</span>
-                        </>
-                      ) : (
-                        <span>{script ? "Regenerate Script" : "Generate Script"}</span>
-                      )}
-                    </button>
+                      {scriptUrl}
+                    </a>
                   </div>
-
-                  {/* Error */}
-                  {error && (
-                    <div className="flex items-center gap-2 text-xs text-destructive border border-destructive/20 bg-destructive/5 rounded-md px-3 py-2" role="alert">
-                      <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" aria-hidden="true">
-                        <circle cx="12" cy="12" r="10" /><path d="M12 8v4m0 4h.01" />
-                      </svg>
-                      <span>{error}</span>
-                    </div>
-                  )}
-
-                  {/* Script editor */}
-                  <ScriptEditor
-                    script={script}
-                    title={scriptTitle}
-                    isLoading={isGenerating}
-                    onScriptChange={setScript}
-                    onGenerate={handleGenerateAudio}
-                  />
+                  <button
+                    onClick={handleGenerateScript}
+                    disabled={isSummarizing}
+                    className="flex items-center gap-2 h-8 rounded-md bg-surface-2 border border-border text-foreground px-3 text-xs font-medium transition-colors hover:bg-surface-3 disabled:opacity-40 disabled:cursor-not-allowed focus-ring flex-shrink-0"
+                  >
+                    {isSummarizing ? (
+                      <>
+                        <svg className="animate-spin" width="12" height="12" viewBox="0 0 24 24" fill="none" aria-hidden="true">
+                          <circle cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="2" strokeOpacity="0.2" />
+                          <path d="M12 2a10 10 0 0 1 10 10" stroke="currentColor" strokeWidth="2" strokeLinecap="round" />
+                        </svg>
+                        <span>Generating...</span>
+                      </>
+                    ) : (
+                      <span>{script ? "Regenerate Script" : "Generate Script"}</span>
+                    )}
+                  </button>
                 </div>
+              )}
 
-                {/* Middle: player (scrollable area if needed) */}
-                {activeEntry && (
-                  <div className="flex-shrink-0 px-5 py-3 border-b border-border">
-                    <WaveformPlayer
-                      key={activeEntry.id}
-                      audioUrl={activeEntry.audio_url}
-                      title={activeEntry.title || "Untitled"}
-                      summary={activeEntry.summary || ""}
-                      url={activeEntry.url}
-                      autoplay={autoplay}
-                    />
-                  </div>
-                )}
-
-                {/* Bottom: style agent + versions (pinned) */}
-                <div className="flex-shrink-0 px-5 py-3 mt-auto border-t border-border flex flex-col gap-3">
-                  <StyleAgent
-                    sourceScript={script}
-                    onUseStyledScript={setScript}
-                    isGeneratingAudio={isGenerating}
-                    onGenerateAudio={handleGenerateFromStyled}
-                  />
-
-                  {/* Versions list */}
-                  {scriptUrl && versions.length > 0 && (
-                    <div className="border-t border-border pt-3">
-                      <VersionsList
-                        versions={versions}
-                        activeId={activeEntry?.id ?? null}
-                        onSelect={handleSelectVersion}
-                        onDelete={handleDeleteVersion}
-                      />
-                    </div>
-                  )}
+              {/* Error */}
+              {error && (
+                <div className="flex items-center gap-2 text-xs text-destructive border border-destructive/20 bg-destructive/5 rounded-md px-3 py-2" role="alert">
+                  <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" aria-hidden="true">
+                    <circle cx="12" cy="12" r="10" /><path d="M12 8v4m0 4h.01" />
+                  </svg>
+                  <span>{error}</span>
                 </div>
-              </>
+              )}
+
+              {/* Script editor -- always visible */}
+              <ScriptEditor
+                script={script}
+                title={scriptTitle}
+                isLoading={isGenerating}
+                onScriptChange={setScript}
+                onGenerate={handleGenerateAudio}
+              />
+            </div>
+
+            {/* Middle: player */}
+            {activeEntry && (
+              <div className="flex-shrink-0 px-5 py-3 border-b border-border">
+                <WaveformPlayer
+                  key={activeEntry.id}
+                  audioUrl={activeEntry.audio_url}
+                  title={activeEntry.title || "Untitled"}
+                  summary={activeEntry.summary || ""}
+                  url={activeEntry.url}
+                  autoplay={autoplay}
+                />
+              </div>
             )}
+
+            {/* Bottom: style agent + versions (pinned) */}
+            <div className="flex-shrink-0 px-5 py-3 mt-auto border-t border-border flex flex-col gap-3">
+              <StyleAgent
+                sourceScript={script}
+                onUseStyledScript={setScript}
+                isGeneratingAudio={isGenerating}
+                onGenerateAudio={handleGenerateFromStyled}
+              />
+
+              {/* Versions list */}
+              {versions.length > 0 && (
+                <div className="border-t border-border pt-3">
+                  <VersionsList
+                    versions={versions}
+                    activeId={activeEntry?.id ?? null}
+                    onSelect={handleSelectVersion}
+                    onDelete={handleDeleteVersion}
+                  />
+                </div>
+              )}
+            </div>
           </div>
 
           {/* Voice settings panel */}
