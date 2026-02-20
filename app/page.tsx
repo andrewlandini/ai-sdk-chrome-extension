@@ -108,13 +108,9 @@ function HomePage() {
   const searchParams = useSearchParams();
   const router = useRouter();
   const { name: productName, fading: nameFading, advance: advanceName } = useProductName();
-  const { data: credits } = useSWR<CreditsData>("/api/credits", fetcher, {
-    refreshInterval: 60000,
-    dedupingInterval: 30000,
-    onErrorRetry: (err, _key, _config, revalidate, { retryCount }) => {
-      if (retryCount >= 3) return;
-      setTimeout(() => revalidate({ retryCount }), 30000 * (retryCount + 1));
-    },
+  const { data: credits, mutate: mutateCredits } = useSWR<CreditsData>("/api/credits", fetcher, {
+    revalidateOnFocus: false,
+    revalidateOnReconnect: false,
   });
   const creditsPercent = credits?.characterCount != null && credits?.characterLimit
     ? Math.round((credits.characterCount / credits.characterLimit) * 100)
@@ -214,6 +210,7 @@ function HomePage() {
           setActiveJobId(null);
           mutateHistory();
           mutateVersions();
+          mutateCredits();
           // If the job produced an entry, auto-select it
           if (job.result_entry_id) {
             const histData = await fetch("/api/history").then((r) => r.json());
@@ -235,7 +232,7 @@ function HomePage() {
         // Ignore poll errors, keep trying
       }
     }, 2000);
-  }, [mutateHistory, mutateVersions]);
+  }, [mutateHistory, mutateVersions, mutateCredits]);
 
   // Restore active job on mount
   useEffect(() => {
@@ -429,6 +426,7 @@ function HomePage() {
         setAutoplay(true);
         mutateHistory();
         mutateVersions();
+        mutateCredits();
       }
       setActiveJobId(null);
   } catch (err) {
@@ -438,7 +436,7 @@ function HomePage() {
   setGenerateStatus("");
   setActiveJobId(null);
     }
-  }, [scriptUrl, scriptTitle, voiceConfig, mutateHistory, mutateVersions, isGenerating]);
+  }, [scriptUrl, scriptTitle, voiceConfig, mutateHistory, mutateVersions, mutateCredits, isGenerating]);
 
   const handleDeleteVersion = useCallback(async (version: BlogAudio) => {
     try {

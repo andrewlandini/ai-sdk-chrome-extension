@@ -316,3 +316,39 @@ export async function cleanupOldJobs(): Promise<void> {
     AND created_at < NOW() - INTERVAL '10 minutes'
   `;
 }
+
+// ── Credits Cache ──
+
+export interface CachedCredits {
+  tier: string;
+  characterCount: number;
+  characterLimit: number;
+  nextResetUnix: number;
+  updatedAt: string;
+}
+
+export async function getCachedCredits(): Promise<CachedCredits | null> {
+  const rows = await sql`SELECT * FROM credits_cache WHERE id = 1`;
+  if (rows.length === 0) return null;
+  const r = rows[0];
+  return {
+    tier: r.tier as string,
+    characterCount: r.character_count as number,
+    characterLimit: r.character_limit as number,
+    nextResetUnix: Number(r.next_reset_unix),
+    updatedAt: r.updated_at as string,
+  };
+}
+
+export async function upsertCachedCredits(data: { tier: string; characterCount: number; characterLimit: number; nextResetUnix: number }): Promise<void> {
+  await sql`
+    INSERT INTO credits_cache (id, tier, character_count, character_limit, next_reset_unix, updated_at)
+    VALUES (1, ${data.tier}, ${data.characterCount}, ${data.characterLimit}, ${data.nextResetUnix}, NOW())
+    ON CONFLICT (id) DO UPDATE SET
+      tier = EXCLUDED.tier,
+      character_count = EXCLUDED.character_count,
+      character_limit = EXCLUDED.character_limit,
+      next_reset_unix = EXCLUDED.next_reset_unix,
+      updated_at = NOW()
+  `;
+}

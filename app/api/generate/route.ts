@@ -1,7 +1,7 @@
 import { experimental_generateSpeech as generateSpeech } from "ai";
 import { elevenlabs } from "@ai-sdk/elevenlabs";
 import { put, del } from "@vercel/blob";
-import { insertBlogAudio, getAudioIdByUrl, getGenerationCountByUrl, createGenerationJob, updateGenerationJob } from "@/lib/db";
+import { insertBlogAudio, getAudioIdByUrl, getGenerationCountByUrl, createGenerationJob, updateGenerationJob, upsertCachedCredits } from "@/lib/db";
 
 export const maxDuration = 300;
 
@@ -223,6 +223,25 @@ export async function POST(request: Request) {
         }
 
         await updateGenerationJob(job.id, { status: "done", message: "Complete", result_entry_id: entry.id });
+
+        // Refresh credits from ElevenLabs and save to DB
+        try {
+          const apiKey = process.env.ELEVENLABS_API_KEY;
+          if (apiKey) {
+            const creditsRes = await fetch("https://api.elevenlabs.io/v1/user/subscription", {
+              headers: { "xi-api-key": apiKey },
+            });
+            if (creditsRes.ok) {
+              const creditsData = await creditsRes.json();
+              await upsertCachedCredits({
+                tier: creditsData.tier,
+                characterCount: creditsData.character_count,
+                characterLimit: creditsData.character_limit,
+                nextResetUnix: creditsData.next_character_count_reset_unix,
+              });
+            }
+          }
+        } catch { /* best effort credits refresh */ }
 
         send({
           type: "done",
