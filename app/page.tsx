@@ -213,92 +213,101 @@ export default function HomePage() {
         </div>
       </header>
 
-      {/* ── Three-column layout ── */}
+      {/* ── Two-column layout: main + voice sidebar ── */}
       <div className="flex-1 flex overflow-hidden">
 
-        {/* Column 1: Posts list (50%+) */}
-        <aside className="w-1/2 min-w-0 flex-shrink-0 border-r border-border overflow-hidden bg-surface-1">
-          <PostsList
-            entries={entries}
-            selectedUrl={scriptUrl}
-            activeId={activeEntry?.id ?? null}
-            onSelect={handleSelectPost}
-            onPlay={handlePlayFromList}
-            onDelete={handleDeleteEntry}
-          />
-        </aside>
+        {/* Main area: generator on top, posts list below */}
+        <div className="flex-1 min-w-0 flex flex-col overflow-hidden">
 
-        {/* Column 2: Generator */}
-        <main className="flex-1 min-w-0 overflow-y-auto">
-          <div className="w-full px-5 py-4 flex flex-col gap-3">
-            {!scriptUrl ? (
-              <div className="flex items-center justify-center h-full min-h-[120px]">
-                <p className="text-xs text-muted-foreground">Select a blog post or paste a URL above</p>
-              </div>
-            ) : (
-              <>
-                {/* Selected post header */}
-                <div className="flex items-start justify-between gap-4">
-                  <div className="min-w-0">
-                    <h2 className="text-base font-semibold tracking-tight truncate">{scriptTitle || "Untitled"}</h2>
-                    <a
-                      href={scriptUrl}
-                      target="_blank"
-                      rel="noopener noreferrer"
-                      className="text-[11px] text-muted font-mono truncate block hover:text-accent transition-colors"
-                    >
-                      {scriptUrl}
-                    </a>
-                  </div>
-                  <button
-                    onClick={handleGenerateScript}
-                    disabled={isSummarizing}
-                    className="flex items-center gap-2 h-9 rounded-md bg-foreground text-background px-4 text-xs font-medium transition-colors hover:bg-foreground/90 disabled:opacity-40 disabled:cursor-not-allowed flex-shrink-0 focus-ring"
-                  >
-                    {isSummarizing ? (
-                      <>
-                        <svg className="animate-spin" width="13" height="13" viewBox="0 0 24 24" fill="none" aria-hidden="true">
-                          <circle cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="2" strokeOpacity="0.2" />
-                          <path d="M12 2a10 10 0 0 1 10 10" stroke="currentColor" strokeWidth="2" strokeLinecap="round" />
-                        </svg>
-                        <span>Generating...</span>
-                      </>
-                    ) : (
-                      <span>{script ? "Regenerate Script" : "Generate Script"}</span>
-                    )}
-                  </button>
+          {/* Generator panel */}
+          <div className="flex-shrink-0 overflow-y-auto border-b border-border" style={{ maxHeight: "55vh" }}>
+            <div className="w-full px-5 py-4 flex flex-col gap-3">
+              {!scriptUrl ? (
+                <div className="flex items-center justify-center min-h-[80px]">
+                  <p className="text-xs text-muted-foreground">Select a blog post below or paste a URL above</p>
                 </div>
-
-                {/* Error / status */}
-                {error && (
-                  <div className="flex items-center gap-3 text-xs text-destructive border border-destructive/20 bg-destructive/5 rounded-lg px-4 py-2.5" role="alert">
-                    <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" aria-hidden="true">
-                      <circle cx="12" cy="12" r="10" /><path d="M12 8v4m0 4h.01" />
-                    </svg>
-                    <span>{error}</span>
+              ) : (
+                <>
+                  {/* Selected post header */}
+                  <div className="flex items-center justify-between gap-4">
+                    <div className="min-w-0 flex-1">
+                      <h2 className="text-sm font-semibold tracking-tight truncate">{scriptTitle || "Untitled"}</h2>
+                      <a
+                        href={scriptUrl}
+                        target="_blank"
+                        rel="noopener noreferrer"
+                        className="text-[11px] text-muted font-mono truncate block hover:text-accent transition-colors"
+                      >
+                        {scriptUrl}
+                      </a>
+                    </div>
+                    <div className="flex items-center gap-2 flex-shrink-0">
+                      <button
+                        onClick={handleGenerateScript}
+                        disabled={isSummarizing}
+                        className="flex items-center gap-2 h-8 rounded-md bg-surface-2 border border-border text-foreground px-3 text-xs font-medium transition-colors hover:bg-surface-3 disabled:opacity-40 disabled:cursor-not-allowed focus-ring"
+                      >
+                        {isSummarizing ? (
+                          <>
+                            <svg className="animate-spin" width="12" height="12" viewBox="0 0 24 24" fill="none" aria-hidden="true">
+                              <circle cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="2" strokeOpacity="0.2" />
+                              <path d="M12 2a10 10 0 0 1 10 10" stroke="currentColor" strokeWidth="2" strokeLinecap="round" />
+                            </svg>
+                            <span>Generating...</span>
+                          </>
+                        ) : (
+                          <span>{script ? "Regenerate Script" : "Generate Script"}</span>
+                        )}
+                      </button>
+                      <button
+                        onClick={handleGenerateAudio}
+                        disabled={isGenerating || !script.trim()}
+                        className="flex items-center gap-2 h-8 rounded-md bg-foreground text-background px-3 text-xs font-medium transition-colors hover:bg-foreground/90 disabled:opacity-40 disabled:cursor-not-allowed focus-ring"
+                      >
+                        {isGenerating ? (
+                          <>
+                            <svg className="animate-spin" width="12" height="12" viewBox="0 0 24 24" fill="none" aria-hidden="true">
+                              <circle cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="2" strokeOpacity="0.2" />
+                              <path d="M12 2a10 10 0 0 1 10 10" stroke="currentColor" strokeWidth="2" strokeLinecap="round" />
+                            </svg>
+                            <span>Generating...</span>
+                          </>
+                        ) : (
+                          <span>Generate Audio</span>
+                        )}
+                      </button>
+                    </div>
                   </div>
-                )}
 
-                {/* Script editor */}
-                <ScriptEditor
-                  script={script}
-                  title={scriptTitle}
-                  isLoading={isGenerating}
-                  onScriptChange={setScript}
-                  onGenerate={handleGenerateAudio}
-                />
+                  {/* Error */}
+                  {error && (
+                    <div className="flex items-center gap-2 text-xs text-destructive border border-destructive/20 bg-destructive/5 rounded-md px-3 py-2" role="alert">
+                      <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" aria-hidden="true">
+                        <circle cx="12" cy="12" r="10" /><path d="M12 8v4m0 4h.01" />
+                      </svg>
+                      <span>{error}</span>
+                    </div>
+                  )}
 
-                {/* Style Agent */}
-                <StyleAgent
-                  sourceScript={script}
-                  onUseStyledScript={setScript}
-                  isGeneratingAudio={isGenerating}
-                  onGenerateAudio={handleGenerateFromStyled}
-                />
+                  {/* Script editor (inline, no extra card wrapper) */}
+                  <ScriptEditor
+                    script={script}
+                    title={scriptTitle}
+                    isLoading={isGenerating}
+                    onScriptChange={setScript}
+                    onGenerate={handleGenerateAudio}
+                  />
 
-                {/* Player */}
-                {activeEntry && (
-                  <div className="animate-fade-in">
+                  {/* Style Agent */}
+                  <StyleAgent
+                    sourceScript={script}
+                    onUseStyledScript={setScript}
+                    isGeneratingAudio={isGenerating}
+                    onGenerateAudio={handleGenerateFromStyled}
+                  />
+
+                  {/* Player */}
+                  {activeEntry && (
                     <WaveformPlayer
                       key={activeEntry.id}
                       audioUrl={activeEntry.audio_url}
@@ -307,24 +316,36 @@ export default function HomePage() {
                       url={activeEntry.url}
                       autoplay={autoplay}
                     />
-                  </div>
-                )}
+                  )}
 
-                {/* Versions */}
-                {scriptUrl && (
-                  <VersionsList
-                    versions={versions}
-                    activeId={activeEntry?.id ?? null}
-                    onSelect={handleSelectVersion}
-                    onDelete={handleDeleteVersion}
-                  />
-                )}
-              </>
-            )}
+                  {/* Versions */}
+                  {scriptUrl && (
+                    <VersionsList
+                      versions={versions}
+                      activeId={activeEntry?.id ?? null}
+                      onSelect={handleSelectVersion}
+                      onDelete={handleDeleteVersion}
+                    />
+                  )}
+                </>
+              )}
+            </div>
           </div>
-        </main>
 
-        {/* Column 3: Voice settings */}
+          {/* Posts list (fills remaining space, scrollable) */}
+          <div className="flex-1 min-h-0 overflow-hidden">
+            <PostsList
+              entries={entries}
+              selectedUrl={scriptUrl}
+              activeId={activeEntry?.id ?? null}
+              onSelect={handleSelectPost}
+              onPlay={handlePlayFromList}
+              onDelete={handleDeleteEntry}
+            />
+          </div>
+        </div>
+
+        {/* Voice settings sidebar */}
         <aside className="w-[260px] flex-shrink-0 border-l border-border overflow-y-auto bg-surface-1">
           <div className="p-3">
             <VoiceSettings config={voiceConfig} onChange={setVoiceConfig} />
