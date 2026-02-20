@@ -23,6 +23,8 @@ const DEFAULT_VOICE_CONFIG: VoiceConfig = {
 export default function HomePage() {
   const [promptEditorOpen, setPromptEditorOpen] = useState(false);
   const [postsDrawerOpen, setPostsDrawerOpen] = useState(false);
+  const [loadingScripts, setLoadingScripts] = useState(false);
+  const [scriptProgress, setScriptProgress] = useState({ done: 0, total: 0 });
 
   // Active selection
   const [activeEntry, setActiveEntry] = useState<BlogAudio | null>(null);
@@ -52,11 +54,15 @@ export default function HomePage() {
   const handleSelectPost = useCallback((url: string, title: string) => {
     setScriptUrl(url);
     setScriptTitle(title);
-    setScript("");
     setError(null);
     setActiveEntry(null);
     setPostsDrawerOpen(false);
-  }, []);
+
+    // Check if there's a cached script for this post
+    const entry = entries.find((e) => e.url === url);
+    const cachedScript = (entry as BlogAudio & { cached_script?: string | null })?.cached_script;
+    setScript(cachedScript || "");
+  }, [entries]);
 
   const handleGenerateScript = useCallback(async () => {
     if (!scriptUrl) return;
@@ -184,6 +190,52 @@ export default function HomePage() {
     }
   }, [activeEntry, mutateHistory]);
 
+  const handleLoadScripts = useCallback(async () => {
+    // Get all cached posts without scripts
+    const res = await fetch("/api/history");
+    const data = await res.json();
+    const allEntries: BlogAudio[] = data.entries ?? [];
+
+    // Unique URLs from cached posts (id === -1 means no audio, just cached post)
+    // We want all unique URLs that don't already have a script loaded
+    const uniqueUrls = new Map<string, string>();
+    for (const entry of allEntries) {
+      if (!uniqueUrls.has(entry.url)) {
+        uniqueUrls.set(entry.url, entry.title || "Untitled");
+      }
+    }
+
+    const urlList = Array.from(uniqueUrls.entries());
+    setLoadingScripts(true);
+    setScriptProgress({ done: 0, total: urlList.length });
+
+    for (let i = 0; i < urlList.length; i++) {
+      const [url] = urlList[i];
+      try {
+        const sumRes = await fetch("/api/summarize", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ url }),
+        });
+        if (sumRes.ok) {
+          const sumData = await sumRes.json();
+          // Save script to blog_posts_cache
+          await fetch("/api/save-script", {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({ url, script: sumData.summary }),
+          });
+        }
+      } catch (err) {
+        console.error(`Failed to load script for ${url}:`, err);
+      }
+      setScriptProgress({ done: i + 1, total: urlList.length });
+    }
+
+    setLoadingScripts(false);
+    mutateHistory();
+  }, [mutateHistory]);
+
   return (
     <div className="h-screen flex flex-col overflow-hidden">
       {/* ── Top bar ── */}
@@ -236,7 +288,26 @@ export default function HomePage() {
           {/* Drawer panel */}
           <aside className="relative z-10 w-full max-w-lg h-full border-r border-border bg-background shadow-2xl flex flex-col animate-in slide-in-from-left duration-200">
             <div className="flex items-center justify-between px-3 py-2 border-b border-border flex-shrink-0">
-              <span className="text-xs font-medium">Blog Posts</span>
+              <div className="flex items-center gap-3">
+                <span className="text-xs font-medium">Blog Posts</span>
+                <button
+                  onClick={handleLoadScripts}
+                  disabled={loadingScripts}
+                  className="flex items-center gap-1.5 h-6 px-2 rounded-md bg-surface-2 border border-border text-[11px] font-medium text-muted hover:text-foreground hover:bg-surface-3 disabled:opacity-50 disabled:cursor-not-allowed transition-colors focus-ring"
+                >
+                  {loadingScripts ? (
+                    <>
+                      <svg className="animate-spin" width="10" height="10" viewBox="0 0 24 24" fill="none" aria-hidden="true">
+                        <circle cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="2" strokeOpacity="0.2" />
+                        <path d="M12 2a10 10 0 0 1 10 10" stroke="currentColor" strokeWidth="2" strokeLinecap="round" />
+                      </svg>
+                      <span>{scriptProgress.done}/{scriptProgress.total}</span>
+                    </>
+                  ) : (
+                    <span>Load Scripts</span>
+                  )}
+                </button>
+              </div>
               <button
                 onClick={() => setPostsDrawerOpen(false)}
                 className="p-1.5 text-muted hover:text-foreground transition-colors focus-ring rounded"
@@ -289,42 +360,23 @@ export default function HomePage() {
                         {scriptUrl}
                       </a>
                     </div>
-                    <div className="flex items-center gap-2 flex-shrink-0">
-                      <button
-                        onClick={handleGenerateScript}
-                        disabled={isSummarizing}
-                        className="flex items-center gap-2 h-8 rounded-md bg-surface-2 border border-border text-foreground px-3 text-xs font-medium transition-colors hover:bg-surface-3 disabled:opacity-40 disabled:cursor-not-allowed focus-ring"
-                      >
-                        {isSummarizing ? (
-                          <>
-                            <svg className="animate-spin" width="12" height="12" viewBox="0 0 24 24" fill="none" aria-hidden="true">
-                              <circle cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="2" strokeOpacity="0.2" />
-                              <path d="M12 2a10 10 0 0 1 10 10" stroke="currentColor" strokeWidth="2" strokeLinecap="round" />
-                            </svg>
-                            <span>Generating...</span>
-                          </>
-                        ) : (
-                          <span>{script ? "Regenerate Script" : "Generate Script"}</span>
-                        )}
-                      </button>
-                      <button
-                        onClick={handleGenerateAudio}
-                        disabled={isGenerating || !script.trim()}
-                        className="flex items-center gap-2 h-8 rounded-md bg-foreground text-background px-3 text-xs font-medium transition-colors hover:bg-foreground/90 disabled:opacity-40 disabled:cursor-not-allowed focus-ring"
-                      >
-                        {isGenerating ? (
-                          <>
-                            <svg className="animate-spin" width="12" height="12" viewBox="0 0 24 24" fill="none" aria-hidden="true">
-                              <circle cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="2" strokeOpacity="0.2" />
-                              <path d="M12 2a10 10 0 0 1 10 10" stroke="currentColor" strokeWidth="2" strokeLinecap="round" />
-                            </svg>
-                            <span>Generating...</span>
-                          </>
-                        ) : (
-                          <span>Generate Audio</span>
-                        )}
-                      </button>
-                    </div>
+                    <button
+                      onClick={handleGenerateScript}
+                      disabled={isSummarizing}
+                      className="flex items-center gap-2 h-8 rounded-md bg-surface-2 border border-border text-foreground px-3 text-xs font-medium transition-colors hover:bg-surface-3 disabled:opacity-40 disabled:cursor-not-allowed focus-ring flex-shrink-0"
+                    >
+                      {isSummarizing ? (
+                        <>
+                          <svg className="animate-spin" width="12" height="12" viewBox="0 0 24 24" fill="none" aria-hidden="true">
+                            <circle cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="2" strokeOpacity="0.2" />
+                            <path d="M12 2a10 10 0 0 1 10 10" stroke="currentColor" strokeWidth="2" strokeLinecap="round" />
+                          </svg>
+                          <span>Generating...</span>
+                        </>
+                      ) : (
+                        <span>{script ? "Regenerate Script" : "Generate Script"}</span>
+                      )}
+                    </button>
                   </div>
 
                   {/* Error */}
