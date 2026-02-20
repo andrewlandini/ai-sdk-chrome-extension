@@ -15,7 +15,7 @@ export function StyleAgent({
   isGeneratingAudio,
   onGenerateAudio,
 }: StyleAgentProps) {
-  const [styleInstructions, setStyleInstructions] = useState("");
+  const [styleInstructions, setStyleInstructions] = useState("Confident and genuinely excited about the content, but grounded and conversational -- not over the top");
   const [styledScript, setStyledScript] = useState("");
   const [isRunning, setIsRunning] = useState(false);
   const [error, setError] = useState<string | null>(null);
