@@ -52,14 +52,18 @@ export async function POST(request: Request) {
 
     const existingCount = await getCachedPostCount();
 
-    // Determine which prompt to use
+    // Determine which prompt and model to use
     let fetchPrompt = DEFAULT_BLOG_FETCH_PROMPT;
+    let fetchModel = "openai/gpt-4o-mini";
     if (customPrompt) {
       fetchPrompt = customPrompt;
     } else {
       const activePreset = await getActivePromptPreset();
       if (activePreset?.blog_fetch_prompt) {
         fetchPrompt = activePreset.blog_fetch_prompt;
+      }
+      if (activePreset?.blog_fetch_model) {
+        fetchModel = activePreset.blog_fetch_model;
       }
     }
 
@@ -123,7 +127,7 @@ export async function POST(request: Request) {
 
           // Send the full page content to the AI for parsing
           const { text } = await generateText({
-            model: "openai/gpt-4o-mini",
+            model: fetchModel,
             system: fetchPrompt,
             prompt: `Parse this page content from ${pageUrl}. Extract all blog posts:\n\n${html.substring(0, 100000)}`,
           });

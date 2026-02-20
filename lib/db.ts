@@ -130,6 +130,8 @@ export interface PromptPreset {
   test_prompt: string;
   blog_fetch_prompt: string | null;
   model: string;
+  blog_fetch_model: string;
+  style_agent_model: string;
   is_default: boolean;
   created_at: string;
 }
@@ -150,11 +152,13 @@ export async function insertPromptPreset(data: {
   test_prompt: string;
   blog_fetch_prompt?: string | null;
   model?: string;
+  blog_fetch_model?: string;
+  style_agent_model?: string;
   is_default?: boolean;
 }): Promise<PromptPreset> {
   const rows = await sql`
-    INSERT INTO prompt_presets (name, system_prompt, test_prompt, blog_fetch_prompt, model, is_default)
-    VALUES (${data.name}, ${data.system_prompt}, ${data.test_prompt}, ${data.blog_fetch_prompt ?? null}, ${data.model ?? "openai/gpt-4o"}, ${data.is_default ?? false})
+    INSERT INTO prompt_presets (name, system_prompt, test_prompt, blog_fetch_prompt, model, blog_fetch_model, style_agent_model, is_default)
+    VALUES (${data.name}, ${data.system_prompt}, ${data.test_prompt}, ${data.blog_fetch_prompt ?? null}, ${data.model ?? "openai/gpt-4o"}, ${data.blog_fetch_model ?? "openai/gpt-4o-mini"}, ${data.style_agent_model ?? "openai/gpt-4o"}, ${data.is_default ?? false})
     RETURNING *
   `;
   return rows[0] as PromptPreset;
@@ -166,9 +170,18 @@ export async function updatePromptPreset(id: number, data: {
   test_prompt: string;
   blog_fetch_prompt?: string | null;
   model: string;
+  blog_fetch_model?: string;
+  style_agent_model?: string;
 }): Promise<PromptPreset> {
   const rows = await sql`
-    UPDATE prompt_presets SET name = ${data.name}, system_prompt = ${data.system_prompt}, test_prompt = ${data.test_prompt}, blog_fetch_prompt = ${data.blog_fetch_prompt ?? null}, model = ${data.model}
+    UPDATE prompt_presets SET 
+      name = ${data.name}, 
+      system_prompt = ${data.system_prompt}, 
+      test_prompt = ${data.test_prompt}, 
+      blog_fetch_prompt = ${data.blog_fetch_prompt ?? null}, 
+      model = ${data.model},
+      blog_fetch_model = ${data.blog_fetch_model ?? "openai/gpt-4o-mini"},
+      style_agent_model = ${data.style_agent_model ?? "openai/gpt-4o"}
     WHERE id = ${id} RETURNING *
   `;
   return rows[0] as PromptPreset;

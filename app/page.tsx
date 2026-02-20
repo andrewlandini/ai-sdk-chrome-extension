@@ -213,14 +213,14 @@ export default function HomePage() {
         </div>
       </header>
 
-      {/* ── Two-column layout: main + voice sidebar ── */}
-      <div className="flex-1 flex overflow-hidden">
+      {/* ── Main content: workspace top, posts list bottom ── */}
+      <div className="flex-1 flex flex-col overflow-hidden">
 
-        {/* Main area: generator on top, posts list below */}
-        <div className="flex-1 min-w-0 flex flex-col overflow-hidden">
+        {/* Workspace: generator + voice settings side by side (stacks on mobile) */}
+        <div className="flex-1 min-h-0 flex flex-col lg:flex-row overflow-hidden border-b border-border">
 
           {/* Generator panel */}
-          <div className="flex-shrink-0 overflow-y-auto border-b border-border" style={{ maxHeight: "55vh" }}>
+          <div className="flex-1 min-w-0 overflow-y-auto">
             <div className="w-full px-5 py-4 flex flex-col gap-3">
               {!scriptUrl ? (
                 <div className="flex items-center justify-center min-h-[80px]">
@@ -229,7 +229,7 @@ export default function HomePage() {
               ) : (
                 <>
                   {/* Selected post header */}
-                  <div className="flex items-center justify-between gap-4">
+                  <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3">
                     <div className="min-w-0 flex-1">
                       <h2 className="text-sm font-semibold tracking-tight truncate">{scriptTitle || "Untitled"}</h2>
                       <a
@@ -289,7 +289,7 @@ export default function HomePage() {
                     </div>
                   )}
 
-                  {/* Script editor (inline, no extra card wrapper) */}
+                  {/* Script editor */}
                   <ScriptEditor
                     script={script}
                     title={scriptTitle}
@@ -332,25 +332,25 @@ export default function HomePage() {
             </div>
           </div>
 
-          {/* Posts list (fills remaining space, scrollable) */}
-          <div className="flex-1 min-h-0 overflow-hidden">
-            <PostsList
-              entries={entries}
-              selectedUrl={scriptUrl}
-              activeId={activeEntry?.id ?? null}
-              onSelect={handleSelectPost}
-              onPlay={handlePlayFromList}
-              onDelete={handleDeleteEntry}
-            />
-          </div>
+          {/* Voice settings panel -- right of generator on desktop, below on mobile */}
+          <aside className="w-full lg:w-[380px] flex-shrink-0 border-t lg:border-t-0 lg:border-l border-border overflow-y-auto bg-surface-1">
+            <div className="p-4">
+              <VoiceSettings config={voiceConfig} onChange={setVoiceConfig} />
+            </div>
+          </aside>
         </div>
 
-        {/* Voice settings sidebar */}
-        <aside className="w-[260px] flex-shrink-0 border-l border-border overflow-y-auto bg-surface-1">
-          <div className="p-3">
-            <VoiceSettings config={voiceConfig} onChange={setVoiceConfig} />
-          </div>
-        </aside>
+        {/* Blog posts list -- pinned to bottom, full width, max 10 rows visible */}
+        <div className="flex-shrink-0 overflow-hidden" style={{ maxHeight: "calc(10 * 32px + 72px)" }}>
+          <PostsList
+            entries={entries}
+            selectedUrl={scriptUrl}
+            activeId={activeEntry?.id ?? null}
+            onSelect={handleSelectPost}
+            onPlay={handlePlayFromList}
+            onDelete={handleDeleteEntry}
+          />
+        </div>
       </div>
 
       {/* Prompt Editor Modal */}

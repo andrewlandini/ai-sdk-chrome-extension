@@ -180,12 +180,9 @@ export function VoiceSettings({ config, onChange }: VoiceSettingsProps) {
       <div className="flex flex-col gap-5">
         {/* Credits bar */}
         {credits && (
-          <div className="flex flex-col gap-2">
-            <div className="flex items-center justify-between">
-              <span className="text-xs text-muted font-medium">ElevenLabs Credits</span>
-              <span className="text-xs text-muted font-mono tabular-nums">{credits.tier}</span>
-            </div>
-            <div className="h-2 rounded-full bg-surface-3 overflow-hidden">
+          <div className="flex items-center gap-4">
+            <span className="text-[11px] text-muted font-medium flex-shrink-0">Credits</span>
+            <div className="flex-1 h-1.5 rounded-full bg-surface-3 overflow-hidden">
               <div
                 className={`h-full rounded-full transition-all ${
                   usedPercent > 90 ? "bg-red-500" : usedPercent > 70 ? "bg-amber-500" : "bg-accent"
@@ -193,14 +190,10 @@ export function VoiceSettings({ config, onChange }: VoiceSettingsProps) {
                 style={{ width: `${usedPercent}%` }}
               />
             </div>
-            <div className="flex items-center justify-between">
-              <span className="text-[11px] text-muted font-mono tabular-nums">
-                {remaining?.toLocaleString()} remaining
-              </span>
-              <span className="text-[11px] text-muted font-mono tabular-nums">
-                {credits.characterCount.toLocaleString()} / {credits.characterLimit.toLocaleString()}
-              </span>
-            </div>
+            <span className="text-[10px] text-muted font-mono tabular-nums flex-shrink-0">
+              {remaining?.toLocaleString()} / {credits.characterLimit.toLocaleString()}
+            </span>
+            <span className="text-[10px] text-muted font-mono tabular-nums flex-shrink-0">{credits.tier}</span>
           </div>
         )}
 
@@ -309,25 +302,50 @@ export function VoiceSettings({ config, onChange }: VoiceSettingsProps) {
 
         <hr className="border-border" />
 
-        {/* Version Label */}
-        <fieldset className="flex flex-col gap-1.5">
-          <label htmlFor="version-label" className="text-xs text-muted font-medium">
-            Version Label
-          </label>
-          <input
-            id="version-label"
-            type="text"
-            value={config.label}
-            onChange={(e) => update({ label: e.target.value })}
-            placeholder="e.g. v1-warm-slow"
-            className="h-9 bg-background border border-border rounded-md px-3 text-sm text-foreground font-mono placeholder:text-muted-foreground/30 transition-colors focus-ring"
-          />
-        </fieldset>
+        {/* Version Label + Stability side by side */}
+        <div className="grid grid-cols-2 gap-4">
+          <fieldset className="flex flex-col gap-1.5">
+            <label htmlFor="version-label" className="text-xs text-muted font-medium">
+              Version Label
+            </label>
+            <input
+              id="version-label"
+              type="text"
+              value={config.label}
+              onChange={(e) => update({ label: e.target.value })}
+              placeholder="e.g. v1-warm-slow"
+              className="h-8 bg-background border border-border rounded-md px-3 text-xs text-foreground font-mono placeholder:text-muted-foreground/30 transition-colors focus-ring"
+            />
+          </fieldset>
+
+          <fieldset className="flex flex-col gap-1.5">
+            <div className="flex items-center justify-between">
+              <label htmlFor="stability" className="text-xs text-muted font-medium">Stability</label>
+              <output className="text-[10px] text-foreground font-mono tabular-nums" htmlFor="stability">
+                {config.stability.toFixed(2)}
+              </output>
+            </div>
+            <input
+              id="stability"
+              type="range"
+              min="0"
+              max="1"
+              step="0.05"
+              value={config.stability}
+              onChange={(e) => update({ stability: parseFloat(e.target.value) })}
+              className="focus-ring rounded mt-1"
+            />
+            <div className="flex justify-between text-[10px] text-muted-foreground -mt-0.5">
+              <span>Creative</span>
+              <span>Robust</span>
+            </div>
+          </fieldset>
+        </div>
 
         {/* Voice */}
         <fieldset className="flex flex-col gap-2">
           <legend className="text-xs text-muted font-medium">Voice</legend>
-          <div className="flex flex-col gap-1">
+          <div className="grid grid-cols-2 gap-1">
             {VOICES.map((v) => {
               const isSelected = config.voiceId === v.id;
               const isPlaying = playingVoiceId === v.id;
@@ -381,36 +399,10 @@ export function VoiceSettings({ config, onChange }: VoiceSettingsProps) {
           </div>
         </fieldset>
 
-        <hr className="border-border" />
-
-        {/* Stability - Creative to Robust */}
-        <fieldset className="flex flex-col gap-2">
-          <div className="flex items-center justify-between">
-            <label htmlFor="stability" className="text-xs text-muted font-medium">Stability</label>
-            <output className="text-xs text-foreground font-mono tabular-nums" htmlFor="stability">
-              {config.stability.toFixed(2)}
-            </output>
-          </div>
-          <input
-            id="stability"
-            type="range"
-            min="0"
-            max="1"
-            step="0.05"
-            value={config.stability}
-            onChange={(e) => update({ stability: parseFloat(e.target.value) })}
-            className="focus-ring rounded"
-          />
-          <div className="flex justify-between text-[11px] text-muted-foreground">
-            <span>Creative</span>
-            <span>Robust</span>
-          </div>
-        </fieldset>
-
         {/* v3 info */}
-        <div className="text-[11px] text-muted bg-surface-2 rounded-md px-3 py-2 leading-relaxed">
-          Eleven v3 includes built-in text normalization. 5,000 char limit per chunk — longer scripts are automatically split and concatenated.
-        </div>
+        <p className="text-[10px] text-muted-foreground leading-relaxed">
+          Eleven v3 with built-in text normalization. 5,000 char limit per chunk, auto-split.
+        </p>
       </div>
     </section>
   );

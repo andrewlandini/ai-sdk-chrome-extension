@@ -17,10 +17,11 @@ const MODELS = [
 ] as const;
 
 const PROMPT_TABS = [
-  { id: "system", label: "Script Prompt" },
-  { id: "test", label: "Test Prompt" },
-  { id: "blog", label: "Blog Fetch Prompt" },
-] as const;
+  { id: "system" as const, label: "Script Prompt", modelKey: "model" as const, defaultModel: "openai/gpt-4o", desc: "AI model for generating spoken scripts from blog posts" },
+  { id: "test" as const, label: "Test Prompt", modelKey: "model" as const, defaultModel: "openai/gpt-4o", desc: "Uses the same model as Script Prompt (test mode)" },
+  { id: "blog" as const, label: "Blog Fetch", modelKey: "blogFetchModel" as const, defaultModel: "openai/gpt-4o-mini", desc: "AI model for parsing blog listing pages to discover posts" },
+  { id: "style" as const, label: "Style Agent", modelKey: "styleAgentModel" as const, defaultModel: "openai/gpt-4o", desc: "AI model for adding v3 Audio Tags to scripts" },
+];
 
 type PromptTab = (typeof PROMPT_TABS)[number]["id"];
 
@@ -51,6 +52,8 @@ interface PromptPreset {
   test_prompt: string;
   blog_fetch_prompt: string | null;
   model: string;
+  blog_fetch_model: string;
+  style_agent_model: string;
   is_default: boolean;
   created_at: string;
 }
@@ -72,6 +75,8 @@ export function PromptEditorModal({ open, onClose }: PromptEditorModalProps) {
   const [testPrompt, setTestPrompt] = useState("");
   const [blogFetchPrompt, setBlogFetchPrompt] = useState(DEFAULT_BLOG_FETCH_PROMPT);
   const [model, setModel] = useState("openai/gpt-4o");
+  const [blogFetchModel, setBlogFetchModel] = useState("openai/gpt-4o-mini");
+  const [styleAgentModel, setStyleAgentModel] = useState("openai/gpt-4o");
   const [activeTab, setActiveTab] = useState<PromptTab>("system");
   const [isSaving, setIsSaving] = useState(false);
   const [message, setMessage] = useState<string | null>(null);
@@ -89,24 +94,53 @@ export function PromptEditorModal({ open, onClose }: PromptEditorModalProps) {
   useEffect(() => {
     if (presets.length > 0 && selectedId === null) {
       const def = presets.find((p) => p.is_default) || presets[0];
-      setSelectedId(def.id);
-      setName(def.name);
-      setSystemPrompt(def.system_prompt);
-      setTestPrompt(def.test_prompt);
-      setBlogFetchPrompt(def.blog_fetch_prompt || DEFAULT_BLOG_FETCH_PROMPT);
-      setModel(def.model || "openai/gpt-4o");
+      loadPreset(def);
     }
+  // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [presets, selectedId]);
 
-  const handleSelectPreset = useCallback((preset: PromptPreset) => {
+  const loadPreset = (preset: PromptPreset) => {
     setSelectedId(preset.id);
     setName(preset.name);
     setSystemPrompt(preset.system_prompt);
     setTestPrompt(preset.test_prompt);
     setBlogFetchPrompt(preset.blog_fetch_prompt || DEFAULT_BLOG_FETCH_PROMPT);
     setModel(preset.model || "openai/gpt-4o");
+    setBlogFetchModel(preset.blog_fetch_model || "openai/gpt-4o-mini");
+    setStyleAgentModel(preset.style_agent_model || "openai/gpt-4o");
     setMessage(null);
-  }, []);
+  };
+
+  // Per-tab prompt/model accessors
+  const getTabPrompt = (tab: PromptTab) => {
+    switch (tab) {
+      case "system": return systemPrompt;
+      case "test": return testPrompt;
+      case "blog": return blogFetchPrompt;
+      case "style": return ""; // style agent prompt is hardcoded server-side
+    }
+  };
+  const setTabPrompt = (tab: PromptTab, val: string) => {
+    switch (tab) {
+      case "system": setSystemPrompt(val); break;
+      case "test": setTestPrompt(val); break;
+      case "blog": setBlogFetchPrompt(val); break;
+    }
+  };
+  const getTabModel = (tab: PromptTab) => {
+    switch (tab) {
+      case "system": case "test": return model;
+      case "blog": return blogFetchModel;
+      case "style": return styleAgentModel;
+    }
+  };
+  const setTabModel = (tab: PromptTab, val: string) => {
+    switch (tab) {
+      case "system": case "test": setModel(val); break;
+      case "blog": setBlogFetchModel(val); break;
+      case "style": setStyleAgentModel(val); break;
+    }
+  };
 
   const getPayload = useCallback(() => ({
     name,
@@ -114,7 +148,9 @@ export function PromptEditorModal({ open, onClose }: PromptEditorModalProps) {
     test_prompt: testPrompt,
     blog_fetch_prompt: blogFetchPrompt,
     model,
-  }), [name, systemPrompt, testPrompt, blogFetchPrompt, model]);
+    blog_fetch_model: blogFetchModel,
+    style_agent_model: styleAgentModel,
+  }), [name, systemPrompt, testPrompt, blogFetchPrompt, model, blogFetchModel, styleAgentModel]);
 
   const handleSave = useCallback(async () => {
     if (!name.trim() || !systemPrompt.trim() || !testPrompt.trim()) return;
@@ -212,22 +248,15 @@ export function PromptEditorModal({ open, onClose }: PromptEditorModalProps) {
     setTestPrompt("");
     setBlogFetchPrompt(DEFAULT_BLOG_FETCH_PROMPT);
     setModel("openai/gpt-4o");
+    setBlogFetchModel("openai/gpt-4o-mini");
+    setStyleAgentModel("openai/gpt-4o");
     setMessage(null);
   }, []);
 
   const activePreset = presets.find((p) => p.id === selectedId);
   const isDefault = activePreset?.is_default ?? false;
-  const selectedModelInfo = MODELS.find((m) => m.id === model);
-
-  // Get current tab content
-  const currentPromptValue = activeTab === "system" ? systemPrompt : activeTab === "test" ? testPrompt : blogFetchPrompt;
-  const currentPromptSetter = activeTab === "system" ? setSystemPrompt : activeTab === "test" ? setTestPrompt : setBlogFetchPrompt;
-  const currentPromptPlaceholder = activeTab === "system"
-    ? "The main system prompt used when generating the full script from a blog post..."
-    : activeTab === "test"
-    ? "A shorter prompt used in test mode to save ElevenLabs credits..."
-    : "The prompt used by the AI agent when parsing blog listing pages to discover posts...";
-  const currentPromptRows = activeTab === "blog" ? 14 : activeTab === "system" ? 12 : 5;
+  const currentTabConfig = PROMPT_TABS.find((t) => t.id === activeTab)!;
+  const isStyleTab = activeTab === "style";
 
   if (!open) return null;
 
@@ -238,180 +267,156 @@ export function PromptEditorModal({ open, onClose }: PromptEditorModalProps) {
       className="fixed inset-0 z-50 m-0 h-full w-full max-h-full max-w-full bg-transparent p-0 backdrop:bg-black/60"
     >
       <div className="flex items-center justify-center min-h-full p-4" onClick={(e) => { if (e.target === e.currentTarget) onClose(); }}>
-        <div className="w-full max-w-4xl bg-surface-1 border border-border rounded-lg overflow-hidden shadow-2xl max-h-[90vh] flex flex-col">
+        {/* Fixed dimensions so switching tabs doesn't resize */}
+        <div className="w-full max-w-4xl bg-surface-1 border border-border rounded-lg overflow-hidden shadow-2xl flex flex-col" style={{ height: "min(85vh, 720px)" }}>
           {/* Header */}
-          <div className="flex items-center justify-between px-5 py-4 border-b border-border flex-shrink-0">
+          <div className="flex items-center justify-between px-5 py-3 border-b border-border flex-shrink-0">
             <div className="flex items-center gap-3">
-              <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" className="text-accent" aria-hidden="true">
+              <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" className="text-accent" aria-hidden="true">
                 <path d="M12 20h9M16.5 3.5a2.121 2.121 0 0 1 3 3L7 19l-4 1 1-4L16.5 3.5z" />
               </svg>
-              <h2 className="text-base font-semibold">Prompt Editor</h2>
-              {selectedModelInfo && (
-                <span className="text-xs text-muted font-mono bg-surface-2 px-2 py-0.5 rounded">
-                  {selectedModelInfo.label}
-                </span>
-              )}
+              <h2 className="text-sm font-semibold">Prompt Editor</h2>
             </div>
             <button onClick={onClose} className="p-1.5 rounded-md text-muted hover:text-foreground hover:bg-surface-2 transition-colors focus-ring" aria-label="Close">
-              <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" aria-hidden="true">
+              <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" aria-hidden="true">
                 <path d="M18 6L6 18M6 6l12 12" />
               </svg>
             </button>
           </div>
 
-          {/* Content */}
-          <div className="flex-1 overflow-y-auto">
-            <div className="flex flex-col lg:flex-row">
-              {/* Preset sidebar */}
-              <div className="lg:w-[200px] border-b lg:border-b-0 lg:border-r border-border flex-shrink-0">
-                <div className="px-3 py-3 flex items-center justify-between">
-                  <span className="text-xs font-medium text-muted uppercase tracking-wider">Presets</span>
-                  <button onClick={handleNew} className="text-xs text-accent hover:text-accent/80 transition-colors focus-ring rounded px-1">
-                    + New
+          {/* Content area -- fixed height, internal scroll */}
+          <div className="flex-1 min-h-0 flex">
+            {/* Preset sidebar */}
+            <div className="w-[180px] border-r border-border flex-shrink-0 flex flex-col">
+              <div className="px-3 py-2.5 flex items-center justify-between border-b border-border">
+                <span className="text-[10px] font-medium text-muted uppercase tracking-wider">Presets</span>
+                <button onClick={handleNew} className="text-[10px] text-accent hover:text-accent/80 transition-colors focus-ring rounded px-1">
+                  + New
+                </button>
+              </div>
+              <div className="flex-1 overflow-y-auto p-1.5 flex flex-col gap-0.5">
+                {presets.map((preset) => (
+                  <button
+                    key={preset.id}
+                    onClick={() => loadPreset(preset)}
+                    className={`flex items-center gap-1.5 px-2 py-1.5 rounded text-xs text-left transition-colors focus-ring ${
+                      selectedId === preset.id
+                        ? "bg-surface-3 text-foreground"
+                        : "text-muted hover:text-foreground hover:bg-surface-2"
+                    }`}
+                  >
+                    <span className="truncate flex-1">{preset.name}</span>
+                    {preset.is_default && (
+                      <span className="text-[9px] text-accent font-mono flex-shrink-0">def</span>
+                    )}
                   </button>
-                </div>
-                <div className="px-2 pb-2 flex flex-row lg:flex-col gap-1 overflow-x-auto lg:overflow-x-visible">
-                  {presets.map((preset) => (
+                ))}
+              </div>
+            </div>
+
+            {/* Editor area */}
+            <div className="flex-1 min-w-0 flex flex-col">
+              {/* Name row */}
+              <div className="flex items-center gap-3 px-4 py-2.5 border-b border-border flex-shrink-0">
+                <label className="text-[10px] font-medium text-muted uppercase tracking-wider flex-shrink-0" htmlFor="preset-name">
+                  Name
+                </label>
+                <input
+                  id="preset-name"
+                  value={name}
+                  onChange={(e) => setName(e.target.value)}
+                  placeholder="e.g. Instructor Style"
+                  className="flex-1 h-7 px-2 rounded border border-border bg-surface-2 text-xs text-foreground placeholder:text-muted/40 focus:outline-none focus:border-accent transition-colors"
+                />
+              </div>
+
+              {/* Tabs */}
+              <div className="flex items-center border-b border-border flex-shrink-0 px-4">
+                {PROMPT_TABS.map((tab) => (
+                  <button
+                    key={tab.id}
+                    onClick={() => setActiveTab(tab.id)}
+                    className={`px-3 py-2 text-xs font-medium transition-colors relative ${
+                      activeTab === tab.id ? "text-foreground" : "text-muted hover:text-foreground"
+                    }`}
+                  >
+                    {tab.label}
+                    {activeTab === tab.id && (
+                      <span className="absolute bottom-0 left-0 right-0 h-px bg-foreground" />
+                    )}
+                  </button>
+                ))}
+              </div>
+
+              {/* Per-tab model selector */}
+              <div className="flex items-center gap-2 px-4 py-2 border-b border-border bg-surface-2/30 flex-shrink-0">
+                <span className="text-[10px] font-medium text-muted uppercase tracking-wider flex-shrink-0">Model</span>
+                <div className="flex flex-wrap gap-1">
+                  {MODELS.map((m) => (
                     <button
-                      key={preset.id}
-                      onClick={() => handleSelectPreset(preset)}
-                      className={`flex items-center gap-2 px-2.5 py-2 rounded-md text-sm text-left transition-colors focus-ring flex-shrink-0 ${
-                        selectedId === preset.id
-                          ? "bg-surface-3 text-foreground"
-                          : "text-muted hover:text-foreground hover:bg-surface-2"
+                      key={m.id}
+                      onClick={() => setTabModel(activeTab, m.id)}
+                      disabled={activeTab === "test"}
+                      className={`px-2 py-0.5 rounded text-[10px] font-medium transition-colors focus-ring ${
+                        getTabModel(activeTab) === m.id
+                          ? "bg-foreground text-background"
+                          : activeTab === "test"
+                          ? "border border-border/50 text-muted/40 cursor-not-allowed"
+                          : "border border-border text-muted hover:text-foreground hover:border-border-hover"
                       }`}
+                      aria-pressed={getTabModel(activeTab) === m.id}
+                      title={activeTab === "test" ? "Test mode uses the Script Prompt model" : m.label}
                     >
-                      <span className="truncate">{preset.name}</span>
-                      {preset.is_default && (
-                        <span className="text-[10px] text-accent font-mono flex-shrink-0">{"*"}</span>
-                      )}
+                      {m.label}
                     </button>
                   ))}
                 </div>
               </div>
 
-              {/* Editor */}
-              <div className="flex-1 p-5 flex flex-col gap-4">
-                {/* Name + Model row */}
-                <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-                  <div className="flex flex-col gap-1.5">
-                    <label className="text-xs font-medium text-muted" htmlFor="preset-name">
-                      Preset Name
-                    </label>
-                    <input
-                      id="preset-name"
-                      value={name}
-                      onChange={(e) => setName(e.target.value)}
-                      placeholder="e.g. Instructor Style"
-                      className="h-9 px-3 rounded-md border border-border bg-surface-2 text-sm text-foreground placeholder:text-muted/40 focus:outline-none focus:border-accent transition-colors"
-                    />
-                  </div>
-                  <div className="flex flex-col gap-1.5">
-                    <label className="text-xs font-medium text-muted" htmlFor="preset-model">
-                      Script AI Model
-                    </label>
-                    <select
-                      id="preset-model"
-                      value={model}
-                      onChange={(e) => setModel(e.target.value)}
-                      className="h-9 px-3 rounded-md border border-border bg-surface-2 text-sm text-foreground focus:outline-none focus:border-accent transition-colors appearance-none cursor-pointer"
-                      style={{ backgroundImage: `url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='12' height='12' viewBox='0 0 24 24' fill='none' stroke='%23666' stroke-width='2'%3E%3Cpath d='M6 9l6 6 6-6'/%3E%3C/svg%3E")`, backgroundRepeat: "no-repeat", backgroundPosition: "right 10px center" }}
-                    >
-                      <optgroup label="Top Tier">
-                        {MODELS.filter((m) => m.tier === "top").map((m) => (
-                          <option key={m.id} value={m.id}>
-                            {m.label} ({m.provider})
-                          </option>
-                        ))}
-                      </optgroup>
-                      <optgroup label="Fast">
-                        {MODELS.filter((m) => m.tier === "fast").map((m) => (
-                          <option key={m.id} value={m.id}>
-                            {m.label} ({m.provider})
-                          </option>
-                        ))}
-                      </optgroup>
-                    </select>
-                  </div>
-                </div>
-
-                {/* Model chips */}
-                <div className="flex flex-col gap-1.5">
-                  <span className="text-xs font-medium text-muted">Quick Select</span>
-                  <div className="flex flex-wrap gap-1.5">
-                    {MODELS.map((m) => (
-                      <button
-                        key={m.id}
-                        onClick={() => setModel(m.id)}
-                        className={`px-2.5 py-1 rounded text-xs font-medium transition-colors focus-ring ${
-                          model === m.id
-                            ? "bg-foreground text-background"
-                            : "border border-border text-muted hover:text-foreground hover:border-border-hover"
-                        }`}
-                        aria-pressed={model === m.id}
-                      >
-                        {m.label}
-                      </button>
-                    ))}
-                  </div>
-                </div>
-
-                {/* Prompt tabs */}
-                <div className="flex items-center gap-1 border-b border-border">
-                  {PROMPT_TABS.map((tab) => (
-                    <button
-                      key={tab.id}
-                      onClick={() => setActiveTab(tab.id)}
-                      className={`px-3 py-2 text-xs font-medium transition-colors relative ${
-                        activeTab === tab.id
-                          ? "text-foreground"
-                          : "text-muted hover:text-foreground"
-                      }`}
-                    >
-                      {tab.label}
-                      {activeTab === tab.id && (
-                        <span className="absolute bottom-0 left-0 right-0 h-px bg-foreground" />
-                      )}
-                    </button>
-                  ))}
-                </div>
-
-                {/* Active prompt textarea */}
-                <div className="flex flex-col gap-1.5">
-                  <div className="flex items-center justify-between">
-                    <span className="text-xs text-muted">
-                      {activeTab === "system" && "Used when generating the full spoken script from a blog post"}
-                      {activeTab === "test" && "Used in test mode to generate a short preview and save ElevenLabs credits"}
-                      {activeTab === "blog" && "Used by the AI agent when parsing blog listing pages to discover posts"}
-                    </span>
+              {/* Prompt textarea -- fills remaining space */}
+              <div className="flex-1 min-h-0 flex flex-col px-4 py-3 gap-1.5">
+                <div className="flex items-center justify-between flex-shrink-0">
+                  <span className="text-[10px] text-muted">
+                    {currentTabConfig.desc}
+                  </span>
+                  {!isStyleTab && (
                     <span className="text-[10px] text-muted font-mono">
-                      {currentPromptValue.length}c
+                      {getTabPrompt(activeTab).length}c
                     </span>
-                  </div>
-                  <textarea
-                    value={currentPromptValue}
-                    onChange={(e) => currentPromptSetter(e.target.value)}
-                    placeholder={currentPromptPlaceholder}
-                    rows={currentPromptRows}
-                    className="w-full px-3 py-2.5 rounded-md border border-border bg-surface-2 text-sm font-mono leading-relaxed text-foreground placeholder:text-muted/40 resize-y focus:outline-none focus:border-accent transition-colors"
-                  />
+                  )}
                 </div>
+                {isStyleTab ? (
+                  <div className="flex-1 min-h-0 overflow-y-auto rounded border border-border bg-surface-2/50 p-3">
+                    <p className="text-xs text-muted leading-relaxed">
+                      The Style Agent prompt is managed server-side and includes the full Eleven v3 Audio Tags reference. It is not editable here.
+                    </p>
+                    <p className="text-xs text-muted leading-relaxed mt-2">
+                      You can change which AI model is used to style scripts using the model selector above.
+                    </p>
+                  </div>
+                ) : (
+                  <textarea
+                    value={getTabPrompt(activeTab)}
+                    onChange={(e) => setTabPrompt(activeTab, e.target.value)}
+                    className="flex-1 min-h-0 w-full px-3 py-2.5 rounded border border-border bg-surface-2 text-xs font-mono leading-relaxed text-foreground placeholder:text-muted/40 resize-none focus:outline-none focus:border-accent transition-colors"
+                  />
+                )}
               </div>
             </div>
           </div>
 
           {/* Footer */}
-          <div className="flex items-center justify-between gap-3 px-5 py-3 border-t border-border bg-surface-2/50 flex-shrink-0">
+          <div className="flex items-center justify-between gap-3 px-4 py-2.5 border-t border-border bg-surface-2/50 flex-shrink-0">
             <div className="flex items-center gap-2 min-w-0">
               {message && (
-                <span className="text-xs text-muted animate-fade-in truncate">{message}</span>
+                <span className="text-[10px] text-muted animate-fade-in truncate">{message}</span>
               )}
             </div>
-            <div className="flex items-center gap-2 flex-shrink-0">
+            <div className="flex items-center gap-1.5 flex-shrink-0">
               {selectedId && !isDefault && (
                 <button
                   onClick={handleDelete}
-                  className="h-8 px-3 rounded-md text-xs text-destructive hover:bg-destructive/10 transition-colors focus-ring"
+                  className="h-7 px-2.5 rounded text-[11px] text-destructive hover:bg-destructive/10 transition-colors focus-ring"
                 >
                   Delete
                 </button>
@@ -419,7 +424,7 @@ export function PromptEditorModal({ open, onClose }: PromptEditorModalProps) {
               {selectedId && !isDefault && (
                 <button
                   onClick={handleSetDefault}
-                  className="h-8 px-3 rounded-md text-xs text-muted border border-border hover:text-foreground hover:border-border-hover transition-colors focus-ring"
+                  className="h-7 px-2.5 rounded text-[11px] text-muted border border-border hover:text-foreground hover:border-border-hover transition-colors focus-ring"
                 >
                   Set Default
                 </button>
@@ -428,7 +433,7 @@ export function PromptEditorModal({ open, onClose }: PromptEditorModalProps) {
                 <button
                   onClick={handleSaveAsNew}
                   disabled={isSaving || !name.trim()}
-                  className="h-8 px-3 rounded-md text-xs text-muted border border-border hover:text-foreground hover:border-border-hover transition-colors disabled:opacity-40 focus-ring"
+                  className="h-7 px-2.5 rounded text-[11px] text-muted border border-border hover:text-foreground hover:border-border-hover transition-colors disabled:opacity-40 focus-ring"
                 >
                   Save as New
                 </button>
@@ -436,9 +441,9 @@ export function PromptEditorModal({ open, onClose }: PromptEditorModalProps) {
               <button
                 onClick={handleSave}
                 disabled={isSaving || !name.trim() || !systemPrompt.trim() || !testPrompt.trim()}
-                className="h-8 px-4 rounded-md bg-foreground text-background text-xs font-medium hover:bg-foreground/90 transition-colors disabled:opacity-40 disabled:cursor-not-allowed focus-ring"
+                className="h-7 px-3 rounded bg-foreground text-background text-[11px] font-medium hover:bg-foreground/90 transition-colors disabled:opacity-40 disabled:cursor-not-allowed focus-ring"
               >
-                {isSaving ? "Saving..." : selectedId ? "Save Changes" : "Create Preset"}
+                {isSaving ? "Saving..." : selectedId ? "Save" : "Create"}
               </button>
             </div>
           </div>
