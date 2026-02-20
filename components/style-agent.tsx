@@ -8,10 +8,12 @@ interface HistoryEntry {
   vibe: string;
   timestamp: Date;
   wordCount: number;
+  dbId?: number; // ID from the database
 }
 
 interface StyleAgentProps {
   sourceScript: string;
+  postUrl: string;
   onUseStyledScript: (styledScript: string) => void;
   isGeneratingAudio: boolean;
   onGenerateAudio: (styledScript: string) => void;
@@ -26,6 +28,7 @@ export type { HistoryEntry as StyleHistoryEntry };
 
 export function StyleAgent({
   sourceScript,
+  postUrl,
   isGeneratingAudio,
   onGenerateAudio,
   onStyledScriptChange,
@@ -43,6 +46,29 @@ export function StyleAgent({
 
   const wordCount = styledScript.trim().split(/\s+/).filter(Boolean).length;
   const charCount = styledScript.length;
+
+  // Load history from DB when post URL changes
+  useEffect(() => {
+    if (!postUrl) { setHistory([]); return; }
+    let cancelled = false;
+    fetch(`/api/style-history?url=${encodeURIComponent(postUrl)}`)
+      .then(r => r.json())
+      .then(data => {
+        if (cancelled) return;
+        const entries: HistoryEntry[] = (data.entries || []).map((e: { id: number; script: string; vibe: string | null; word_count: number; created_at: string }, i: number) => ({
+          id: i + 1,
+          dbId: e.id,
+          script: e.script,
+          vibe: e.vibe || "Default",
+          timestamp: new Date(e.created_at),
+          wordCount: e.word_count,
+        }));
+        setHistory(entries);
+        nextId.current = entries.length + 1;
+      })
+      .catch(() => { /* ignore */ });
+    return () => { cancelled = true; };
+  }, [postUrl]);
 
   // Notify parent of history changes
   useEffect(() => {
@@ -74,21 +100,46 @@ export function StyleAgent({
       setStyledScript(data.styledScript);
       onStyledScriptChange?.(data.styledScript);
 
-      // Add to history
-      const entry: HistoryEntry = {
-        id: nextId.current++,
-        script: data.styledScript,
-        vibe: styleInstructions || "Default",
-        timestamp: new Date(),
-        wordCount: data.styledScript.trim().split(/\s+/).filter(Boolean).length,
-      };
-      setHistory(prev => [entry, ...prev]);
+      // Save to DB and add to local history
+      const wc = data.styledScript.trim().split(/\s+/).filter(Boolean).length;
+      try {
+        const saveRes = await fetch("/api/style-history", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            url: postUrl,
+            script: data.styledScript,
+            vibe: styleInstructions || "Default",
+            word_count: wc,
+          }),
+        });
+        const saveData = await saveRes.json();
+        const entry: HistoryEntry = {
+          id: nextId.current++,
+          dbId: saveData.entry?.id,
+          script: data.styledScript,
+          vibe: styleInstructions || "Default",
+          timestamp: new Date(),
+          wordCount: wc,
+        };
+        setHistory(prev => [entry, ...prev]);
+      } catch {
+        // Fallback to local-only if save fails
+        const entry: HistoryEntry = {
+          id: nextId.current++,
+          script: data.styledScript,
+          vibe: styleInstructions || "Default",
+          timestamp: new Date(),
+          wordCount: wc,
+        };
+        setHistory(prev => [entry, ...prev]);
+      }
     } catch (err) {
       setError(err instanceof Error ? err.message : "Failed to style script");
     } finally {
       setIsRunning(false);
     }
-  }, [sourceScript, styleInstructions]);
+  }, [sourceScript, styleInstructions, postUrl, onStyledScriptChange]);
 
   const loadFromHistory = useCallback((entry: HistoryEntry) => {
     setStyledScript(entry.script);

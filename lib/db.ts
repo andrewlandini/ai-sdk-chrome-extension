@@ -206,3 +206,37 @@ export async function setDefaultPromptPreset(id: number): Promise<void> {
 export async function deletePromptPreset(id: number): Promise<void> {
   await sql`DELETE FROM prompt_presets WHERE id = ${id}`;
 }
+
+// ── Style History ──
+
+export interface StyleHistoryEntry {
+  id: number;
+  url: string;
+  script: string;
+  vibe: string | null;
+  word_count: number;
+  created_at: string;
+}
+
+export async function getStyleHistoryByUrl(url: string): Promise<StyleHistoryEntry[]> {
+  const rows = await sql`SELECT * FROM style_history WHERE url = ${url} ORDER BY created_at DESC`;
+  return rows as StyleHistoryEntry[];
+}
+
+export async function insertStyleHistory(data: {
+  url: string;
+  script: string;
+  vibe?: string;
+  word_count?: number;
+}): Promise<StyleHistoryEntry> {
+  const rows = await sql`
+    INSERT INTO style_history (url, script, vibe, word_count)
+    VALUES (${data.url}, ${data.script}, ${data.vibe ?? null}, ${data.word_count ?? 0})
+    RETURNING *
+  `;
+  return rows[0] as StyleHistoryEntry;
+}
+
+export async function deleteStyleHistory(id: number): Promise<void> {
+  await sql`DELETE FROM style_history WHERE id = ${id}`;
+}

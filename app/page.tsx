@@ -123,7 +123,6 @@ export default function HomePage() {
     setError(null);
     setActiveEntry(null);
     setStyledScript("");
-    setStyleHistory([]);
     setSelectedHistoryScript(null);
     setAutoplay(false);
     setSidebarOpen(false);
@@ -783,6 +782,7 @@ export default function HomePage() {
               <div className="flex-1 min-h-0 overflow-y-auto">
                 <StyleAgent
                   sourceScript={script}
+                  postUrl={scriptUrl}
                   onUseStyledScript={setScript}
                   isGeneratingAudio={isGenerating}
                   onGenerateAudio={handleGenerateFromStyled}
