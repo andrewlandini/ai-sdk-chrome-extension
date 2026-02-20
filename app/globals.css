@@ -1,19 +1,22 @@
 @import "tailwindcss";
 
 @theme inline {
-  --color-background: #0a0a0a;
+  --color-background: #000000;
   --color-foreground: #ededed;
-  --color-card: #141414;
-  --color-card-border: #2a2a2a;
-  --color-surface: #0d0d0d;
-  --color-surface-border: #1f1f1f;
-  --color-muted: #888888;
+  --color-card: #0a0a0a;
+  --color-card-hover: #111111;
+  --color-border: #333333;
+  --color-border-light: #222222;
+  --color-muted: #a1a1a1;
   --color-muted-foreground: #666666;
-  --color-accent: #ffffff;
-  --color-accent-foreground: #000000;
-  --color-destructive: #ef4444;
+  --color-accent: #0070f3;
+  --color-accent-hover: #0060df;
+  --color-primary: #ffffff;
+  --color-primary-foreground: #000000;
+  --color-destructive: #ee5555;
+  --color-success: #50e3c2;
   --color-waveform-base: #333333;
-  --color-waveform-played: #ffffff;
+  --color-waveform-played: #ededed;
   --font-sans: "Geist", "Geist Fallback";
   --font-mono: "Geist Mono", "Geist Mono Fallback";
 }
@@ -32,16 +35,16 @@ body {
   -moz-osx-font-smoothing: grayscale;
 }
 
-/* Waveform bar animation */
-@keyframes waveform-enter {
-  from {
-    transform: scaleY(0);
-    opacity: 0;
-  }
-  to {
-    transform: scaleY(1);
-    opacity: 1;
-  }
+/* Scrollbar */
+::-webkit-scrollbar {
+  width: 6px;
+}
+::-webkit-scrollbar-track {
+  background: transparent;
+}
+::-webkit-scrollbar-thumb {
+  background: var(--color-border);
+  border-radius: 3px;
 }
 
 /* Spinner animation */
@@ -52,4 +55,10 @@ body {
 
 .animate-spin {
   animation: spin 1s linear infinite;
+}
+
+/* Pulse for loading states */
+@keyframes pulse-bar {
+  0%, 100% { opacity: 0.3; }
+  50% { opacity: 0.6; }
 }

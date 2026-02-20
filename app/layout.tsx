@@ -3,16 +3,19 @@ import { Geist, Geist_Mono } from "next/font/google";
 import "./globals.css";
 
 const geistSans = Geist({ subsets: ["latin"], variable: "--font-geist-sans" });
-const geistMono = Geist_Mono({ subsets: ["latin"], variable: "--font-geist-mono" });
+const geistMono = Geist_Mono({
+  subsets: ["latin"],
+  variable: "--font-geist-mono",
+});
 
 export const metadata: Metadata = {
-  title: "Blog Audio Generator",
+  title: "Blog Audio Generator | Vercel",
   description:
     "Turn any blog post into an AI-generated audio summary. Paste a URL and listen.",
 };
 
 export const viewport: Viewport = {
-  themeColor: "#0a0a0a",
+  themeColor: "#000000",
 };
 
 export default function RootLayout({
@@ -22,7 +25,7 @@ export default function RootLayout({
 }) {
   return (
     <html lang="en" className={`${geistSans.variable} ${geistMono.variable}`}>
-      <body className="min-h-screen bg-background text-foreground font-sans">
+      <body className="min-h-screen bg-background text-foreground font-sans antialiased">
         {children}
       </body>
     </html>
