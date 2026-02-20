@@ -4,7 +4,7 @@ import { useState, useCallback, useRef, useEffect } from "react";
 import useSWR from "swr";
 import { PostsList } from "@/components/posts-list";
 import { ScriptEditor } from "@/components/script-editor";
-import { StyleAgent } from "@/components/style-agent";
+import { StyleAgent, type StyleHistoryEntry } from "@/components/style-agent";
 import { VoiceSettings, type VoiceConfig } from "@/components/voice-settings";
 import { VersionsList } from "@/components/versions-list";
 import { WaveformPlayer } from "@/components/waveform-player";
@@ -87,6 +87,10 @@ export default function HomePage() {
   const [isSummarizing, setIsSummarizing] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [voiceConfig, setVoiceConfig] = useState<VoiceConfig>(DEFAULT_VOICE_CONFIG);
+  const [styleHistory, setStyleHistory] = useState<StyleHistoryEntry[]>([]);
+  const [historyOpen, setHistoryOpen] = useState(false);
+  const [selectedHistoryScript, setSelectedHistoryScript] = useState<string | null>(null);
+  const historyRef = useRef<HTMLDivElement>(null);
 
   // Data
   const { data: historyData, mutate: mutateHistory } = useSWR<{ entries: BlogAudio[] }>("/api/history", fetcher);
@@ -499,6 +503,65 @@ export default function HomePage() {
                   <span className="text-sm font-semibold tracking-tight">Voice Over</span>
                   <span className="text-[10px] font-mono text-accent bg-accent/10 px-1.5 py-0.5 rounded">Styled</span>
                 </div>
+                {/* History dropdown */}
+                <div className="relative" ref={historyRef}>
+                  <button
+                    onClick={() => setHistoryOpen(prev => !prev)}
+                    className={`flex items-center gap-1.5 text-xs transition-colors focus-ring rounded px-2 py-1 ${
+                      styleHistory.length > 0
+                        ? "text-muted hover:text-foreground"
+                        : "text-muted/40 cursor-default"
+                    }`}
+                    disabled={styleHistory.length === 0}
+                  >
+                    <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" aria-hidden="true">
+                      <circle cx="12" cy="12" r="10" />
+                      <polyline points="12 6 12 12 16 14" />
+                    </svg>
+                    <span>History</span>
+                    {styleHistory.length > 0 && (
+                      <span className="text-[10px] font-mono text-accent bg-accent/10 px-1 py-0.5 rounded">{styleHistory.length}</span>
+                    )}
+                  </button>
+                  {historyOpen && styleHistory.length > 0 && (
+                    <>
+                      {/* Backdrop */}
+                      <div className="fixed inset-0 z-40" onClick={() => setHistoryOpen(false)} />
+                      {/* Dropdown */}
+                      <div className="absolute right-0 top-full mt-1 z-50 w-72 max-h-64 overflow-y-auto rounded-lg border border-border bg-surface-1 shadow-lg">
+                        <div className="px-3 py-2 border-b border-border">
+                          <p className="text-[11px] font-medium text-muted">Previous Generations</p>
+                        </div>
+                        {styleHistory.map((entry) => (
+                          <button
+                            key={entry.id}
+                            onClick={() => {
+                              setSelectedHistoryScript(entry.script);
+                              setStyledScript(entry.script);
+                              setHistoryOpen(false);
+                            }}
+                            className="w-full text-left px-3 py-2.5 hover:bg-surface-2 transition-colors border-b border-border last:border-b-0 group"
+                          >
+                            <div className="flex items-center justify-between gap-2 mb-1">
+                              <span className="text-[10px] font-medium text-accent bg-accent/10 px-1.5 py-0.5 rounded truncate max-w-[160px]">
+                                {entry.vibe.length > 30 ? entry.vibe.slice(0, 30) + "..." : entry.vibe}
+                              </span>
+                              <span className="text-[10px] text-muted font-mono tabular-nums flex-shrink-0">
+                                {entry.wordCount}w
+                              </span>
+                            </div>
+                            <p className="text-[11px] text-muted-foreground line-clamp-2 leading-relaxed">
+                              {entry.script.slice(0, 120)}...
+                            </p>
+                            <p className="text-[10px] text-muted mt-1">
+                              {entry.timestamp.toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" })}
+                            </p>
+                          </button>
+                        ))}
+                      </div>
+                    </>
+                  )}
+                </div>
               </div>
               {/* Style / Vibe buttons */}
               <div className="flex items-center gap-1 px-3 py-1.5 border-b border-border flex-shrink-0 overflow-x-auto">
@@ -539,6 +602,8 @@ export default function HomePage() {
                   isGeneratingAudio={isGenerating}
                   onGenerateAudio={handleGenerateFromStyled}
                   onStyledScriptChange={setStyledScript}
+                  onHistoryChange={setStyleHistory}
+                  externalScript={selectedHistoryScript}
                   styleVibe={voiceConfig.styleVibe}
                 />
               </div>

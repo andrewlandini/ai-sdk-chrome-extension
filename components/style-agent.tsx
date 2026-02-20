@@ -1,6 +1,14 @@
 "use client";
 
-import { useState, useCallback } from "react";
+import { useState, useCallback, useRef, useEffect } from "react";
+
+interface HistoryEntry {
+  id: number;
+  script: string;
+  vibe: string;
+  timestamp: Date;
+  wordCount: number;
+}
 
 interface StyleAgentProps {
   sourceScript: string;
@@ -8,23 +16,43 @@ interface StyleAgentProps {
   isGeneratingAudio: boolean;
   onGenerateAudio: (styledScript: string) => void;
   onStyledScriptChange?: (script: string) => void;
+  onHistoryChange?: (history: HistoryEntry[]) => void;
+  externalScript?: string | null;
   styleVibe?: string;
 }
+
+export type { HistoryEntry as StyleHistoryEntry };
 
 export function StyleAgent({
   sourceScript,
   isGeneratingAudio,
   onGenerateAudio,
   onStyledScriptChange,
+  onHistoryChange,
+  externalScript,
   styleVibe = "",
 }: StyleAgentProps) {
   const styleInstructions = styleVibe;
   const [styledScript, setStyledScript] = useState("");
   const [isRunning, setIsRunning] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [history, setHistory] = useState<HistoryEntry[]>([]);
+  const nextId = useRef(1);
 
   const wordCount = styledScript.trim().split(/\s+/).filter(Boolean).length;
   const charCount = styledScript.length;
+
+  // Notify parent of history changes
+  useEffect(() => {
+    onHistoryChange?.(history);
+  }, [history, onHistoryChange]);
+
+  // Sync when parent pushes a script from history selection
+  useEffect(() => {
+    if (externalScript != null && externalScript !== styledScript) {
+      setStyledScript(externalScript);
+    }
+  }, [externalScript]);
 
   const handleRunAgent = useCallback(async () => {
     if (!sourceScript.trim()) return;
@@ -43,12 +71,27 @@ export function StyleAgent({
       if (!res.ok) throw new Error(data.error || "Style agent failed");
       setStyledScript(data.styledScript);
       onStyledScriptChange?.(data.styledScript);
+
+      // Add to history
+      const entry: HistoryEntry = {
+        id: nextId.current++,
+        script: data.styledScript,
+        vibe: styleInstructions || "Default",
+        timestamp: new Date(),
+        wordCount: data.styledScript.trim().split(/\s+/).filter(Boolean).length,
+      };
+      setHistory(prev => [entry, ...prev]);
     } catch (err) {
       setError(err instanceof Error ? err.message : "Failed to style script");
     } finally {
       setIsRunning(false);
     }
   }, [sourceScript, styleInstructions]);
+
+  const loadFromHistory = useCallback((entry: HistoryEntry) => {
+    setStyledScript(entry.script);
+    onStyledScriptChange?.(entry.script);
+  }, [onStyledScriptChange]);
 
   return (
     <div className="flex flex-col h-full">
