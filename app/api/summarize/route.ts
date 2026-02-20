@@ -26,7 +26,7 @@ export async function POST(request: Request) {
     // 2. Active preset from the database
     // 3. Hardcoded fallback
     let systemPrompt: string;
-    let selectedModel: string = requestModel || "openai/gpt-4o-mini";
+    let selectedModel: string = requestModel || "openai/gpt-4o";
 
     if (testMode && customTestPrompt) {
       systemPrompt = customTestPrompt;

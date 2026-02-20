@@ -41,7 +41,7 @@ export function PromptEditorModal({ open, onClose }: PromptEditorModalProps) {
   const [name, setName] = useState("");
   const [systemPrompt, setSystemPrompt] = useState("");
   const [testPrompt, setTestPrompt] = useState("");
-  const [model, setModel] = useState("openai/gpt-4o-mini");
+  const [model, setModel] = useState("openai/gpt-4o");
   const [isSaving, setIsSaving] = useState(false);
   const [message, setMessage] = useState<string | null>(null);
   const dialogRef = useRef<HTMLDialogElement>(null);
@@ -62,7 +62,7 @@ export function PromptEditorModal({ open, onClose }: PromptEditorModalProps) {
       setName(def.name);
       setSystemPrompt(def.system_prompt);
       setTestPrompt(def.test_prompt);
-      setModel(def.model || "openai/gpt-4o-mini");
+      setModel(def.model || "openai/gpt-4o");
     }
   }, [presets, selectedId]);
 
@@ -71,7 +71,7 @@ export function PromptEditorModal({ open, onClose }: PromptEditorModalProps) {
     setName(preset.name);
     setSystemPrompt(preset.system_prompt);
     setTestPrompt(preset.test_prompt);
-    setModel(preset.model || "openai/gpt-4o-mini");
+    setModel(preset.model || "openai/gpt-4o");
     setMessage(null);
   }, []);
 
@@ -173,7 +173,7 @@ export function PromptEditorModal({ open, onClose }: PromptEditorModalProps) {
     setName("");
     setSystemPrompt("");
     setTestPrompt("");
-    setModel("openai/gpt-4o-mini");
+    setModel("openai/gpt-4o");
     setMessage(null);
   }, []);
 

@@ -156,7 +156,7 @@ export async function insertPromptPreset(data: {
 }): Promise<PromptPreset> {
   const rows = await sql`
     INSERT INTO prompt_presets (name, system_prompt, test_prompt, model, is_default)
-    VALUES (${data.name}, ${data.system_prompt}, ${data.test_prompt}, ${data.model ?? "openai/gpt-4o-mini"}, ${data.is_default ?? false})
+    VALUES (${data.name}, ${data.system_prompt}, ${data.test_prompt}, ${data.model ?? "openai/gpt-4o"}, ${data.is_default ?? false})
     RETURNING *
   `;
   return rows[0] as PromptPreset;
