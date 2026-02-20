@@ -1,20 +1,20 @@
 @import "tailwindcss";
 
 @theme inline {
-  /* Surfaces */
+  /* Surfaces -- stepped up for visible contrast */
   --color-background: #000000;
   --color-foreground: #ededed;
-  --color-surface-1: #0a0a0a;
-  --color-surface-2: #111111;
-  --color-surface-3: #171717;
+  --color-surface-1: #111111;
+  --color-surface-2: #1a1a1a;
+  --color-surface-3: #252525;
 
-  /* Borders */
-  --color-border: #262626;
-  --color-border-hover: #393939;
+  /* Borders -- brighter so cards are clearly defined */
+  --color-border: #333333;
+  --color-border-hover: #555555;
 
   /* Text */
-  --color-muted: #888888;
-  --color-muted-foreground: #555555;
+  --color-muted: #999999;
+  --color-muted-foreground: #666666;
 
   /* Accents */
   --color-accent: #0070f3;
@@ -27,7 +27,7 @@
   --color-success: #46a758;
 
   /* Waveform */
-  --color-waveform-base: #262626;
+  --color-waveform-base: #333333;
   --color-waveform-played: #ededed;
 
   /* Fonts */
