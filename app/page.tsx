@@ -216,8 +216,8 @@ export default function HomePage() {
       {/* ── Three-column layout ── */}
       <div className="flex-1 flex overflow-hidden">
 
-        {/* Column 1: Posts list */}
-        <aside className="w-[320px] flex-shrink-0 border-r border-border overflow-hidden bg-surface-1">
+        {/* Column 1: Posts list (50%+) */}
+        <aside className="w-1/2 min-w-0 flex-shrink-0 border-r border-border overflow-hidden bg-surface-1">
           <PostsList
             entries={entries}
             selectedUrl={scriptUrl}
@@ -229,8 +229,8 @@ export default function HomePage() {
         </aside>
 
         {/* Column 2: Generator */}
-        <main className="flex-1 overflow-y-auto">
-          <div className="max-w-[780px] mx-auto px-6 py-4 flex flex-col gap-3">
+        <main className="flex-1 min-w-0 overflow-y-auto">
+          <div className="w-full px-5 py-4 flex flex-col gap-3">
             {!scriptUrl ? (
               <div className="flex items-center justify-center h-full min-h-[120px]">
                 <p className="text-xs text-muted-foreground">Select a blog post or paste a URL above</p>
@@ -325,8 +325,8 @@ export default function HomePage() {
         </main>
 
         {/* Column 3: Voice settings */}
-        <aside className="w-[300px] flex-shrink-0 border-l border-border overflow-y-auto bg-surface-1">
-          <div className="p-4">
+        <aside className="w-[260px] flex-shrink-0 border-l border-border overflow-y-auto bg-surface-1">
+          <div className="p-3">
             <VoiceSettings config={voiceConfig} onChange={setVoiceConfig} />
           </div>
         </aside>
