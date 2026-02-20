@@ -59,7 +59,11 @@ function useProductName() {
   return { name, fading, advance };
 }
 
-const fetcher = (url: string) => fetch(url).then((r) => r.json());
+const fetcher = async (url: string) => {
+  const res = await fetch(url);
+  if (!res.ok) throw new Error(`Fetch failed: ${res.status}`);
+  return res.json();
+};
 
 type CreditsData = {
   tier: string;
@@ -188,6 +192,14 @@ function HomePage() {
   const entries = historyData?.entries ?? [];
 
   // ── Poll for active generation job ──
+  // Use refs for SWR mutators to keep startJobPoll stable
+  const mutateHistoryRef = useRef(mutateHistory);
+  const mutateVersionsRef = useRef(mutateVersions);
+  const mutateCreditsRef = useRef(mutateCredits);
+  useEffect(() => { mutateHistoryRef.current = mutateHistory; }, [mutateHistory]);
+  useEffect(() => { mutateVersionsRef.current = mutateVersions; }, [mutateVersions]);
+  useEffect(() => { mutateCreditsRef.current = mutateCredits; }, [mutateCredits]);
+
   const startJobPoll = useCallback((jobId: number) => {
     if (jobPollRef.current) clearInterval(jobPollRef.current);
     setIsGenerating(true);
@@ -196,6 +208,7 @@ function HomePage() {
     jobPollRef.current = setInterval(async () => {
       try {
         const res = await fetch(`/api/generation-jobs?jobId=${jobId}`);
+        if (!res.ok) return;
         const data = await res.json();
         const job = data.job;
         if (!job) return;
@@ -208,9 +221,9 @@ function HomePage() {
           setIsGenerating(false);
           setGenerateStatus("");
           setActiveJobId(null);
-          mutateHistory();
-          mutateVersions();
-          mutateCredits();
+          mutateHistoryRef.current();
+          mutateVersionsRef.current();
+          mutateCreditsRef.current();
           // If the job produced an entry, auto-select it
           if (job.result_entry_id) {
             const histData = await fetch("/api/history").then((r) => r.json());
@@ -232,7 +245,7 @@ function HomePage() {
         // Ignore poll errors, keep trying
       }
     }, 2000);
-  }, [mutateHistory, mutateVersions, mutateCredits]);
+  }, []);
 
   // Restore active job on mount
   useEffect(() => {
@@ -429,12 +442,12 @@ function HomePage() {
         mutateCredits();
       }
       setActiveJobId(null);
-  } catch (err) {
-  setError(err instanceof Error ? err.message : "An unexpected error occurred");
-  } finally {
-  setIsGenerating(false);
-  setGenerateStatus("");
-  setActiveJobId(null);
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "An unexpected error occurred");
+    } finally {
+      setIsGenerating(false);
+      setGenerateStatus("");
+      setActiveJobId(null);
     }
   }, [scriptUrl, scriptTitle, voiceConfig, mutateHistory, mutateVersions, mutateCredits, isGenerating]);
 
