@@ -369,42 +369,37 @@ export default function HomePage() {
 
           {/* Generator panel -- always visible, empty when nothing selected */}
           <div className="flex-1 min-w-0 flex flex-col overflow-hidden">
-            {/* Top: header + script + style (scrollable) */}
-            <div className="flex-1 min-h-0 overflow-y-auto px-5 pt-4 pb-2 flex flex-col gap-3 border-b border-border">
-              {/* Selected post header */}
+            {/* Column header */}
+            <div className="flex items-center justify-between px-3 py-2 border-b border-border flex-shrink-0">
+              <div className="flex items-center gap-2">
+                <span className="text-xs font-medium">Generator</span>
+                {scriptTitle && (
+                  <span className="text-[10px] text-muted font-mono truncate max-w-[300px]">{scriptTitle}</span>
+                )}
+              </div>
               {scriptUrl && (
-                <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3">
-                  <div className="min-w-0 flex-1">
-                    <h2 className="text-sm font-semibold tracking-tight truncate">{scriptTitle || "Untitled"}</h2>
-                    <a
-                      href={scriptUrl}
-                      target="_blank"
-                      rel="noopener noreferrer"
-                      className="text-[11px] text-muted font-mono truncate block hover:text-accent transition-colors"
-                    >
-                      {scriptUrl}
-                    </a>
-                  </div>
-                  <button
-                    onClick={handleGenerateScript}
-                    disabled={isSummarizing}
-                    className="flex items-center gap-2 h-8 rounded-md bg-surface-2 border border-border text-foreground px-3 text-xs font-medium transition-colors hover:bg-surface-3 disabled:opacity-40 disabled:cursor-not-allowed focus-ring flex-shrink-0"
-                  >
-                    {isSummarizing ? (
-                      <>
-                        <svg className="animate-spin" width="12" height="12" viewBox="0 0 24 24" fill="none" aria-hidden="true">
-                          <circle cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="2" strokeOpacity="0.2" />
-                          <path d="M12 2a10 10 0 0 1 10 10" stroke="currentColor" strokeWidth="2" strokeLinecap="round" />
-                        </svg>
-                        <span>Generating...</span>
-                      </>
-                    ) : (
-                      <span>{script ? "Regenerate Script" : "Generate Script"}</span>
-                    )}
-                  </button>
-                </div>
+                <button
+                  onClick={handleGenerateScript}
+                  disabled={isSummarizing}
+                  className="flex items-center gap-1.5 text-xs text-muted hover:text-foreground transition-colors focus-ring rounded px-2 py-1 disabled:opacity-50 disabled:cursor-not-allowed flex-shrink-0"
+                >
+                  {isSummarizing ? (
+                    <>
+                      <svg className="animate-spin" width="11" height="11" viewBox="0 0 24 24" fill="none" aria-hidden="true">
+                        <circle cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="2" strokeOpacity="0.2" />
+                        <path d="M12 2a10 10 0 0 1 10 10" stroke="currentColor" strokeWidth="2" strokeLinecap="round" />
+                      </svg>
+                      <span>Generating...</span>
+                    </>
+                  ) : (
+                    <span>{script ? "Regenerate" : "Generate Script"}</span>
+                  )}
+                </button>
               )}
+            </div>
 
+            {/* Scrollable content: script + style */}
+            <div className="flex-1 min-h-0 overflow-y-auto px-5 pt-4 pb-2 flex flex-col gap-4 border-b border-border">
               {/* Error */}
               {error && (
                 <div className="flex items-center gap-2 text-xs text-destructive border border-destructive/20 bg-destructive/5 rounded-md px-3 py-2" role="alert">
@@ -415,23 +410,29 @@ export default function HomePage() {
                 </div>
               )}
 
-              {/* Script editor -- always visible */}
-              <ScriptEditor
-                script={script}
-                title={scriptTitle}
-                isLoading={isGenerating}
-                onScriptChange={setScript}
-                onGenerate={handleGenerateAudio}
-              />
+              {/* Script Agent */}
+              <div className="flex flex-col gap-2">
+                <h3 className="text-[10px] text-muted-foreground uppercase tracking-wider font-medium">Script Agent</h3>
+                <ScriptEditor
+                  script={script}
+                  title={scriptTitle}
+                  isLoading={isGenerating}
+                  onScriptChange={setScript}
+                  onGenerate={handleGenerateAudio}
+                />
+              </div>
 
-              {/* Style agent -- always visible */}
-              <StyleAgent
-                sourceScript={script}
-                onUseStyledScript={setScript}
-                isGeneratingAudio={isGenerating}
-                onGenerateAudio={handleGenerateFromStyled}
-                styleVibe={voiceConfig.styleVibe}
-              />
+              {/* Style Agent */}
+              <div className="flex flex-col gap-2">
+                <h3 className="text-[10px] text-muted-foreground uppercase tracking-wider font-medium">Style Agent</h3>
+                <StyleAgent
+                  sourceScript={script}
+                  onUseStyledScript={setScript}
+                  isGeneratingAudio={isGenerating}
+                  onGenerateAudio={handleGenerateFromStyled}
+                  styleVibe={voiceConfig.styleVibe}
+                />
+              </div>
             </div>
 
             {/* Middle: player */}
