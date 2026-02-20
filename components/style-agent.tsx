@@ -155,23 +155,42 @@ export function StyleAgent({
             ? <span>Vibe: <span className="text-muted-foreground">{styleInstructions}</span></span>
             : "Adds Audio Tags to the script."}
         </p>
-        <button
-          onClick={handleRunAgent}
-          disabled={isRunning || !sourceScript.trim()}
-          className="flex items-center justify-center gap-2 h-7 rounded-md bg-accent text-primary-foreground px-3 text-xs font-medium transition-colors hover:bg-accent-hover disabled:opacity-40 disabled:cursor-not-allowed focus-ring flex-shrink-0"
-        >
-          {isRunning ? (
-            <>
-              <svg className="animate-spin" width="12" height="12" viewBox="0 0 24 24" fill="none" aria-hidden="true">
-                <circle cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="2" strokeOpacity="0.2" />
-                <path d="M12 2a10 10 0 0 1 10 10" stroke="currentColor" strokeWidth="2" strokeLinecap="round" />
-              </svg>
-              <span>Styling...</span>
-            </>
-          ) : (
-            <span>Style Script</span>
-          )}
-        </button>
+        <div className="flex items-center gap-2 flex-shrink-0">
+          <button
+            onClick={handleRunAgent}
+            disabled={isRunning || !sourceScript.trim()}
+            className="flex items-center justify-center gap-2 h-7 rounded-md bg-accent text-primary-foreground px-3 text-xs font-medium transition-colors hover:bg-accent-hover disabled:opacity-40 disabled:cursor-not-allowed focus-ring flex-shrink-0"
+          >
+            {isRunning ? (
+              <>
+                <svg className="animate-spin" width="12" height="12" viewBox="0 0 24 24" fill="none" aria-hidden="true">
+                  <circle cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="2" strokeOpacity="0.2" />
+                  <path d="M12 2a10 10 0 0 1 10 10" stroke="currentColor" strokeWidth="2" strokeLinecap="round" />
+                </svg>
+                <span>Styling...</span>
+              </>
+            ) : (
+              <span>Style Script</span>
+            )}
+          </button>
+          <button
+            onClick={() => { if (styledScript.trim()) onGenerateAudio(styledScript); }}
+            disabled={isGeneratingAudio || !styledScript.trim()}
+            className="flex items-center justify-center gap-2 h-7 rounded-md border border-accent text-accent px-3 text-xs font-medium transition-colors hover:bg-accent/10 disabled:opacity-40 disabled:cursor-not-allowed focus-ring flex-shrink-0"
+          >
+            {isGeneratingAudio ? (
+              <>
+                <svg className="animate-spin" width="12" height="12" viewBox="0 0 24 24" fill="none" aria-hidden="true">
+                  <circle cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="2" strokeOpacity="0.2" />
+                  <path d="M12 2a10 10 0 0 1 10 10" stroke="currentColor" strokeWidth="2" strokeLinecap="round" />
+                </svg>
+                <span>Generating...</span>
+              </>
+            ) : (
+              <span>Generate Audio</span>
+            )}
+          </button>
+        </div>
       </div>
 
       {/* Error */}

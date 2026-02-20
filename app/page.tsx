@@ -585,27 +585,6 @@ export default function HomePage() {
                 <span className="text-sm font-semibold tracking-tight">Audio Versions</span>
                 <span className="text-[10px] font-mono text-accent bg-accent/10 px-1.5 py-0.5 rounded">{versions.length}</span>
               </div>
-              <button
-                onClick={() => {
-                  if (styledScript.trim()) {
-                    handleGenerateFromStyled(styledScript);
-                  }
-                }}
-                disabled={isGenerating || !styledScript.trim()}
-                className="flex items-center justify-center gap-2 h-7 rounded-md bg-accent text-primary-foreground px-3 text-xs font-medium transition-colors hover:bg-accent-hover disabled:opacity-40 disabled:cursor-not-allowed focus-ring flex-shrink-0"
-              >
-                {isGenerating ? (
-                  <>
-                    <svg className="animate-spin" width="12" height="12" viewBox="0 0 24 24" fill="none" aria-hidden="true">
-                      <circle cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="2" strokeOpacity="0.2" />
-                      <path d="M12 2a10 10 0 0 1 10 10" stroke="currentColor" strokeWidth="2" strokeLinecap="round" />
-                    </svg>
-                    <span>Generating...</span>
-                  </>
-                ) : (
-                  <span>Generate Audio</span>
-                )}
-              </button>
             </div>
             {isGenerating && generateStatus && (
               <div className="px-3 py-1.5 border-b border-border bg-accent/5">
