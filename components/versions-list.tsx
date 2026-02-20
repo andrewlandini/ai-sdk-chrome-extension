@@ -38,6 +38,27 @@ const VOICE_NAMES: Record<string, string> = {
   iP95p4xoKVk53GoZ742B: "Chris",
 };
 
+// Map full vibe description values to short display names
+const VIBE_PRESETS: { keyword: string; name: string }[] = [
+  { keyword: "frustrated voice actor", name: "Unhinged" },
+  { keyword: "Confident and genuinely excited", name: "Confident" },
+  { keyword: "Calm, measured narrator", name: "Calm" },
+  { keyword: "Friendly podcast host", name: "Podcast" },
+  { keyword: "Professional news anchor", name: "Newscast" },
+  { keyword: "Engaging storyteller", name: "Storyteller" },
+  { keyword: "Minimal, understated", name: "Minimal" },
+];
+
+function getVibeLabel(summary: string | null): string {
+  if (!summary) return "--";
+  for (const preset of VIBE_PRESETS) {
+    if (summary.includes(preset.keyword)) return preset.name;
+  }
+  // Check if summary has style agent markers (audio tags like <break>)
+  if (summary.includes("<break") || summary.includes("<prosody") || summary.includes("<emphasis")) return "Styled";
+  return "--";
+}
+
 export function VersionsList({
   versions,
   activeId,
@@ -52,7 +73,7 @@ export function VersionsList({
       {/* Column headers -- matching PostsList style */}
       <div className="flex items-center h-7 px-3 border-b border-border text-[10px] text-muted-foreground uppercase tracking-wider font-medium select-none bg-surface-2/50">
         <span className="w-5 flex-shrink-0" />
-        <span className="flex-1 min-w-0">Label</span>
+        <span className="flex-1 min-w-0">Filename</span>
         <span className="w-16 flex-shrink-0 text-center">Voice</span>
         <span className="w-12 flex-shrink-0 text-center">Stability</span>
         <span className="w-12 flex-shrink-0 text-center">Vibe</span>
@@ -102,8 +123,8 @@ export function VersionsList({
               </span>
 
               {/* Vibe */}
-              <span className="w-12 flex-shrink-0 text-center text-[10px] text-muted-foreground truncate" title={v.label?.includes("styled") ? "Styled" : ""}>
-                {v.label?.includes("styled") ? "Yes" : "--"}
+              <span className="w-12 flex-shrink-0 text-center text-[10px] text-muted-foreground truncate" title={getVibeLabel(v.summary)}>
+                {getVibeLabel(v.summary)}
               </span>
 
               {/* Age */}
