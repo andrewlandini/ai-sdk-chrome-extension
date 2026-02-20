@@ -515,20 +515,14 @@ export default function HomePage() {
 
             {/* Player -- always visible */}
             <div className="flex-shrink-0 border-t border-border px-4 py-3">
-              {activeEntry ? (
-                <WaveformPlayer
-                  key={activeEntry.id}
-                  audioUrl={activeEntry.audio_url}
-                  title={activeEntry.title || "Untitled"}
-                  summary={activeEntry.summary || ""}
-                  url={activeEntry.url}
-                  autoplay={autoplay}
-                />
-              ) : (
-                <div className="flex items-center justify-center h-10 text-[11px] text-muted">
-                  No audio selected
-                </div>
-              )}
+              <WaveformPlayer
+                key={activeEntry?.id ?? "idle"}
+                audioUrl={activeEntry?.audio_url}
+                title={activeEntry?.title || undefined}
+                summary={activeEntry?.summary || undefined}
+                url={activeEntry?.url}
+                autoplay={autoplay}
+              />
             </div>
           </aside>
         </>
@@ -603,20 +597,14 @@ export default function HomePage() {
 
           {/* Player -- always visible */}
           <div className="flex-shrink-0 border-t border-border px-4 py-3">
-            {activeEntry ? (
-              <WaveformPlayer
-                key={activeEntry.id}
-                audioUrl={activeEntry.audio_url}
-                title={activeEntry.title || "Untitled"}
-                summary={activeEntry.summary || ""}
-                url={activeEntry.url}
-                autoplay={autoplay}
-              />
-            ) : (
-              <div className="flex items-center justify-center h-10 text-[11px] text-muted">
-                No audio selected
-              </div>
-            )}
+            <WaveformPlayer
+              key={activeEntry?.id ?? "idle"}
+              audioUrl={activeEntry?.audio_url}
+              title={activeEntry?.title || undefined}
+              summary={activeEntry?.summary || undefined}
+              url={activeEntry?.url}
+              autoplay={autoplay}
+            />
           </div>
         </aside>
 
