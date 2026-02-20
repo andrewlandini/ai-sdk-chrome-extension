@@ -1,4 +1,5 @@
 import { generateText } from "ai";
+import { getActivePromptPreset } from "@/lib/db";
 
 export const maxDuration = 120;
 
@@ -49,8 +50,12 @@ export async function POST(request: Request) {
       ? `The user wants the following style/vibe applied:\n"${styleInstructions}"\n\nHere is the script to style:\n\n${script}`
       : `Apply natural, engaging performance direction to this script:\n\n${script}`;
 
+    // Use per-preset model if configured
+    const activePreset = await getActivePromptPreset();
+    const styleModel = activePreset?.style_agent_model || "openai/gpt-4o";
+
     const { text: styledScript } = await generateText({
-      model: "openai/gpt-4o",
+      model: styleModel,
       system: SYSTEM_PROMPT,
       prompt: userPrompt,
     });
