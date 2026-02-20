@@ -98,9 +98,6 @@ export function VoiceSettings({ config, onChange }: VoiceSettingsProps) {
   const usedPercent = credits
     ? Math.round((credits.characterCount / credits.characterLimit) * 100)
     : 0;
-  const remaining = credits
-    ? credits.characterLimit - credits.characterCount
-    : null;
 
   const handleSavePreset = async () => {
     if (!presetName.trim()) return;
@@ -142,22 +139,23 @@ export function VoiceSettings({ config, onChange }: VoiceSettingsProps) {
   };
 
   return (
-    <section className="flex flex-col gap-4" aria-labelledby="voice-heading">
-      {/* Header row */}
+    <section className="flex flex-col gap-5" aria-labelledby="voice-heading">
+      {/* Header */}
       <div className="flex items-center justify-between">
-        <h2 id="voice-heading" className="text-xs font-medium text-foreground uppercase tracking-wider">
-          Voice
-        </h2>
+        <div className="flex items-center gap-2">
+          <h2 id="voice-heading" className="text-sm font-semibold tracking-tight">Voice Settings</h2>
+          <span className="text-[10px] font-mono text-accent bg-accent/10 px-1.5 py-0.5 rounded">v3</span>
+        </div>
         <button
           onClick={() => update({ testMode: !config.testMode })}
           aria-pressed={config.testMode}
-          className={`flex items-center gap-1 h-6 px-2 rounded text-[10px] font-medium transition-all focus-ring ${
+          className={`flex items-center gap-1.5 h-7 px-2.5 rounded-md text-xs font-medium transition-all border focus-ring ${
             config.testMode
-              ? "bg-amber-500/15 text-amber-400 border border-amber-500/30"
-              : "bg-surface-2 text-muted border border-border hover:text-foreground"
+              ? "bg-amber-500/15 text-amber-400 border-amber-500/30"
+              : "bg-surface-2 text-muted border-border hover:text-foreground hover:border-border-hover"
           }`}
         >
-          <svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" aria-hidden="true">
+          <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" aria-hidden="true">
             <path d="M9 3h6l2 4H7L9 3Z" />
             <path d="M7 7v10a2 2 0 0 0 2 2h6a2 2 0 0 0 2-2V7" />
             <path d="M12 11v4" />
@@ -169,7 +167,8 @@ export function VoiceSettings({ config, onChange }: VoiceSettingsProps) {
       {/* Credits */}
       {credits && (
         <div className="flex items-center gap-3">
-          <div className="flex-1 h-1 rounded-full bg-surface-3 overflow-hidden">
+          <span className="text-xs text-muted-foreground">Credits</span>
+          <div className="flex-1 h-1.5 rounded-full bg-surface-3 overflow-hidden">
             <div
               className={`h-full rounded-full transition-all ${
                 usedPercent > 90 ? "bg-red-500" : usedPercent > 70 ? "bg-amber-500" : "bg-accent"
@@ -177,14 +176,15 @@ export function VoiceSettings({ config, onChange }: VoiceSettingsProps) {
               style={{ width: `${usedPercent}%` }}
             />
           </div>
-          <span className="text-[10px] text-muted-foreground font-mono tabular-nums flex-shrink-0">
-            {remaining?.toLocaleString()} left
+          <span className="text-xs text-muted-foreground font-mono tabular-nums flex-shrink-0">
+            {credits.characterCount.toLocaleString()} / {credits.characterLimit.toLocaleString()}
           </span>
+          <span className="text-[10px] text-muted-foreground">{credits.tier}</span>
         </div>
       )}
 
       {config.testMode && (
-        <div className="flex items-center gap-2 text-[10px] text-amber-400 bg-amber-500/10 border border-amber-500/20 rounded px-2.5 py-1.5">
+        <div className="flex items-center gap-2 text-xs text-amber-400 bg-amber-500/10 border border-amber-500/20 rounded-md px-3 py-2">
           <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" aria-hidden="true">
             <path d="M12 9v4m0 4h.01" />
             <path d="M10.29 3.86L1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0Z" />
@@ -193,112 +193,16 @@ export function VoiceSettings({ config, onChange }: VoiceSettingsProps) {
         </div>
       )}
 
-      {/* Voice list */}
-      <div className="flex flex-col gap-px">
-        {VOICES.map((v) => {
-          const isSelected = config.voiceId === v.id;
-          const isPlaying = playingVoiceId === v.id;
-          const hasPreview = !!previewUrls[v.id];
-
-          return (
-            <div
-              key={v.id}
-              className={`group flex items-center h-7 rounded transition-all ${
-                isSelected
-                  ? "bg-accent/12 text-accent"
-                  : "text-muted-foreground hover:text-foreground hover:bg-surface-2"
-              }`}
-            >
-              <button
-                onClick={(e) => {
-                  e.stopPropagation();
-                  if (hasPreview) handlePreview(v.id);
-                }}
-                aria-label={isPlaying ? `Stop ${v.name} preview` : `Preview ${v.name}`}
-                disabled={!hasPreview}
-                className={`flex items-center justify-center w-7 h-full flex-shrink-0 transition-colors focus-ring rounded-l ${
-                  !hasPreview
-                    ? "text-muted-foreground/20 cursor-default"
-                    : isPlaying
-                      ? "text-accent"
-                      : "text-muted-foreground hover:text-foreground"
-                }`}
-              >
-                {isPlaying ? (
-                  <svg width="9" height="9" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true">
-                    <rect x="6" y="4" width="4" height="16" rx="1" />
-                    <rect x="14" y="4" width="4" height="16" rx="1" />
-                  </svg>
-                ) : (
-                  <svg width="9" height="9" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true">
-                    <polygon points="5 3 19 12 5 21 5 3" />
-                  </svg>
-                )}
-              </button>
-              <button
-                onClick={() => update({ voiceId: v.id })}
-                aria-pressed={isSelected}
-                className="flex-1 min-w-0 flex items-center gap-2 pr-2.5 text-left focus-ring rounded-r h-full"
-              >
-                <span className={`text-[11px] font-medium ${isSelected ? "text-accent" : "text-foreground"}`}>{v.name}</span>
-                <span className="text-[10px] text-muted-foreground truncate">{v.desc}</span>
-              </button>
-            </div>
-          );
-        })}
-      </div>
-
-      <hr className="border-border" />
-
-      {/* Controls row */}
-      <div className="flex gap-3">
-        <div className="flex-1 flex flex-col gap-1">
-          <label htmlFor="version-label" className="text-[10px] text-muted-foreground font-medium uppercase tracking-wider">
-            Label
-          </label>
-          <input
-            id="version-label"
-            type="text"
-            value={config.label}
-            onChange={(e) => update({ label: e.target.value })}
-            placeholder="e.g. v1-warm"
-            className="h-7 bg-background border border-border rounded px-2 text-[11px] text-foreground font-mono placeholder:text-muted-foreground/30 transition-colors focus-ring"
-          />
-        </div>
-        <div className="w-28 flex flex-col gap-1">
-          <div className="flex items-center justify-between">
-            <label htmlFor="stability" className="text-[10px] text-muted-foreground font-medium uppercase tracking-wider">
-              Stability
-            </label>
-            <output className="text-[10px] text-foreground font-mono tabular-nums" htmlFor="stability">
-              {config.stability.toFixed(2)}
-            </output>
-          </div>
-          <input
-            id="stability"
-            type="range"
-            min="0"
-            max="1"
-            step="0.05"
-            value={config.stability}
-            onChange={(e) => update({ stability: parseFloat(e.target.value) })}
-            className="focus-ring rounded mt-0.5"
-          />
-        </div>
-      </div>
-
-      <hr className="border-border" />
-
       {/* Presets */}
-      <div className="flex flex-col gap-2">
+      <fieldset className="flex flex-col gap-2">
         <div className="flex items-center justify-between">
-          <span className="text-[10px] text-muted-foreground font-medium uppercase tracking-wider">Presets</span>
+          <legend className="text-xs text-muted font-medium">Presets</legend>
           {!showSaveInput && (
             <button
               onClick={() => setShowSaveInput(true)}
-              className="text-[10px] text-accent hover:text-accent/80 font-medium transition-colors focus-ring rounded"
+              className="text-xs text-accent hover:text-accent/80 font-medium transition-colors focus-ring rounded px-1"
             >
-              + Save
+              + Save current
             </button>
           )}
         </div>
@@ -310,30 +214,30 @@ export function VoiceSettings({ config, onChange }: VoiceSettingsProps) {
               value={presetName}
               onChange={(e) => setPresetName(e.target.value)}
               onKeyDown={(e) => e.key === "Enter" && handleSavePreset()}
-              placeholder="Name..."
+              placeholder="Preset name..."
               autoFocus
-              className="flex-1 h-7 bg-background border border-border rounded px-2 text-[11px] text-foreground placeholder:text-muted-foreground/30 focus-ring"
+              className="flex-1 h-8 bg-background border border-border rounded-md px-2.5 text-xs text-foreground placeholder:text-muted-foreground/40 focus-ring"
             />
             <button
               onClick={handleSavePreset}
               disabled={!presetName.trim() || isSaving}
-              className="h-7 px-2.5 rounded text-[10px] font-medium bg-foreground text-background hover:bg-foreground/90 disabled:opacity-40 disabled:cursor-not-allowed focus-ring"
+              className="h-8 px-3 rounded-md text-xs font-medium bg-foreground text-background hover:bg-foreground/90 disabled:opacity-40 disabled:cursor-not-allowed focus-ring"
             >
               {isSaving ? "..." : "Save"}
             </button>
             <button
               onClick={() => { setShowSaveInput(false); setPresetName(""); }}
-              className="h-7 px-1.5 rounded text-[10px] text-muted hover:text-foreground focus-ring"
+              className="h-8 px-2 rounded-md text-xs text-muted hover:text-foreground focus-ring"
             >
-              <svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" aria-hidden="true">
+              <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" aria-hidden="true">
                 <path d="M18 6L6 18M6 6l12 12" />
               </svg>
             </button>
           </div>
         )}
 
-        {presets.length > 0 ? (
-          <div className="flex flex-col gap-0.5">
+        {presets.length > 0 && (
+          <div className="flex flex-col gap-1">
             {presets.map((preset) => {
               const isActive =
                 config.voiceId === preset.voice_id &&
@@ -342,26 +246,24 @@ export function VoiceSettings({ config, onChange }: VoiceSettingsProps) {
               return (
                 <div
                   key={preset.id}
-                  className={`group flex items-center gap-2 rounded px-2.5 py-1.5 transition-colors ${
+                  className={`group flex items-center gap-2 rounded-md px-3 py-2 transition-colors cursor-pointer ${
                     isActive
                       ? "bg-accent/10 border border-accent/20"
                       : "bg-surface-2 border border-transparent hover:border-border-hover"
                   }`}
+                  onClick={() => handleLoadPreset(preset)}
                 >
-                  <button
-                    onClick={() => handleLoadPreset(preset)}
-                    className="flex-1 text-left focus-ring rounded"
-                  >
-                    <span className={`text-[11px] font-medium ${isActive ? "text-accent" : "text-foreground"}`}>
+                  <div className="flex-1 min-w-0">
+                    <span className={`text-xs font-medium block ${isActive ? "text-accent" : "text-foreground"}`}>
                       {preset.name}
                     </span>
-                    <span className="block text-[9px] text-muted-foreground font-mono mt-0.5">
-                      {getVoiceName(preset.voice_id)} / {preset.stability.toFixed(2)}
+                    <span className="text-[10px] text-muted-foreground font-mono">
+                      {getVoiceName(preset.voice_id)} / stability {preset.stability.toFixed(2)}
                     </span>
-                  </button>
+                  </div>
                   <button
-                    onClick={() => handleDeletePreset(preset.id, preset.name)}
-                    className="opacity-0 group-hover:opacity-100 h-5 w-5 flex items-center justify-center rounded text-muted hover:text-destructive transition-all focus-ring"
+                    onClick={(e) => { e.stopPropagation(); handleDeletePreset(preset.id, preset.name); }}
+                    className="opacity-0 group-hover:opacity-100 h-6 w-6 flex items-center justify-center rounded text-muted hover:text-destructive transition-all focus-ring"
                     aria-label={`Delete preset ${preset.name}`}
                   >
                     <svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
@@ -372,10 +274,103 @@ export function VoiceSettings({ config, onChange }: VoiceSettingsProps) {
               );
             })}
           </div>
-        ) : (
-          <p className="text-[10px] text-muted-foreground">No presets saved yet.</p>
         )}
-      </div>
+      </fieldset>
+
+      {/* Version label */}
+      <fieldset className="flex flex-col gap-1.5">
+        <legend className="text-xs text-muted font-medium">Version Label</legend>
+        <input
+          type="text"
+          value={config.label}
+          onChange={(e) => update({ label: e.target.value })}
+          placeholder="e.g. v1-warm-slow"
+          className="h-8 bg-background border border-border rounded-md px-2.5 text-xs text-foreground font-mono placeholder:text-muted-foreground/40 transition-colors focus-ring"
+        />
+      </fieldset>
+
+      {/* Voice */}
+      <fieldset className="flex flex-col gap-2">
+        <legend className="text-xs text-muted font-medium">Voice</legend>
+        <div className="flex flex-col gap-0.5">
+          {VOICES.map((v) => {
+            const isSelected = config.voiceId === v.id;
+            const isPlaying = playingVoiceId === v.id;
+            const hasPreview = !!previewUrls[v.id];
+
+            return (
+              <div
+                key={v.id}
+                className={`group flex items-center h-8 rounded-md transition-all ${
+                  isSelected
+                    ? "bg-accent/15 border border-accent/30"
+                    : "hover:bg-surface-2"
+                }`}
+              >
+                {/* Preview button */}
+                <button
+                  onClick={(e) => {
+                    e.stopPropagation();
+                    if (hasPreview) handlePreview(v.id);
+                  }}
+                  aria-label={isPlaying ? `Stop ${v.name} preview` : `Preview ${v.name}`}
+                  disabled={!hasPreview}
+                  className={`flex items-center justify-center w-8 h-full flex-shrink-0 rounded-l-md transition-colors focus-ring ${
+                    !hasPreview
+                      ? "text-muted-foreground/20 cursor-default"
+                      : isPlaying
+                        ? "text-accent"
+                        : "text-muted-foreground hover:text-foreground"
+                  }`}
+                >
+                  {isPlaying ? (
+                    <svg width="11" height="11" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true">
+                      <rect x="6" y="4" width="4" height="16" rx="1" />
+                      <rect x="14" y="4" width="4" height="16" rx="1" />
+                    </svg>
+                  ) : (
+                    <svg width="11" height="11" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true">
+                      <polygon points="5 3 19 12 5 21 5 3" />
+                    </svg>
+                  )}
+                </button>
+                {/* Voice select button */}
+                <button
+                  onClick={() => update({ voiceId: v.id })}
+                  aria-pressed={isSelected}
+                  className="flex-1 min-w-0 flex items-center gap-3 pr-3 py-1 text-left focus-ring rounded-r-md h-full"
+                >
+                  <span className={`text-xs font-medium ${isSelected ? "text-accent" : "text-foreground"}`}>{v.name}</span>
+                  <span className="text-[10px] text-muted-foreground">{v.desc}</span>
+                </button>
+              </div>
+            );
+          })}
+        </div>
+      </fieldset>
+
+      {/* Stability */}
+      <fieldset className="flex flex-col gap-1.5">
+        <div className="flex items-center justify-between">
+          <legend className="text-xs text-muted font-medium">Stability</legend>
+          <output className="text-xs text-foreground font-mono tabular-nums">
+            {config.stability.toFixed(2)}
+          </output>
+        </div>
+        <input
+          type="range"
+          min="0"
+          max="1"
+          step="0.05"
+          value={config.stability}
+          onChange={(e) => update({ stability: parseFloat(e.target.value) })}
+          className="w-full focus-ring rounded"
+        />
+        <div className="flex justify-between text-[9px] text-muted-foreground -mt-0.5">
+          <span>Creative</span>
+          <span>Robust</span>
+        </div>
+      </fieldset>
     </section>
   );
 }

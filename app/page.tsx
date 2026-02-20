@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useCallback } from "react";
+import { useState, useCallback, useRef, useEffect } from "react";
 import useSWR from "swr";
 import { PostsList } from "@/components/posts-list";
 import { ScriptEditor } from "@/components/script-editor";
@@ -9,6 +9,53 @@ import { VersionsList } from "@/components/versions-list";
 import { WaveformPlayer } from "@/components/waveform-player";
 import { PromptEditorModal } from "@/components/prompt-editor-modal";
 import type { BlogAudio } from "@/lib/db";
+
+/* ── Product name rotation ── */
+const PRODUCT_NAMES = [
+  "Vercast","VerVox","EdgeEcho","ShipSpeak","v0Vox","ElevenForge","BlogBard",
+  "DeployDub","VoxVelocity","NarrateNet","SonicSail","PostPhonix","AudioAlchemist",
+  "WaveWeaver","ResonanceRunner","CastKernel","ElevenInk","EchoEmpire","VercelVibe",
+  "SynthSail","PodPulse","BlogBlitz","VocalVortex","FrontierForge","AetherAudio",
+  "SpeakSculptor","LightningLore","VerboCast","ElevenEmitter","AudioAnvil","VoxShip",
+  "SonicSilo","NarrateNexus","ShipSonics","PhonicPhoenix","LoreLauncher","EdgeEnvoi",
+  "VoiceVault","DeployDiction","ElevenExpress","BlogBeam","CastCrafter",
+  "ResonanceRelease","WaveWarp","TurboTalk","GeistGab","VoxVercel","DeployDialogue",
+  "EdgeEarworm","VercelVoiceForge",
+];
+
+function shuffleArray<T>(arr: T[]): T[] {
+  const a = [...arr];
+  for (let i = a.length - 1; i > 0; i--) {
+    const j = Math.floor(Math.random() * (i + 1));
+    [a[i], a[j]] = [a[j], a[i]];
+  }
+  return a;
+}
+
+function useProductName() {
+  const queue = useRef<string[]>([]);
+  const [name, setName] = useState("");
+  const [fading, setFading] = useState(false);
+
+  // Initialize with a random name on mount
+  useEffect(() => {
+    queue.current = shuffleArray(PRODUCT_NAMES);
+    setName(queue.current.pop()!);
+  }, []);
+
+  const advance = useCallback(() => {
+    setFading(true);
+    setTimeout(() => {
+      if (queue.current.length === 0) {
+        queue.current = shuffleArray(PRODUCT_NAMES);
+      }
+      setName(queue.current.pop()!);
+      setFading(false);
+    }, 150);
+  }, []);
+
+  return { name, fading, advance };
+}
 
 const fetcher = (url: string) => fetch(url).then((r) => r.json());
 
@@ -20,6 +67,7 @@ const DEFAULT_VOICE_CONFIG: VoiceConfig = {
 };
 
 export default function HomePage() {
+  const { name: productName, fading: nameFading, advance: advanceName } = useProductName();
   const [promptEditorOpen, setPromptEditorOpen] = useState(false);
   const [loadingScripts, setLoadingScripts] = useState(false);
   const [scriptProgress, setScriptProgress] = useState({ done: 0, total: 0 });
@@ -54,12 +102,13 @@ export default function HomePage() {
     setScriptTitle(title);
     setError(null);
     setActiveEntry(null);
+    advanceName();
 
     // Check if there's a cached script for this post
     const entry = entries.find((e) => e.url === url);
     const cachedScript = (entry as BlogAudio & { cached_script?: string | null })?.cached_script;
     setScript(cachedScript || "");
-  }, [entries]);
+  }, [entries, advanceName]);
 
   const handleGenerateScript = useCallback(async () => {
     if (!scriptUrl) return;
@@ -212,7 +261,11 @@ export default function HomePage() {
             <path d="M37.5274 0L75.0548 65H0L37.5274 0Z" />
           </svg>
           <span className="text-border select-none" aria-hidden="true">/</span>
-          <span className="text-sm font-medium">Blog Audio</span>
+          <span
+            className={`text-sm font-medium transition-opacity duration-150 ${nameFading ? "opacity-0" : "opacity-100"}`}
+          >
+            {productName}
+          </span>
         </div>
 
         {/* Spacer to push right items */}
