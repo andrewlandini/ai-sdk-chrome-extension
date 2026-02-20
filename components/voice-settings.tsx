@@ -354,16 +354,18 @@ export function VoiceSettings({ config, onChange }: VoiceSettingsProps) {
             {config.stability.toFixed(2)}
           </output>
         </div>
-        <input
-          type="range"
-          min="0"
-          max="1"
-          step="0.05"
-          value={config.stability}
-          onChange={(e) => update({ stability: parseFloat(e.target.value) })}
-          className="w-full focus-ring rounded"
-        />
-        <div className="flex justify-between text-[9px] text-muted-foreground -mt-0.5">
+        <div className="px-2">
+          <input
+            type="range"
+            min="0"
+            max="1"
+            step="0.05"
+            value={config.stability}
+            onChange={(e) => update({ stability: parseFloat(e.target.value) })}
+            className="w-full focus-ring rounded"
+          />
+        </div>
+        <div className="flex justify-between text-[9px] text-muted-foreground -mt-0.5 px-2">
           <span>Creative</span>
           <span>Robust</span>
         </div>
