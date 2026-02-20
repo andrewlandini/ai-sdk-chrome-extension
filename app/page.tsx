@@ -269,7 +269,7 @@ export default function HomePage() {
       <div className="flex-1 flex overflow-hidden">
 
         {/* Fixed posts sidebar */}
-        <aside className="hidden md:flex w-[320px] flex-shrink-0 border-r border-border bg-surface-1 flex-col overflow-hidden">
+        <aside className="hidden md:flex w-[640px] flex-shrink-0 border-r border-border bg-surface-1 flex-col overflow-hidden">
           <div className="flex items-center justify-between px-3 py-2 border-b border-border flex-shrink-0">
             <div className="flex items-center gap-2">
               <span className="text-xs font-medium">Blog Posts</span>

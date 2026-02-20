@@ -10,12 +10,12 @@
   --color-surface-4: #222222;
 
   /* Borders */
-  --color-border: #262626;
-  --color-border-hover: #3a3a3a;
+  --color-border: #2e2e2e;
+  --color-border-hover: #444444;
 
   /* Text */
-  --color-muted: #888888;
-  --color-muted-foreground: #777777;
+  --color-muted: #a0a0a0;
+  --color-muted-foreground: #999999;
 
   /* Accents */
   --color-accent: #0070f3;
@@ -29,7 +29,7 @@
   --color-warning: #f5a623;
 
   /* Waveform */
-  --color-waveform-base: #2a2a2a;
+  --color-waveform-base: #333333;
   --color-waveform-played: #ededed;
 
   /* Fonts */
