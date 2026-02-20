@@ -933,7 +933,7 @@ export default function HomePage() {
                 </div>
               </div>
               <div className="flex-1 overflow-y-auto p-4">
-                <VoiceSettings config={voiceConfig} onChange={setVoiceConfig} />
+                <VoiceSettings config={voiceConfig} onChange={setVoiceConfig} isGenerating={isGenerating} generateStatus={generateStatus} />
               </div>
 
             </aside>
