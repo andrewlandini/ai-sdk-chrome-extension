@@ -108,8 +108,17 @@ function HomePage() {
   const searchParams = useSearchParams();
   const router = useRouter();
   const { name: productName, fading: nameFading, advance: advanceName } = useProductName();
-  const { data: credits } = useSWR<CreditsData>("/api/credits", fetcher, { refreshInterval: 30000 });
-  const creditsPercent = credits ? Math.round((credits.characterCount / credits.characterLimit) * 100) : 0;
+  const { data: credits } = useSWR<CreditsData>("/api/credits", fetcher, {
+    refreshInterval: 60000,
+    dedupingInterval: 30000,
+    onErrorRetry: (err, _key, _config, revalidate, { retryCount }) => {
+      if (retryCount >= 3) return;
+      setTimeout(() => revalidate({ retryCount }), 30000 * (retryCount + 1));
+    },
+  });
+  const creditsPercent = credits?.characterCount != null && credits?.characterLimit
+    ? Math.round((credits.characterCount / credits.characterLimit) * 100)
+    : 0;
   const [promptEditorOpen, setPromptEditorOpen] = useState(false);
   const [contentFocused, setContentFocused] = useState(false);
   const [sidebarOpen, setSidebarOpen] = useState(false);
@@ -552,7 +561,7 @@ function HomePage() {
               />
             </div>
             <span className="text-[10px] text-muted font-mono tabular-nums hidden sm:inline">
-              {credits.characterCount.toLocaleString()}/{credits.characterLimit.toLocaleString()}
+              {(credits.characterCount ?? 0).toLocaleString()}/{(credits.characterLimit ?? 0).toLocaleString()}
             </span>
           </div>
         )}
