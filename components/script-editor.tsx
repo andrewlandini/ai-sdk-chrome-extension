@@ -5,7 +5,6 @@ interface ScriptEditorProps {
   title: string;
   isLoading: boolean;
   onScriptChange: (script: string) => void;
-  onGenerate: () => void;
 }
 
 export function ScriptEditor({
@@ -13,7 +12,6 @@ export function ScriptEditor({
   title,
   isLoading,
   onScriptChange,
-  onGenerate,
 }: ScriptEditorProps) {
   const wordCount = script.trim().split(/\s+/).filter(Boolean).length;
   const charCount = script.length;
@@ -51,27 +49,10 @@ export function ScriptEditor({
       />
 
       {/* Footer */}
-      <div className="border-t border-border px-4 py-3 flex items-center justify-between gap-4">
-        <p className="text-xs text-muted hidden sm:block">
-          Edit the script before generating. This text is sent directly to ElevenLabs.
+      <div className="border-t border-border px-4 py-2">
+        <p className="text-[11px] text-muted">
+          Source script from the blog post. Run the Style Agent below to add Audio Tags before generating.
         </p>
-        <button
-          onClick={onGenerate}
-          disabled={!script.trim() || isLoading}
-          className="ml-auto flex items-center justify-center gap-2 h-9 rounded-md bg-foreground text-background px-5 text-sm font-medium transition-colors hover:bg-foreground/90 disabled:opacity-40 disabled:cursor-not-allowed focus-ring"
-        >
-          {isLoading ? (
-            <>
-              <svg className="animate-spin" width="14" height="14" viewBox="0 0 24 24" fill="none" aria-hidden="true">
-                <circle cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="2" strokeOpacity="0.2" />
-                <path d="M12 2a10 10 0 0 1 10 10" stroke="currentColor" strokeWidth="2" strokeLinecap="round" />
-              </svg>
-              <span>Generating...</span>
-            </>
-          ) : (
-            <span>Generate Audio</span>
-          )}
-        </button>
       </div>
     </section>
   );

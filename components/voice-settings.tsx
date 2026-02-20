@@ -302,10 +302,10 @@ export function VoiceSettings({ config, onChange }: VoiceSettingsProps) {
             return (
               <div
                 key={v.id}
-                className={`group flex items-center h-8 rounded-md transition-all ${
+                className={`group flex items-center h-8 rounded-md transition-colors border ${
                   isSelected
-                    ? "bg-accent/15 border border-accent/30"
-                    : "hover:bg-surface-2"
+                    ? "bg-accent/15 border-accent/30"
+                    : "border-transparent hover:bg-surface-2"
                 }`}
               >
                 {/* Preview button */}
