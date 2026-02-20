@@ -614,6 +614,8 @@ export default function HomePage() {
           {/* Content column -- full height, verbatim blog script */}
           <div
             className={`flex-1 min-w-0 flex-col overflow-hidden border-r border-border ${activeTab === "content" ? "flex" : "hidden md:flex"}`}
+            onMouseEnter={() => setContentFocused(true)}
+            onMouseLeave={() => setContentFocused(false)}
             onFocus={() => setContentFocused(true)}
             onBlur={(e) => { if (!e.currentTarget.contains(e.relatedTarget)) setContentFocused(false); }}
           >
