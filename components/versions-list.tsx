@@ -122,7 +122,9 @@ export function VersionsList({
               <span
                 onClick={(e) => {
                   e.stopPropagation();
-                  onDelete(v);
+                  if (window.confirm(`Delete "${v.label || `version #${v.id}`}"? This cannot be undone.`)) {
+                    onDelete(v);
+                  }
                 }}
                 role="button"
                 tabIndex={0}
@@ -130,7 +132,9 @@ export function VersionsList({
                   if (e.key === "Enter" || e.key === " ") {
                     e.stopPropagation();
                     e.preventDefault();
-                    onDelete(v);
+                    if (window.confirm(`Delete "${v.label || `version #${v.id}`}"? This cannot be undone.`)) {
+                      onDelete(v);
+                    }
                   }
                 }}
                 className="opacity-0 group-hover:opacity-100 transition-opacity p-1 text-muted-foreground hover:text-destructive flex-shrink-0 focus-ring rounded"

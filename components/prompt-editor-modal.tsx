@@ -190,6 +190,7 @@ export function PromptEditorModal({ open, onClose }: PromptEditorModalProps) {
       setMessage("Cannot delete the default preset");
       return;
     }
+    if (!window.confirm(`Delete prompt preset "${preset?.name || "this preset"}"? This cannot be undone.`)) return;
     try {
       await fetch("/api/prompt-presets", {
         method: "DELETE",

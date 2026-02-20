@@ -137,7 +137,8 @@ export function VoiceSettings({ config, onChange }: VoiceSettingsProps) {
     });
   };
 
-  const handleDeletePreset = async (id: number) => {
+  const handleDeletePreset = async (id: number, name: string) => {
+    if (!window.confirm(`Delete voice preset "${name}"? This cannot be undone.`)) return;
     await fetch("/api/presets", {
       method: "DELETE",
       headers: { "Content-Type": "application/json" },
@@ -289,7 +290,7 @@ export function VoiceSettings({ config, onChange }: VoiceSettingsProps) {
                       </span>
                     </button>
                     <button
-                      onClick={() => handleDeletePreset(preset.id)}
+                      onClick={() => handleDeletePreset(preset.id, preset.name)}
                       className="opacity-0 group-hover:opacity-100 h-6 w-6 flex items-center justify-center rounded text-muted hover:text-destructive transition-all focus-ring"
                       aria-label={`Delete preset ${preset.name}`}
                     >

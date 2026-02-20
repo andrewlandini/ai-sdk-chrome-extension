@@ -445,7 +445,9 @@ export function LibraryView({
                                 <button
                                   onClick={(e) => {
                                     e.stopPropagation();
-                                    onDelete(gen);
+                                    if (window.confirm(`Delete "${gen.label || gen.title || "this generation"}"? This cannot be undone.`)) {
+                                      onDelete(gen);
+                                    }
                                   }}
                                   className="opacity-0 group-hover/gen:opacity-100 p-1.5 text-muted hover:text-destructive transition-all focus-ring rounded"
                                   aria-label="Delete"
