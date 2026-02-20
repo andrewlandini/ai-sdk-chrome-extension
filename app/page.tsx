@@ -22,7 +22,6 @@ const DEFAULT_VOICE_CONFIG: VoiceConfig = {
 
 export default function HomePage() {
   const [promptEditorOpen, setPromptEditorOpen] = useState(false);
-  const [postsDrawerOpen, setPostsDrawerOpen] = useState(false);
   const [loadingScripts, setLoadingScripts] = useState(false);
   const [scriptProgress, setScriptProgress] = useState({ done: 0, total: 0 });
 
@@ -56,7 +55,6 @@ export default function HomePage() {
     setScriptTitle(title);
     setError(null);
     setActiveEntry(null);
-    setPostsDrawerOpen(false);
 
     // Check if there's a cached script for this post
     const entry = entries.find((e) => e.url === url);
@@ -241,21 +239,9 @@ export default function HomePage() {
       {/* ── Top bar ── */}
       <header className="h-12 border-b border-border flex items-center px-4 flex-shrink-0 bg-background z-10 gap-4">
         <div className="flex items-center gap-3 flex-shrink-0">
-          <button
-            onClick={() => setPostsDrawerOpen((o) => !o)}
-            className={`flex items-center gap-1.5 text-xs font-medium transition-colors focus-ring rounded px-2 py-1.5 ${
-              postsDrawerOpen ? "bg-surface-3 text-foreground" : "text-muted hover:text-foreground hover:bg-surface-2"
-            }`}
-            aria-label={postsDrawerOpen ? "Close posts list" : "Open posts list"}
-          >
-            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" aria-hidden="true">
-              <line x1="3" y1="6" x2="21" y2="6" />
-              <line x1="3" y1="12" x2="21" y2="12" />
-              <line x1="3" y1="18" x2="21" y2="18" />
-            </svg>
-            <span>Posts</span>
-            <span className="text-[10px] text-muted font-mono tabular-nums">{entries.length}</span>
-          </button>
+          <svg height="16" viewBox="0 0 76 65" fill="currentColor" aria-hidden="true">
+            <path d="M37.5274 0L75.0548 65H0L37.5274 0Z" />
+          </svg>
           <span className="text-border select-none" aria-hidden="true">/</span>
           <span className="text-sm font-medium truncate">{scriptTitle || "Blog Audio"}</span>
         </div>
@@ -276,74 +262,55 @@ export default function HomePage() {
         </div>
       </header>
 
-      {/* ── Posts drawer overlay ── */}
-      {postsDrawerOpen && (
-        <div className="fixed inset-0 z-30 flex" role="dialog" aria-label="Blog posts list">
-          {/* Backdrop */}
-          <div
-            className="absolute inset-0 bg-background/60 backdrop-blur-sm"
-            onClick={() => setPostsDrawerOpen(false)}
-            aria-hidden="true"
-          />
-          {/* Drawer panel */}
-          <aside className="relative z-10 w-full max-w-lg h-full border-r border-border bg-background shadow-2xl flex flex-col animate-in slide-in-from-left duration-200">
-            <div className="flex items-center justify-between px-3 py-2 border-b border-border flex-shrink-0">
-              <div className="flex items-center gap-3">
-                <span className="text-xs font-medium">Blog Posts</span>
-                <button
-                  onClick={handleLoadScripts}
-                  disabled={loadingScripts}
-                  className="flex items-center gap-1.5 h-6 px-2 rounded-md bg-surface-2 border border-border text-[11px] font-medium text-muted hover:text-foreground hover:bg-surface-3 disabled:opacity-50 disabled:cursor-not-allowed transition-colors focus-ring"
-                >
-                  {loadingScripts ? (
-                    <>
-                      <svg className="animate-spin" width="10" height="10" viewBox="0 0 24 24" fill="none" aria-hidden="true">
-                        <circle cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="2" strokeOpacity="0.2" />
-                        <path d="M12 2a10 10 0 0 1 10 10" stroke="currentColor" strokeWidth="2" strokeLinecap="round" />
-                      </svg>
-                      <span>{scriptProgress.done}/{scriptProgress.total}</span>
-                    </>
-                  ) : (
-                    <span>Load Scripts</span>
-                  )}
-                </button>
-              </div>
-              <button
-                onClick={() => setPostsDrawerOpen(false)}
-                className="p-1.5 text-muted hover:text-foreground transition-colors focus-ring rounded"
-                aria-label="Close posts list"
-              >
-                <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" aria-hidden="true">
-                  <path d="M18 6L6 18M6 6l12 12" />
-                </svg>
-              </button>
-            </div>
-            <div className="flex-1 min-h-0 overflow-hidden">
-              <PostsList
-                entries={entries}
-                selectedUrl={scriptUrl}
-                activeId={activeEntry?.id ?? null}
-                onSelect={handleSelectPost}
-                onPlay={handlePlayFromList}
-                onDelete={handleDeleteEntry}
-              />
-            </div>
-          </aside>
-        </div>
-      )}
+      {/* ── Main layout: sidebar + workspace ── */}
+      <div className="flex-1 flex overflow-hidden">
 
-      {/* ── Main content ── */}
-      <div className="flex-1 flex flex-col overflow-hidden">
+        {/* Fixed posts sidebar */}
+        <aside className="hidden md:flex w-[320px] flex-shrink-0 border-r border-border bg-surface-1 flex-col overflow-hidden">
+          <div className="flex items-center justify-between px-3 py-2 border-b border-border flex-shrink-0">
+            <div className="flex items-center gap-2">
+              <span className="text-xs font-medium">Blog Posts</span>
+              <span className="text-[10px] text-muted font-mono tabular-nums">{entries.length}</span>
+            </div>
+            <button
+              onClick={handleLoadScripts}
+              disabled={loadingScripts}
+              className="flex items-center gap-1.5 h-6 px-2 rounded-md bg-surface-2 border border-border text-[10px] font-medium text-muted hover:text-foreground hover:bg-surface-3 disabled:opacity-50 disabled:cursor-not-allowed transition-colors focus-ring"
+            >
+              {loadingScripts ? (
+                <>
+                  <svg className="animate-spin" width="10" height="10" viewBox="0 0 24 24" fill="none" aria-hidden="true">
+                    <circle cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="2" strokeOpacity="0.2" />
+                    <path d="M12 2a10 10 0 0 1 10 10" stroke="currentColor" strokeWidth="2" strokeLinecap="round" />
+                  </svg>
+                  <span>{scriptProgress.done}/{scriptProgress.total}</span>
+                </>
+              ) : (
+                <span>Load Scripts</span>
+              )}
+            </button>
+          </div>
+          <div className="flex-1 min-h-0 overflow-hidden">
+            <PostsList
+              entries={entries}
+              selectedUrl={scriptUrl}
+              activeId={activeEntry?.id ?? null}
+              onSelect={handleSelectPost}
+              onPlay={handlePlayFromList}
+              onDelete={handleDeleteEntry}
+            />
+          </div>
+        </aside>
 
-        {/* Workspace: generator + voice settings side by side (stacks on mobile) */}
-        <div className="flex-1 min-h-0 flex flex-col lg:flex-row overflow-hidden">
+        {/* Workspace: generator + voice settings side by side */}
+        <div className="flex-1 min-w-0 flex flex-col lg:flex-row overflow-hidden">
 
           {/* Generator panel */}
           <div className="flex-1 min-w-0 overflow-y-auto">
             <div className="w-full px-5 py-4 flex flex-col gap-3">
               {!scriptUrl ? (
                 <div className="flex items-center justify-center min-h-[80px]">
-                  <p className="text-xs text-muted-foreground">Open Posts to select a blog post, or paste a URL above</p>
+                  <p className="text-xs text-muted-foreground">Select a blog post from the sidebar, or paste a URL above</p>
                 </div>
               ) : (
                 <>
@@ -439,7 +406,6 @@ export default function HomePage() {
             </div>
           </aside>
         </div>
-
       </div>
 
       {/* Prompt Editor Modal */}
