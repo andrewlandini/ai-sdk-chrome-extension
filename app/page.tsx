@@ -283,7 +283,7 @@ export default function HomePage() {
   }, [scriptUrl, mutateVersions, mutateHistory, streamSummarize]);
 
   const handleGenerateFromStyled = useCallback(async (styledScript: string) => {
-    if (!styledScript.trim() || !scriptUrl) return;
+    if (!styledScript.trim() || !scriptUrl || isGenerating) return;
     setIsGenerating(true);
     setGenerateStatus("Starting generation...");
     setError(null);
@@ -350,7 +350,7 @@ export default function HomePage() {
       setIsGenerating(false);
       setGenerateStatus("");
     }
-  }, [scriptUrl, scriptTitle, voiceConfig, mutateHistory, mutateVersions]);
+  }, [scriptUrl, scriptTitle, voiceConfig, mutateHistory, mutateVersions, isGenerating]);
 
   const handleDeleteVersion = useCallback(async (version: BlogAudio) => {
     try {

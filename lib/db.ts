@@ -114,19 +114,30 @@ function slugFromUrl(url: string): string {
 }
 
 export async function upsertBlogPosts(posts: { url: string; title: string; description?: string; date?: string; category?: string }[]): Promise<number> {
+  if (posts.length === 0) return 0;
+
+  // Batch in groups of 25 to stay within Neon query param limits
+  const BATCH_SIZE = 25;
   let inserted = 0;
-  for (const post of posts) {
-  const audioId = slugFromUrl(post.url);
-  const result = await sql`
-  INSERT INTO blog_posts_cache (url, title, description, date, category, audio_id)
-  VALUES (${post.url}, ${post.title}, ${post.description ?? null}, ${post.date ?? null}, ${post.category ?? null}, ${audioId})
-  ON CONFLICT (url) DO UPDATE SET title = EXCLUDED.title, description = COALESCE(EXCLUDED.description, blog_posts_cache.description), audio_id = COALESCE(blog_posts_cache.audio_id, EXCLUDED.audio_id)
-  RETURNING id
-  `;
-  if (result.length > 0) inserted++;
+
+  for (let i = 0; i < posts.length; i += BATCH_SIZE) {
+    const batch = posts.slice(i, i + BATCH_SIZE);
+    const results = await Promise.all(
+      batch.map((post) => {
+        const audioId = slugFromUrl(post.url);
+        return sql`
+          INSERT INTO blog_posts_cache (url, title, description, date, category, audio_id)
+          VALUES (${post.url}, ${post.title}, ${post.description ?? null}, ${post.date ?? null}, ${post.category ?? null}, ${audioId})
+          ON CONFLICT (url) DO UPDATE SET title = EXCLUDED.title, description = COALESCE(EXCLUDED.description, blog_posts_cache.description), audio_id = COALESCE(blog_posts_cache.audio_id, EXCLUDED.audio_id)
+          RETURNING id
+        `;
+      })
+    );
+    inserted += results.filter((r) => r.length > 0).length;
   }
+
   return inserted;
-  }
+}
 
 export async function getAudioIdByUrl(url: string): Promise<string | null> {
   const rows = await sql`SELECT audio_id FROM blog_posts_cache WHERE url = ${url} LIMIT 1`;
