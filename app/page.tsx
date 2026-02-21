@@ -122,7 +122,7 @@ function HomePage() {
   const [promptEditorOpen, setPromptEditorOpen] = useState(false);
   const [contentFocused, setContentFocused] = useState(false);
   const [sidebarOpen, setSidebarOpen] = useState(false);
-  const [activeTab, setActiveTab] = useState<"content" | "voiceover" | "settings">("content");
+  const [activeTab, setActiveTab] = useState<"content" | "voiceover" | "player" | "settings">("content");
   const [loadingScripts, setLoadingScripts] = useState(false);
   const [scriptProgress, setScriptProgress] = useState<{ done: number; total: number; currentTitle?: string }>({ done: 0, total: 0 });
 
@@ -228,6 +228,7 @@ function HomePage() {
             if (entry) {
               setActiveEntry(entry);
               setAutoplay(true);
+              if (window.innerWidth < 768) setActiveTab("player");
             }
           }
         } else if (job.status === "error") {
@@ -442,11 +443,12 @@ function HomePage() {
       }
 
       if (finalEntry) {
-        setActiveEntry(finalEntry);
-        setAutoplay(true);
-        mutateHistory();
-        mutateVersions();
-        mutateCredits();
+      setActiveEntry(finalEntry);
+      setAutoplay(true);
+      if (window.innerWidth < 768) setActiveTab("player");
+      mutateHistory();
+      mutateVersions();
+      mutateCredits();
       }
       setActiveJobId(null);
     } catch (err) {
@@ -474,14 +476,16 @@ function HomePage() {
   }, [activeEntry, mutateVersions, mutateHistory]);
 
   const handleSelectVersion = useCallback((version: BlogAudio) => {
-    setActiveEntry(version);
-    setAutoplay(true);
-    setError(null);
+  setActiveEntry(version);
+  setAutoplay(true);
+  if (window.innerWidth < 768) setActiveTab("player");
+  setError(null);
   }, []);
 
   const handlePlayFromList = useCallback((entry: BlogAudio) => {
   setActiveEntry(entry);
   setAutoplay(true);
+  if (window.innerWidth < 768) { setActiveTab("player"); setSidebarOpen(false); }
   setScriptUrl(entry.url);
   setScriptTitle(entry.title || "");
   // Use cached_script (original content script) if available, not summary (which is the styled/audio script)
@@ -698,17 +702,6 @@ function HomePage() {
               />
             </div>
 
-            {/* Player -- always visible */}
-            <div className="flex-shrink-0 border-t border-border">
-              <WaveformPlayer
-                key={activeEntry?.id ?? "idle"}
-                audioUrl={activeEntry?.audio_url}
-                title={activeEntry?.title || undefined}
-                summary={activeEntry?.summary || undefined}
-                url={activeEntry?.url}
-                autoplay={autoplay}
-              />
-            </div>
           </aside>
         </>
       )}
@@ -718,6 +711,7 @@ function HomePage() {
         {([
           { id: "content" as const, label: "Content" },
           { id: "voiceover" as const, label: "Voice Over" },
+          { id: "player" as const, label: "Player" },
           { id: "settings" as const, label: "Settings" },
         ]).map((tab) => (
           <button
@@ -923,8 +917,20 @@ function HomePage() {
             </div>
           </div>
 
+          {/* Mobile-only Player tab (hidden on md+ where desktop sidebar player exists) */}
+          <div className={`min-w-0 flex-col overflow-hidden md:hidden ${activeTab === "player" ? "flex" : "hidden"}`}>
+            <WaveformPlayer
+              key={`mobile-${activeEntry?.id ?? "idle"}`}
+              audioUrl={activeEntry?.audio_url}
+              title={activeEntry?.title || undefined}
+              summary={activeEntry?.summary || undefined}
+              url={activeEntry?.url}
+              autoplay={autoplay}
+            />
+          </div>
+
           {/* Right side: (Voice Over + Versions) | Voice Settings */}
-          <div className={`flex-[2] min-w-0 flex-col xl:flex-row overflow-hidden ${activeTab !== "content" ? "flex" : "hidden md:flex"}`}>
+          <div className={`flex-[2] min-w-0 flex-col xl:flex-row overflow-hidden ${activeTab !== "content" && activeTab !== "player" ? "flex" : "hidden md:flex"}`}>
 
             {/* Voice Over column + Versions below */}
             <div className={`flex-1 min-w-0 flex-col overflow-hidden ${activeTab === "voiceover" ? "flex" : "hidden md:flex"}`}>
