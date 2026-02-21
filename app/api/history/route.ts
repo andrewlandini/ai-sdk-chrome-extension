@@ -7,16 +7,19 @@ export async function GET() {
       getCachedBlogPosts(),
     ]);
 
-    // Build a map of cached scripts by URL
+    // Build maps of cached data by URL
     const scriptMap = new Map<string, string>();
+    const dateMap = new Map<string, string | null>();
     for (const p of cachedPosts) {
       if (p.script) scriptMap.set(p.url, p.script);
+      if (p.date) dateMap.set(p.url, p.date);
     }
 
-    // Attach cached scripts to audio entries
+    // Attach cached scripts and published dates to audio entries
     const enrichedEntries = entries.map((e) => ({
       ...e,
       cached_script: scriptMap.get(e.url) ?? null,
+      published_date: dateMap.get(e.url) ?? null,
     }));
 
     // Find cached posts that have no audio entries
@@ -36,6 +39,7 @@ export async function GET() {
         label: null,
         created_at: p.created_at,
         cached_script: p.script ?? null,
+        published_date: p.date ?? null,
       }));
 
     return Response.json({ entries: [...enrichedEntries, ...postsWithoutAudio] });
