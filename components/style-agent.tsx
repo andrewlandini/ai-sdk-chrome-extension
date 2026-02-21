@@ -215,22 +215,22 @@ export function StyleAgent({
           className={`flex-1 w-full bg-transparent text-sm font-mono leading-relaxed text-foreground p-4 resize-none border-none focus:outline-none overflow-y-auto transition-opacity duration-300 ${dimmed ? "opacity-30 hover:opacity-100 focus:opacity-100" : ""}`}
         />
       ) : (
-        <div className="flex-1 flex flex-col items-center justify-center px-8 py-12 gap-4">
-          <div className="w-12 h-12 rounded-full bg-accent/10 flex items-center justify-center">
+        <div className="flex-1 flex flex-col items-center justify-center px-8 py-12 gap-5">
+          <div className="w-14 h-14 rounded-full border border-muted-foreground/20 flex items-center justify-center">
             {isRunning ? (
-              <svg className="animate-spin text-accent" width="24" height="24" viewBox="0 0 24 24" fill="none" aria-hidden="true">
+              <svg className="animate-spin text-muted-foreground" width="28" height="28" viewBox="0 0 24 24" fill="none" aria-hidden="true">
                 <circle cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="2" strokeOpacity="0.2" />
                 <path d="M12 2a10 10 0 0 1 10 10" stroke="currentColor" strokeWidth="2" strokeLinecap="round" />
               </svg>
             ) : (
-              <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" className="text-accent" aria-hidden="true">
+              <svg width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" className="text-muted-foreground" aria-hidden="true">
                 <path d="M9 18V5l12-2v13" />
                 <circle cx="6" cy="18" r="3" />
                 <circle cx="18" cy="16" r="3" />
               </svg>
             )}
           </div>
-          <p className="text-sm text-muted text-center">
+          <p className="text-sm text-muted-foreground text-center max-w-[280px]">
             {isRunning
               ? "Analyzing script and applying performance direction..."
               : "Click Style Script to generate a styled version with Audio Tags."}
