@@ -122,7 +122,7 @@ function HomePage() {
   const [promptEditorOpen, setPromptEditorOpen] = useState(false);
   const [contentFocused, setContentFocused] = useState(false);
   const [sidebarOpen, setSidebarOpen] = useState(false);
-  const [activeTab, setActiveTab] = useState<"content" | "voiceover" | "player" | "settings">("content");
+  const [activeTab, setActiveTab] = useState<"content" | "voiceover" | "settings">("content");
   const [loadingScripts, setLoadingScripts] = useState(false);
   const [scriptProgress, setScriptProgress] = useState<{ done: number; total: number; currentTitle?: string }>({ done: 0, total: 0 });
 
@@ -228,7 +228,6 @@ function HomePage() {
             if (entry) {
               setActiveEntry(entry);
               setAutoplay(true);
-              if (window.innerWidth < 768) setActiveTab("player");
             }
           }
         } else if (job.status === "error") {
@@ -445,7 +444,6 @@ function HomePage() {
       if (finalEntry) {
       setActiveEntry(finalEntry);
       setAutoplay(true);
-      if (window.innerWidth < 768) setActiveTab("player");
       mutateHistory();
       mutateVersions();
       mutateCredits();
@@ -478,14 +476,13 @@ function HomePage() {
   const handleSelectVersion = useCallback((version: BlogAudio) => {
   setActiveEntry(version);
   setAutoplay(true);
-  if (window.innerWidth < 768) setActiveTab("player");
   setError(null);
   }, []);
 
   const handlePlayFromList = useCallback((entry: BlogAudio) => {
   setActiveEntry(entry);
   setAutoplay(true);
-  if (window.innerWidth < 768) { setActiveTab("player"); setSidebarOpen(false); }
+  if (window.innerWidth < 768) setSidebarOpen(false);
   setScriptUrl(entry.url);
   setScriptTitle(entry.title || "");
   // Use cached_script (original content script) if available, not summary (which is the styled/audio script)
@@ -711,7 +708,6 @@ function HomePage() {
         {([
           { id: "content" as const, label: "Content" },
           { id: "voiceover" as const, label: "Voice Over" },
-          { id: "player" as const, label: "Player" },
           { id: "settings" as const, label: "Settings" },
         ]).map((tab) => (
           <button
@@ -729,7 +725,7 @@ function HomePage() {
       </div>
 
       {/* ── Main layout: sidebar + workspace ── */}
-      <div className="flex-1 flex overflow-hidden">
+      <div className={`flex-1 flex overflow-hidden ${activeEntry?.audio_url ? "md:pb-0 pb-[100px]" : ""}`}>
 
         {/* Fixed posts sidebar -- desktop */}
         <aside className="hidden md:flex md:flex-1 min-w-0 border-r border-border bg-surface-1 flex-col overflow-hidden">
@@ -917,20 +913,8 @@ function HomePage() {
             </div>
           </div>
 
-          {/* Mobile-only Player tab (hidden on md+ where desktop sidebar player exists) */}
-          <div className={`min-w-0 flex-col overflow-hidden md:hidden ${activeTab === "player" ? "flex" : "hidden"}`}>
-            <WaveformPlayer
-              key={`mobile-${activeEntry?.id ?? "idle"}`}
-              audioUrl={activeEntry?.audio_url}
-              title={activeEntry?.title || undefined}
-              summary={activeEntry?.summary || undefined}
-              url={activeEntry?.url}
-              autoplay={autoplay}
-            />
-          </div>
-
           {/* Right side: (Voice Over + Versions) | Voice Settings */}
-          <div className={`flex-[2] min-w-0 flex-col xl:flex-row overflow-hidden ${activeTab !== "content" && activeTab !== "player" ? "flex" : "hidden md:flex"}`}>
+          <div className={`flex-[2] min-w-0 flex-col xl:flex-row overflow-hidden ${activeTab !== "content" ? "flex" : "hidden md:flex"}`}>
 
             {/* Voice Over column + Versions below */}
             <div className={`flex-1 min-w-0 flex-col overflow-hidden ${activeTab === "voiceover" ? "flex" : "hidden md:flex"}`}>
@@ -1032,7 +1016,7 @@ function HomePage() {
                 })}
               </div>
               {/* Style agent content */}
-              <div className="flex-1 min-h-0 overflow-y-auto">
+              <div className="flex-1 min-h-0 flex flex-col overflow-hidden">
                 <StyleAgent
                   sourceScript={script}
                   postUrl={scriptUrl}
@@ -1176,6 +1160,20 @@ function AddPostButton({ mutateHistory }: { mutateHistory: () => void }) {
               </span>
             )}
           </form>
+        </div>
+      )}
+
+      {/* Mobile fixed-bottom player (hidden on md+ where desktop sidebar player exists) */}
+      {activeEntry?.audio_url && (
+        <div className="fixed bottom-0 left-0 right-0 z-50 md:hidden border-t border-border bg-background">
+          <WaveformPlayer
+            key={`mobile-${activeEntry.id}`}
+            audioUrl={activeEntry.audio_url}
+            title={activeEntry.title || undefined}
+            summary={activeEntry.summary || undefined}
+            url={activeEntry.url}
+            autoplay={autoplay}
+          />
         </div>
       )}
     </div>
