@@ -1,6 +1,6 @@
 import { streamText } from "ai";
 import { scrapeBlogPost } from "@/lib/scraper";
-import { getActivePromptPreset } from "@/lib/db";
+import { getActivePromptPreset, getPromptNodeBySlug } from "@/lib/db";
 
 export const maxDuration = 60;
 
@@ -21,19 +21,25 @@ export async function POST(request: Request) {
     // Scrape the blog post
     const scraped = await scrapeBlogPost(url);
 
-    // Determine which prompt to use
+    // Determine which prompt to use: custom > prompt_nodes > legacy presets > fallback
     let systemPrompt: string;
     let selectedModel: string = requestModel || "openai/gpt-4o";
 
     if (customSystemPrompt) {
       systemPrompt = customSystemPrompt;
     } else {
-      const activePreset = await getActivePromptPreset();
-      if (activePreset) {
-        systemPrompt = activePreset.system_prompt;
-        if (!requestModel) selectedModel = activePreset.model;
+      const node = await getPromptNodeBySlug("script_generator");
+      if (node) {
+        systemPrompt = node.user_prompt || node.default_prompt;
+        if (!requestModel) selectedModel = node.model;
       } else {
-        systemPrompt = "You are a blog-to-audio script writer. Reproduce the blog post content faithfully. Do NOT add any greeting, introduction, welcome, sign-off, or outro — jump straight into the content from the very first word. Summarize code blocks like an instructor explaining them in plain English. Return only the script text.";
+        const activePreset = await getActivePromptPreset();
+        if (activePreset) {
+          systemPrompt = activePreset.system_prompt;
+          if (!requestModel) selectedModel = activePreset.model;
+        } else {
+          systemPrompt = "You are a blog-to-audio script writer. Reproduce the blog post content faithfully. Do NOT add any greeting, introduction, welcome, sign-off, or outro — jump straight into the content from the very first word. Summarize code blocks like an instructor explaining them in plain English. Return only the script text.";
+        }
       }
     }
 
