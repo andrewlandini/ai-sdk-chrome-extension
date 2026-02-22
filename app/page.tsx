@@ -1151,7 +1151,7 @@ function HomePage() {
                     </div>
                     <div className="flex-1 min-h-0 overflow-y-auto">
                       {rawContent ? (
-                        <div className={`p-4 text-xs font-mono leading-relaxed text-muted-foreground whitespace-pre-wrap select-text transition-opacity duration-300 ${
+                        <div className={`p-4 text-xs font-mono leading-relaxed text-foreground whitespace-pre-wrap select-text transition-opacity duration-300 ${
                           styledScript.trim() ? "opacity-30 hover:opacity-100 focus-within:opacity-100" : ""
                         }`}>
                           {rawContent}
