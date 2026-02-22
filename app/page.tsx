@@ -1085,16 +1085,16 @@ function HomePage() {
                 })}
               </div>
 
-              {/* Editable prompt */}
-              {selectedVibeId && (
-                <div className="flex-shrink-0 border-b border-border px-3 py-2 flex flex-col gap-2">
-                  <textarea
-                    value={editedPrompt}
-                    onChange={(e) => handleVibePromptChange(e.target.value)}
-                    rows={3}
-                    className="w-full bg-surface-2 text-sm text-foreground rounded-md border border-border px-3 py-2 resize-none focus:outline-none focus:border-accent transition-colors"
-                    placeholder="Describe the voice style..."
-                  />
+              {/* Editable prompt – always visible */}
+              <div className="flex-shrink-0 border-b border-border px-3 py-2 flex flex-col gap-2">
+                <textarea
+                  value={editedPrompt}
+                  onChange={(e) => handleVibePromptChange(e.target.value)}
+                  rows={3}
+                  className="w-full bg-surface-2 text-sm text-foreground rounded-md border border-border px-3 py-2 resize-none focus:outline-none focus:border-accent transition-colors"
+                  placeholder={selectedVibeId ? "Describe the voice style..." : "Select a style above or type a custom prompt..."}
+                />
+                {selectedVibeId && (
                   <div className="flex items-center justify-end gap-2">
                     <button
                       onClick={handleResetVibePrompt}
@@ -1111,8 +1111,8 @@ function HomePage() {
                       {isSavingVibe ? "Saving..." : "Save"}
                     </button>
                   </div>
-                </div>
-              )}
+                )}
+              </div>
 
               {/* Style Script button */}
               <div className="flex-shrink-0 px-3 py-2 border-b border-border flex justify-center">
