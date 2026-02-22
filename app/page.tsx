@@ -362,7 +362,7 @@ function HomePage() {
 
   // ── Handlers ──
 
-  const handleSelectPost = useCallback((url: string, title: string) => {
+  const handleSelectPost = useCallback(async (url: string, title: string) => {
     setScriptUrl(url);
     setScriptTitle(title);
     setError(null);
@@ -381,9 +381,86 @@ function HomePage() {
     // Check if there's a cached script and raw content for this post
     const entry = entries.find((e) => e.url === url);
     const entryExt = entry as BlogAudio & { cached_script?: string | null; raw_content?: string | null };
-    setScript(entryExt?.cached_script || "");
-    setRawContent(entryExt?.raw_content || "");
-  }, [entries, advanceName]);
+    const cachedScript = entryExt?.cached_script || "";
+    const cachedRaw = entryExt?.raw_content || "";
+    setScript(cachedScript);
+    setRawContent(cachedRaw);
+
+    // Auto-fetch raw content if not cached
+    if (!cachedRaw) {
+      setFetchingRawContent(true);
+      try {
+        const res = await fetch("/api/raw-content", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ url }),
+        });
+        const data = await res.json();
+        if (data.rawContent) {
+          setRawContent(data.rawContent);
+          // Save to history
+          const wc = data.rawContent.trim().split(/\s+/).filter(Boolean).length;
+          fetch("/api/raw-content-history", {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({ url, content: data.rawContent, word_count: wc }),
+          }).catch(() => {});
+        }
+      } catch { /* ignore */ } finally {
+        setFetchingRawContent(false);
+      }
+    }
+
+    // Auto-generate script if not cached
+    if (!cachedScript) {
+      const abortController = new AbortController();
+      summarizeAbortRef.current = abortController;
+      setIsSummarizing(true);
+      setScript("");
+      try {
+        const result = await streamSummarize(url, {
+          signal: abortController.signal,
+          onDelta: (text) => setScript(text),
+        });
+        setScript(result.summary);
+        setScriptTitle(result.title);
+        setScriptUrl(result.url);
+
+        // Fetch raw content if we didn't already
+        if (!cachedRaw) {
+          fetch(`/api/raw-content?url=${encodeURIComponent(result.url)}`)
+            .then(r => r.json())
+            .then(d => { if (d.rawContent) setRawContent(d.rawContent); })
+            .catch(() => {});
+        }
+
+        // Save to cache
+        await fetch("/api/save-script", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ url: result.url, script: result.summary }),
+        });
+
+        // Save to script history
+        const wc = result.summary.trim().split(/\s+/).filter(Boolean).length;
+        fetch("/api/script-history", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ url: result.url, script: result.summary, word_count: wc }),
+        }).catch(() => {});
+
+        mutateVersions();
+        mutateHistory();
+      } catch (err) {
+        if (!(err instanceof DOMException && err.name === "AbortError")) {
+          setError(err instanceof Error ? err.message : "An unexpected error occurred");
+        }
+      } finally {
+        summarizeAbortRef.current = null;
+        setIsSummarizing(false);
+      }
+    }
+  }, [entries, advanceName, streamSummarize, mutateVersions, mutateHistory]);
 
   // Helper: stream summarize API and progressively build script text
   const streamSummarize = useCallback(async (
