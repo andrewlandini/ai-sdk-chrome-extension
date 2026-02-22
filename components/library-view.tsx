@@ -3,6 +3,7 @@
 import { useState, useMemo, useCallback } from "react";
 import { WaveformPlayer } from "@/components/waveform-player";
 import type { BlogAudio } from "@/lib/db";
+import { formatDateFull, formatTime, formatRelative } from "@/lib/timezone";
 
 const VOICE_NAMES: Record<string, string> = {
   TX3LPaxmHKxFdv7VOQHJ: "Liam",
@@ -38,33 +39,6 @@ interface LibraryViewProps {
   onOpenInGenerator: (entry: BlogAudio) => void;
   onDelete: (entry: BlogAudio) => void;
   mutateHistory: () => void;
-}
-
-function formatDate(dateStr: string): string {
-  return new Date(dateStr).toLocaleDateString("en-US", {
-    month: "short",
-    day: "numeric",
-    year: "numeric",
-  });
-}
-
-function formatTime(dateStr: string): string {
-  return new Date(dateStr).toLocaleTimeString("en-US", {
-    hour: "2-digit",
-    minute: "2-digit",
-  });
-}
-
-function formatRelative(dateStr: string): string {
-  const diff = Date.now() - new Date(dateStr).getTime();
-  const mins = Math.floor(diff / 60000);
-  if (mins < 1) return "just now";
-  if (mins < 60) return `${mins}m ago`;
-  const hours = Math.floor(mins / 60);
-  if (hours < 24) return `${hours}h ago`;
-  const days = Math.floor(hours / 24);
-  if (days < 7) return `${days}d ago`;
-  return formatDate(dateStr);
 }
 
 function slugFromUrl(url: string): string {
@@ -391,7 +365,7 @@ export function LibraryView({
                               {/* Created */}
                               <div className="flex flex-col">
                                 <span className="text-[11px] text-muted font-mono tabular-nums">
-                                  {formatDate(gen.created_at)}
+                                  {formatDateFull(gen.created_at)}
                                 </span>
                                 <span className="text-[10px] text-muted-foreground font-mono tabular-nums">
                                   {formatTime(gen.created_at)}
@@ -590,7 +564,7 @@ export function LibraryView({
                 <div className="flex items-center justify-between py-1.5">
                   <span className="text-muted">Created</span>
                   <span className="text-foreground font-mono tabular-nums">
-                    {formatDate(detailEntry.created_at)} {formatTime(detailEntry.created_at)}
+                    {formatDateFull(detailEntry.created_at)} {formatTime(detailEntry.created_at)}
                   </span>
                 </div>
               </div>

@@ -1,18 +1,12 @@
 "use client";
 
 import type { BlogAudio } from "@/lib/db";
+import { formatDate } from "@/lib/timezone";
 
 interface HistoryListProps {
   entries: BlogAudio[];
   activeId: number | null;
   onSelect: (entry: BlogAudio) => void;
-}
-
-function formatDate(dateStr: string): string {
-  return new Date(dateStr).toLocaleDateString("en-US", {
-    month: "short",
-    day: "numeric",
-  });
 }
 
 export function HistoryList({ entries, activeId, onSelect }: HistoryListProps) {

@@ -4,6 +4,7 @@ import {
   upsertBlogPosts,
   getCachedPostCount,
   getActivePromptPreset,
+  getPromptNodeBySlug,
 } from "@/lib/db";
 
 export const maxDuration = 300;
@@ -52,18 +53,24 @@ export async function POST(request: Request) {
 
     const existingCount = await getCachedPostCount();
 
-    // Determine which prompt and model to use
+    // Determine which prompt and model to use: custom > prompt_nodes > legacy > fallback
     let fetchPrompt = DEFAULT_BLOG_FETCH_PROMPT;
     let fetchModel = "openai/gpt-4o-mini";
     if (customPrompt) {
       fetchPrompt = customPrompt;
     } else {
-      const activePreset = await getActivePromptPreset();
-      if (activePreset?.blog_fetch_prompt) {
-        fetchPrompt = activePreset.blog_fetch_prompt;
-      }
-      if (activePreset?.blog_fetch_model) {
-        fetchModel = activePreset.blog_fetch_model;
+      const node = await getPromptNodeBySlug("blog_fetcher");
+      if (node) {
+        fetchPrompt = node.user_prompt || node.default_prompt;
+        fetchModel = node.model;
+      } else {
+        const activePreset = await getActivePromptPreset();
+        if (activePreset?.blog_fetch_prompt) {
+          fetchPrompt = activePreset.blog_fetch_prompt;
+        }
+        if (activePreset?.blog_fetch_model) {
+          fetchModel = activePreset.blog_fetch_model;
+        }
       }
     }
 

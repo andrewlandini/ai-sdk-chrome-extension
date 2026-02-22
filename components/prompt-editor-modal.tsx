@@ -1,59 +1,42 @@
 "use client";
 
-import { useState, useEffect, useCallback, useRef } from "react";
+import { useState, useEffect, useCallback } from "react";
 import useSWR from "swr";
+import { formatDateTime } from "@/lib/timezone";
 
 const fetcher = (url: string) => fetch(url).then((r) => r.json());
 
 const MODELS = [
-  { id: "anthropic/claude-sonnet-4", label: "Claude Sonnet 4", provider: "Anthropic", tier: "top" },
-  { id: "anthropic/claude-opus-4", label: "Claude Opus 4", provider: "Anthropic", tier: "top" },
-  { id: "openai/gpt-4o", label: "GPT-4o", provider: "OpenAI", tier: "top" },
-  { id: "openai/gpt-4o-mini", label: "GPT-4o Mini", provider: "OpenAI", tier: "fast" },
-  { id: "openai/gpt-4.1", label: "GPT-4.1", provider: "OpenAI", tier: "top" },
-  { id: "openai/gpt-4.1-mini", label: "GPT-4.1 Mini", provider: "OpenAI", tier: "fast" },
-  { id: "google/gemini-2.5-pro", label: "Gemini 2.5 Pro", provider: "Google", tier: "top" },
-  { id: "google/gemini-2.5-flash", label: "Gemini 2.5 Flash", provider: "Google", tier: "fast" },
+  { id: "anthropic/claude-sonnet-4", label: "Claude Sonnet 4" },
+  { id: "anthropic/claude-opus-4", label: "Claude Opus 4" },
+  { id: "openai/gpt-4o", label: "GPT-4o" },
+  { id: "openai/gpt-4o-mini", label: "GPT-4o Mini" },
+  { id: "openai/gpt-4.1", label: "GPT-4.1" },
+  { id: "openai/gpt-4.1-mini", label: "GPT-4.1 Mini" },
+  { id: "google/gemini-2.5-pro", label: "Gemini 2.5 Pro" },
+  { id: "google/gemini-2.5-flash", label: "Gemini 2.5 Flash" },
 ] as const;
 
-const PROMPT_TABS = [
-  { id: "system" as const, label: "Script Prompt", modelKey: "model" as const, defaultModel: "openai/gpt-4o", desc: "AI model for generating spoken scripts from blog posts" },
-  { id: "blog" as const, label: "Blog Fetch", modelKey: "blogFetchModel" as const, defaultModel: "openai/gpt-4o-mini", desc: "AI model for parsing blog listing pages to discover posts" },
-  { id: "style" as const, label: "Style Agent", modelKey: "styleAgentModel" as const, defaultModel: "openai/gpt-4o", desc: "AI model for adding v3 Audio Tags to scripts" },
-];
+// Pipeline order
+const PIPELINE_SLUGS = ["blog_fetcher", "script_generator", "style_agent"] as const;
 
-type PromptTab = (typeof PROMPT_TABS)[number]["id"];
-
-const DEFAULT_BLOG_FETCH_PROMPT = `You are an expert web content parser. Extract ALL blog post entries from this page content.
-
-For each blog post, extract:
-- "url": the full URL (must start with https://vercel.com/blog/)
-- "title": the post title
-- "description": a short description/subtitle if available, otherwise null
-- "date": publication date if visible, otherwise null
-- "category": category/tag if visible (e.g. "Engineering", "Product", "Customers"), otherwise null
-
-RULES:
-1. Only include actual blog post links, NOT navigation, footer, category filter, or pagination links
-2. Extract EVERY post visible on the page - do not skip any
-3. URLs may be relative (e.g. /blog/some-post) - convert them to full URLs (https://vercel.com/blog/some-post)
-4. Return ONLY a valid JSON array, no markdown fences, no explanation
-5. If you see a title with a date and/or category next to it, that is a blog post entry
-6. Look for patterns like article titles followed by dates, author names, and category labels
-
-Example:
-[{"url":"https://vercel.com/blog/example","title":"Example Post","description":"A description","date":"Feb 14, 2026","category":"Engineering"}]`;
-
-interface PromptPreset {
+interface PromptNode {
   id: number;
-  name: string;
-  system_prompt: string;
-  blog_fetch_prompt: string | null;
+  slug: string;
+  label: string;
+  default_prompt: string;
+  user_prompt: string | null;
   model: string;
-  blog_fetch_model: string;
-  style_agent_model: string;
-  is_default: boolean;
-  created_at: string;
+  default_model: string;
+  updated_at: string;
+}
+
+interface HistoryEntry {
+  id: number;
+  node_slug: string;
+  prompt: string;
+  model: string;
+  changed_at: string;
 }
 
 interface PromptEditorModalProps {
@@ -62,438 +45,296 @@ interface PromptEditorModalProps {
 }
 
 export function PromptEditorModal({ open, onClose }: PromptEditorModalProps) {
-  const { data, mutate } = useSWR<{ presets: PromptPreset[] }>(
-    open ? "/api/prompt-presets" : null,
+  const { data: nodes, mutate } = useSWR<PromptNode[]>(
+    open ? "/api/prompt-nodes" : null,
     fetcher
   );
 
-  const [selectedId, setSelectedId] = useState<number | null>(null);
-  const [name, setName] = useState("");
-  const [systemPrompt, setSystemPrompt] = useState("");
-  const [blogFetchPrompt, setBlogFetchPrompt] = useState(DEFAULT_BLOG_FETCH_PROMPT);
-  const [model, setModel] = useState("openai/gpt-4o");
-  const [blogFetchModel, setBlogFetchModel] = useState("openai/gpt-4o-mini");
-  const [styleAgentModel, setStyleAgentModel] = useState("openai/gpt-4o");
-  const [activeTab, setActiveTab] = useState<PromptTab>("system");
+  const [selectedSlug, setSelectedSlug] = useState<string>(PIPELINE_SLUGS[0]);
+  const [editPrompt, setEditPrompt] = useState("");
+  const [editModel, setEditModel] = useState("");
+  const [isDirty, setIsDirty] = useState(false);
   const [isSaving, setIsSaving] = useState(false);
-  const [message, setMessage] = useState<string | null>(null);
-  const dialogRef = useRef<HTMLDialogElement>(null);
+  const [showHistory, setShowHistory] = useState(false);
+  const [history, setHistory] = useState<HistoryEntry[]>([]);
+  const [loadingHistory, setLoadingHistory] = useState(false);
 
-  const presets = data?.presets ?? [];
+  const selectedNode = nodes?.find((n) => n.slug === selectedSlug) ?? null;
 
+  // Sync editor state when selection or data changes
   useEffect(() => {
-    const dialog = dialogRef.current;
-    if (!dialog) return;
-    if (open && !dialog.open) dialog.showModal();
-    else if (!open && dialog.open) dialog.close();
-  }, [open]);
+    if (selectedNode) {
+      const prompt = selectedNode.user_prompt ?? selectedNode.default_prompt;
+      setEditPrompt(prompt);
+      setEditModel(selectedNode.model);
+      setIsDirty(false);
+      setShowHistory(false);
+    }
+  }, [selectedNode?.slug, selectedNode?.updated_at]);
 
-  useEffect(() => {
-    if (presets.length > 0 && selectedId === null) {
-      const def = presets.find((p) => p.is_default) || presets[0];
-      loadPresetWrapped(def);
-    }
-  // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [presets, selectedId]);
+  const activePrompt = selectedNode?.user_prompt ?? selectedNode?.default_prompt ?? "";
+  const isOverridden = selectedNode?.user_prompt !== null && selectedNode?.user_prompt !== undefined;
 
-  const loadPreset = (preset: PromptPreset) => {
-    setSelectedId(preset.id);
-    setName(preset.name);
-    setSystemPrompt(preset.system_prompt);
-    setBlogFetchPrompt(preset.blog_fetch_prompt || DEFAULT_BLOG_FETCH_PROMPT);
-    setModel(preset.model || "openai/gpt-4o");
-    setBlogFetchModel(preset.blog_fetch_model || "openai/gpt-4o-mini");
-    setStyleAgentModel(preset.style_agent_model || "openai/gpt-4o");
-    setMessage(null);
-  };
+  const handlePromptChange = useCallback((value: string) => {
+    setEditPrompt(value);
+    setIsDirty(true);
+  }, []);
 
-  // Per-tab prompt/model accessors
-  const getTabPrompt = (tab: PromptTab) => {
-    switch (tab) {
-      case "system": return systemPrompt;
-      case "blog": return blogFetchPrompt;
-      case "style": return "";
-    }
-  };
-  const setTabPrompt = (tab: PromptTab, val: string) => {
-    switch (tab) {
-      case "system": setSystemPrompt(val); break;
-      case "blog": setBlogFetchPrompt(val); break;
-    }
-  };
-  const getTabModel = (tab: PromptTab) => {
-    switch (tab) {
-      case "system": return model;
-      case "blog": return blogFetchModel;
-      case "style": return styleAgentModel;
-    }
-  };
-  const setTabModel = (tab: PromptTab, val: string) => {
-    switch (tab) {
-      case "system": setModel(val); break;
-      case "blog": setBlogFetchModel(val); break;
-      case "style": setStyleAgentModel(val); break;
-    }
-  };
-
-  const getPayload = useCallback(() => ({
-    name,
-    system_prompt: systemPrompt,
-    blog_fetch_prompt: blogFetchPrompt,
-    model,
-    blog_fetch_model: blogFetchModel,
-    style_agent_model: styleAgentModel,
-  }), [name, systemPrompt, blogFetchPrompt, model, blogFetchModel, styleAgentModel]);
+  const handleModelChange = useCallback((value: string) => {
+    setEditModel(value);
+    setIsDirty(true);
+  }, []);
 
   const handleSave = useCallback(async () => {
-    if (!name.trim() || !systemPrompt.trim()) return;
+    if (!selectedSlug || !isDirty) return;
     setIsSaving(true);
-    setMessage(null);
     try {
-      if (selectedId) {
-        await fetch("/api/prompt-presets", {
-          method: "PUT",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ id: selectedId, ...getPayload() }),
-        });
-        setMessage("Preset updated");
-      } else {
-        const res = await fetch("/api/prompt-presets", {
-          method: "POST",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify(getPayload()),
-        });
-        const data = await res.json();
-        setSelectedId(data.preset.id);
-        setMessage("Preset created");
-      }
-      mutate();
-    } catch {
-      setMessage("Failed to save");
-    } finally {
-      setIsSaving(false);
-    }
-  }, [selectedId, name, systemPrompt, getPayload, mutate]);
-
-  const handleSaveAsNew = useCallback(async () => {
-    if (!name.trim() || !systemPrompt.trim()) return;
-    setIsSaving(true);
-    setMessage(null);
-    try {
-      const res = await fetch("/api/prompt-presets", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ ...getPayload(), name: name + " (copy)" }),
-      });
-      const data = await res.json();
-      setSelectedId(data.preset.id);
-      setName(data.preset.name);
-      setMessage("Created as new preset");
-      mutate();
-    } catch {
-      setMessage("Failed to create");
-    } finally {
-      setIsSaving(false);
-    }
-  }, [name, systemPrompt, getPayload, mutate]);
-
-  const handleSetDefault = useCallback(async () => {
-    if (!selectedId) return;
-    try {
-      await fetch("/api/prompt-presets", {
+      await fetch("/api/prompt-nodes", {
         method: "PUT",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ id: selectedId, setDefault: true }),
+        body: JSON.stringify({
+          slug: selectedSlug,
+          user_prompt: editPrompt,
+          model: editModel,
+        }),
       });
-      setMessage("Set as default");
-      mutate();
-    } catch {
-      setMessage("Failed to set default");
+      await mutate();
+      setIsDirty(false);
+    } catch (e) {
+      console.error("Failed to save prompt node:", e);
+    } finally {
+      setIsSaving(false);
     }
-  }, [selectedId, mutate]);
+  }, [selectedSlug, editPrompt, editModel, isDirty, mutate]);
 
-  const handleDelete = useCallback(async () => {
-    if (!selectedId) return;
-    const preset = presets.find((p) => p.id === selectedId);
-    if (preset?.is_default) {
-      setMessage("Cannot delete the default preset");
-      return;
-    }
-    if (!window.confirm(`Delete prompt preset "${preset?.name || "this preset"}"? This cannot be undone.`)) return;
+  const handleReset = useCallback(async () => {
+    if (!selectedSlug) return;
+    setIsSaving(true);
     try {
-      await fetch("/api/prompt-presets", {
-        method: "DELETE",
+      await fetch("/api/prompt-nodes", {
+        method: "PUT",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ id: selectedId }),
+        body: JSON.stringify({ slug: selectedSlug, reset: true }),
       });
-      setSelectedId(null);
-      setMessage("Preset deleted");
-      mutate();
-    } catch {
-      setMessage("Failed to delete");
+      await mutate();
+      setIsDirty(false);
+    } catch (e) {
+      console.error("Failed to reset prompt node:", e);
+    } finally {
+      setIsSaving(false);
     }
-  }, [selectedId, presets, mutate]);
+  }, [selectedSlug, mutate]);
 
-  const handleNew = useCallback(() => {
-    setSelectedId(null);
-    setName("");
-    setSystemPrompt("");
-    setBlogFetchPrompt(DEFAULT_BLOG_FETCH_PROMPT);
-    setModel("openai/gpt-4o");
-    setBlogFetchModel("openai/gpt-4o-mini");
-    setStyleAgentModel("openai/gpt-4o");
-    setMessage(null);
+  const loadHistory = useCallback(async () => {
+    if (!selectedSlug) return;
+    setLoadingHistory(true);
+    try {
+      const res = await fetch(`/api/prompt-nodes?slug=${selectedSlug}&history=1`);
+      const data = await res.json();
+      setHistory(data);
+      setShowHistory(true);
+    } catch (e) {
+      console.error("Failed to load history:", e);
+    } finally {
+      setLoadingHistory(false);
+    }
+  }, [selectedSlug]);
+
+  const restoreFromHistory = useCallback((entry: HistoryEntry) => {
+    setEditPrompt(entry.prompt);
+    setEditModel(entry.model);
+    setIsDirty(true);
+    setShowHistory(false);
   }, []);
-
-  // Auto-save: debounce prompt/model changes and save as a new preset or update existing
-  const autoSaveTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
-  const hasLoadedPreset = useRef(false);
-
-  // Track when a preset is loaded to skip the first auto-save trigger
-  const loadPresetOriginal = loadPreset;
-  // eslint-disable-next-line react-hooks/exhaustive-deps
-  const loadPresetWrapped = useCallback((preset: PromptPreset) => {
-    hasLoadedPreset.current = true;
-    loadPresetOriginal(preset);
-    // Reset flag after a tick so subsequent edits trigger auto-save
-    setTimeout(() => { hasLoadedPreset.current = false; }, 100);
-  }, []);
-
-  useEffect(() => {
-    // Skip auto-save if we just loaded a preset or if prompts are empty
-    if (hasLoadedPreset.current) return;
-    if (!systemPrompt.trim()) return;
-    // Must have a name to save
-    if (!name.trim()) return;
-
-    if (autoSaveTimer.current) clearTimeout(autoSaveTimer.current);
-
-    autoSaveTimer.current = setTimeout(async () => {
-      const payload = getPayload();
-      try {
-        if (selectedId) {
-          // Update existing preset
-          await fetch("/api/prompt-presets", {
-            method: "PUT",
-            headers: { "Content-Type": "application/json" },
-            body: JSON.stringify({ id: selectedId, ...payload }),
-          });
-        } else {
-          // Create new preset with auto-generated name
-          const autoName = name.trim() || `Preset ${new Date().toLocaleTimeString()}`;
-          const res = await fetch("/api/prompt-presets", {
-            method: "POST",
-            headers: { "Content-Type": "application/json" },
-            body: JSON.stringify({ ...payload, name: autoName }),
-          });
-          const data = await res.json();
-          if (data.preset) {
-            setSelectedId(data.preset.id);
-          }
-        }
-        mutate();
-      } catch {
-        // Silent fail on auto-save
-      }
-    }, 1500);
-
-    return () => {
-      if (autoSaveTimer.current) clearTimeout(autoSaveTimer.current);
-    };
-  // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [systemPrompt, blogFetchPrompt, model, blogFetchModel, styleAgentModel]);
-
-  const activePreset = presets.find((p) => p.id === selectedId);
-  const isDefault = activePreset?.is_default ?? false;
-  const currentTabConfig = PROMPT_TABS.find((t) => t.id === activeTab)!;
-  const isStyleTab = activeTab === "style";
 
   if (!open) return null;
 
   return (
-    <dialog
-      ref={dialogRef}
-      onClose={onClose}
-      className="fixed inset-0 z-50 m-0 h-full w-full max-h-full max-w-full bg-transparent p-0 backdrop:bg-black/60"
-    >
-      <div className="flex items-center justify-center min-h-full p-4" onClick={(e) => { if (e.target === e.currentTarget) onClose(); }}>
-        {/* Fixed dimensions so switching tabs doesn't resize */}
-        <div className="w-full max-w-4xl bg-surface-1 border border-border rounded-lg overflow-hidden shadow-2xl flex flex-col" style={{ height: "min(85vh, 720px)" }}>
-          {/* Header */}
-          <div className="flex items-center justify-between px-5 py-3 border-b border-border flex-shrink-0">
-            <div className="flex items-center gap-3">
-              <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" className="text-accent" aria-hidden="true">
-                <path d="M12 20h9M16.5 3.5a2.121 2.121 0 0 1 3 3L7 19l-4 1 1-4L16.5 3.5z" />
-              </svg>
-              <h2 className="text-sm font-semibold">Prompt Editor</h2>
-            </div>
-            <button onClick={onClose} className="p-1.5 rounded-md text-muted hover:text-foreground hover:bg-surface-2 transition-colors focus-ring" aria-label="Close">
-              <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" aria-hidden="true">
-                <path d="M18 6L6 18M6 6l12 12" />
-              </svg>
-            </button>
+    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-sm">
+      <div className="w-full max-w-5xl h-[85vh] bg-surface-1 border border-border rounded-xl flex flex-col overflow-hidden animate-fade-in">
+        {/* Header */}
+        <div className="flex items-center justify-between px-5 py-3 border-b border-border flex-shrink-0">
+          <div className="flex items-center gap-3">
+            <h2 className="text-sm font-semibold text-foreground">Prompt Pipeline</h2>
+            <span className="text-xs text-muted-foreground">Click a node to edit</span>
           </div>
+          <button
+            onClick={onClose}
+            className="w-7 h-7 flex items-center justify-center rounded-md text-muted-foreground hover:text-foreground hover:bg-surface-3 transition-colors focus-ring"
+            aria-label="Close"
+          >
+            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round">
+              <path d="M18 6L6 18M6 6l12 12" />
+            </svg>
+          </button>
+        </div>
 
-          {/* Content area -- fixed height, internal scroll */}
-          <div className="flex-1 min-h-0 flex">
-            {/* Preset sidebar */}
-            <div className="w-[180px] border-r border-border flex-shrink-0 flex flex-col">
-              <div className="px-3 py-2.5 flex items-center justify-between border-b border-border">
-                <span className="text-[10px] font-medium text-muted uppercase tracking-wider">Presets</span>
-                <button onClick={handleNew} className="text-[10px] text-accent hover:text-accent/80 transition-colors focus-ring rounded px-1">
-                  + New
-                </button>
-              </div>
-              <div className="flex-1 overflow-y-auto p-1.5 flex flex-col gap-0.5">
-                {presets.map((preset) => (
+        {/* Pipeline flow */}
+        <div className="flex-shrink-0 px-5 py-4 border-b border-border">
+          <div className="flex items-center justify-center gap-0">
+            {PIPELINE_SLUGS.map((slug, i) => {
+              const node = nodes?.find((n) => n.slug === slug);
+              const isSelected = selectedSlug === slug;
+              const hasOverride = node?.user_prompt !== null && node?.user_prompt !== undefined;
+              return (
+                <div key={slug} className="flex items-center">
+                  {i > 0 && (
+                    <div className="flex items-center px-2">
+                      <svg width="20" height="12" viewBox="0 0 20 12" fill="none" aria-hidden="true">
+                        <path d="M0 6h16M13 1l5 5-5 5" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" className="text-border" />
+                      </svg>
+                    </div>
+                  )}
                   <button
-                    key={preset.id}
-                    onClick={() => loadPresetWrapped(preset)}
-                    className={`flex items-center gap-1.5 px-2 py-1.5 rounded text-xs text-left transition-colors focus-ring ${
-                      selectedId === preset.id
-                        ? "bg-surface-3 text-foreground"
-                        : "text-muted hover:text-foreground hover:bg-surface-2"
+                    onClick={() => setSelectedSlug(slug)}
+                    className={`relative flex flex-col items-center gap-1 px-4 py-2.5 rounded-lg border transition-all focus-ring ${
+                      isSelected
+                        ? "border-accent bg-accent/10 text-foreground"
+                        : "border-border bg-surface-2 text-muted-foreground hover:border-border-hover hover:text-foreground"
                     }`}
                   >
-                    <span className="truncate flex-1">{preset.name}</span>
-                    {preset.is_default && (
-                      <span className="text-[9px] text-accent font-mono flex-shrink-0">def</span>
+                    <span className="text-xs font-medium whitespace-nowrap">{node?.label ?? slug}</span>
+                    <span className="text-[10px] text-muted-foreground">{node?.model ?? "..."}</span>
+                    {hasOverride && (
+                      <div className="absolute -top-1 -right-1 w-2 h-2 rounded-full bg-warning" title="Custom override" />
                     )}
                   </button>
-                ))}
-              </div>
-            </div>
-
-            {/* Editor area */}
-            <div className="flex-1 min-w-0 flex flex-col">
-              {/* Name row */}
-              <div className="flex items-center gap-3 px-4 py-2.5 border-b border-border flex-shrink-0">
-                <label className="text-[10px] font-medium text-muted uppercase tracking-wider flex-shrink-0" htmlFor="preset-name">
-                  Name
-                </label>
-                <input
-                  id="preset-name"
-                  value={name}
-                  onChange={(e) => setName(e.target.value)}
-                  placeholder="e.g. Instructor Style"
-                  className="flex-1 h-7 px-2 rounded border border-border bg-surface-2 text-xs text-foreground placeholder:text-muted/40 focus:outline-none focus:border-accent transition-colors"
-                />
-              </div>
-
-              {/* Tabs */}
-              <div className="flex items-center border-b border-border flex-shrink-0 px-4">
-                {PROMPT_TABS.map((tab) => (
-                  <button
-                    key={tab.id}
-                    onClick={() => setActiveTab(tab.id)}
-                    className={`px-3 py-2 text-xs font-medium transition-colors relative ${
-                      activeTab === tab.id ? "text-foreground" : "text-muted hover:text-foreground"
-                    }`}
-                  >
-                    {tab.label}
-                    {activeTab === tab.id && (
-                      <span className="absolute bottom-0 left-0 right-0 h-px bg-foreground" />
-                    )}
-                  </button>
-                ))}
-              </div>
-
-              {/* Per-tab model selector */}
-              <div className="flex items-center gap-2 px-4 py-2 border-b border-border bg-surface-2/30 flex-shrink-0">
-                <span className="text-[10px] font-medium text-muted uppercase tracking-wider flex-shrink-0">Model</span>
-                <div className="flex flex-wrap gap-1">
-                  {MODELS.map((m) => (
-                    <button
-                      key={m.id}
-                      onClick={() => setTabModel(activeTab, m.id)}
-                      className={`px-2 py-0.5 rounded text-[10px] font-medium transition-colors focus-ring ${
-                        getTabModel(activeTab) === m.id
-                          ? "bg-foreground text-background"
-                          : "border border-border text-muted hover:text-foreground hover:border-border-hover"
-                      }`}
-                      aria-pressed={getTabModel(activeTab) === m.id}
-                      title={m.label}
-                    >
-                      {m.label}
-                    </button>
-                  ))}
                 </div>
-              </div>
+              );
+            })}
+          </div>
+        </div>
 
-              {/* Prompt textarea -- fills remaining space */}
-              <div className="flex-1 min-h-0 flex flex-col px-4 py-3 gap-1.5">
-                <div className="flex items-center justify-between flex-shrink-0">
-                  <span className="text-[10px] text-muted">
-                    {currentTabConfig.desc}
-                  </span>
-                  {!isStyleTab && (
-                    <span className="text-[10px] text-muted font-mono">
-                      {getTabPrompt(activeTab).length}c
+        {/* Editor area */}
+        <div className="flex-1 min-h-0 flex flex-col">
+          {selectedNode ? (
+            <>
+              {/* Toolbar */}
+              <div className="flex items-center justify-between px-5 py-2 border-b border-border flex-shrink-0">
+                <div className="flex items-center gap-3">
+                  <span className="text-sm font-medium text-foreground">{selectedNode.label}</span>
+                  {isOverridden && (
+                    <span className="text-[10px] px-1.5 py-0.5 rounded bg-warning/20 text-warning font-medium">
+                      Custom
                     </span>
                   )}
                 </div>
-                {isStyleTab ? (
-                  <div className="flex-1 min-h-0 overflow-y-auto rounded border border-border bg-surface-2/50 p-3">
-                    <p className="text-xs text-muted leading-relaxed">
-                      The Style Agent prompt is managed server-side and includes the full Eleven v3 Audio Tags reference. It is not editable here.
-                    </p>
+                <div className="flex items-center gap-2">
+                  <button
+                    onClick={() => showHistory ? setShowHistory(false) : loadHistory()}
+                    disabled={loadingHistory}
+                    className={`h-7 px-3 rounded text-xs font-medium transition-colors focus-ring ${
+                      showHistory
+                        ? "bg-surface-3 text-foreground"
+                        : "text-muted-foreground border border-border hover:text-foreground hover:border-border-hover"
+                    } disabled:opacity-40`}
+                  >
+                    {loadingHistory ? "Loading..." : "History"}
+                  </button>
+                  <button
+                    onClick={handleReset}
+                    disabled={isSaving || !isOverridden}
+                    className="h-7 px-3 rounded text-xs font-medium text-muted-foreground border border-border hover:text-foreground hover:border-border-hover transition-colors focus-ring disabled:opacity-40 disabled:cursor-not-allowed"
+                  >
+                    Reset to Default
+                  </button>
+                  <button
+                    onClick={handleSave}
+                    disabled={!isDirty || isSaving}
+                    className="h-7 px-3 rounded text-xs font-medium bg-accent text-primary-foreground hover:bg-accent-hover transition-colors focus-ring disabled:opacity-40 disabled:cursor-not-allowed"
+                  >
+                    {isSaving ? "Saving..." : "Save"}
+                  </button>
+                </div>
+              </div>
 
-                  </div>
-                ) : (
+              {/* Model selector */}
+              <div className="flex items-center gap-2 px-5 py-2 border-b border-border flex-shrink-0 overflow-x-auto">
+                <span className="text-[10px] text-muted-foreground uppercase tracking-wider flex-shrink-0">Model</span>
+                {MODELS.map((m) => (
+                  <button
+                    key={m.id}
+                    onClick={() => handleModelChange(m.id)}
+                    className={`h-6 px-2 rounded text-[10px] font-medium transition-colors whitespace-nowrap focus-ring ${
+                      editModel === m.id
+                        ? "bg-accent text-primary-foreground"
+                        : "bg-surface-2 text-muted-foreground border border-border hover:text-foreground hover:border-border-hover"
+                    }`}
+                  >
+                    {m.label}
+                  </button>
+                ))}
+              </div>
+
+              {/* Content area */}
+              <div className="flex-1 min-h-0 flex">
+                {/* Prompt textarea */}
+                <div className={`flex-1 min-h-0 flex flex-col ${showHistory ? "border-r border-border" : ""}`}>
                   <textarea
-                    value={getTabPrompt(activeTab)}
-                    onChange={(e) => setTabPrompt(activeTab, e.target.value)}
-                    className="flex-1 min-h-0 w-full px-3 py-2.5 rounded border border-border bg-surface-2 text-xs font-mono leading-relaxed text-foreground placeholder:text-muted/40 resize-none focus:outline-none focus:border-accent transition-colors"
+                    value={editPrompt}
+                    onChange={(e) => handlePromptChange(e.target.value)}
+                    className="flex-1 min-h-0 w-full bg-background text-sm text-foreground px-5 py-4 resize-none focus:outline-none font-mono leading-relaxed"
+                    placeholder="Enter prompt..."
+                    spellCheck={false}
                   />
+                  {/* Default prompt preview when overridden */}
+                  {isOverridden && !showHistory && (
+                    <div className="flex-shrink-0 border-t border-border">
+                      <button
+                        onClick={() => setEditPrompt(selectedNode.default_prompt)}
+                        className="w-full text-left px-5 py-2 text-[10px] text-muted-foreground hover:text-foreground transition-colors"
+                      >
+                        <span className="font-medium">Default prompt:</span>{" "}
+                        {selectedNode.default_prompt.slice(0, 120)}...
+                        <span className="ml-2 underline">Click to view</span>
+                      </button>
+                    </div>
+                  )}
+                </div>
+
+                {/* History panel */}
+                {showHistory && (
+                  <div className="w-72 flex-shrink-0 flex flex-col min-h-0 bg-surface-1">
+                    <div className="px-3 py-2 border-b border-border flex-shrink-0">
+                      <span className="text-xs font-medium text-foreground">Edit History</span>
+                    </div>
+                    <div className="flex-1 min-h-0 overflow-y-auto">
+                      {history.length === 0 ? (
+                        <p className="px-3 py-4 text-xs text-muted-foreground text-center">No history yet</p>
+                      ) : (
+                        history.map((entry) => (
+                          <button
+                            key={entry.id}
+                            onClick={() => restoreFromHistory(entry)}
+                            className="w-full text-left px-3 py-2.5 border-b border-border hover:bg-surface-2 transition-colors group"
+                          >
+                            <div className="flex items-center justify-between mb-1">
+                              <span className="text-[10px] text-muted-foreground">
+                                {formatDateTime(entry.changed_at)}
+                              </span>
+                              <span className="text-[10px] text-accent opacity-0 group-hover:opacity-100 transition-opacity">
+                                Restore
+                              </span>
+                            </div>
+                            <p className="text-xs text-foreground/70 line-clamp-2">
+                              {entry.prompt.slice(0, 100) || "(empty)"}
+                            </p>
+                            <span className="text-[10px] text-muted-foreground mt-0.5 block">{entry.model}</span>
+                          </button>
+                        ))
+                      )}
+                    </div>
+                  </div>
                 )}
               </div>
+            </>
+          ) : (
+            <div className="flex-1 flex items-center justify-center text-muted-foreground text-sm">
+              {nodes ? "Select a node above" : "Loading..."}
             </div>
-          </div>
-
-          {/* Footer */}
-          <div className="flex items-center justify-between gap-3 px-4 py-2.5 border-t border-border bg-surface-2/50 flex-shrink-0">
-            <div className="flex items-center gap-2 min-w-0">
-              {message && (
-                <span className="text-[10px] text-muted animate-fade-in truncate">{message}</span>
-              )}
-            </div>
-            <div className="flex items-center gap-1.5 flex-shrink-0">
-              {selectedId && !isDefault && (
-                <button
-                  onClick={handleDelete}
-                  className="h-7 px-2.5 rounded text-[11px] text-destructive hover:bg-destructive/10 transition-colors focus-ring"
-                >
-                  Delete
-                </button>
-              )}
-              {selectedId && !isDefault && (
-                <button
-                  onClick={handleSetDefault}
-                  className="h-7 px-2.5 rounded text-[11px] text-muted border border-border hover:text-foreground hover:border-border-hover transition-colors focus-ring"
-                >
-                  Set Default
-                </button>
-              )}
-              {selectedId && (
-                <button
-                  onClick={handleSaveAsNew}
-                  disabled={isSaving || !name.trim()}
-                  className="h-7 px-2.5 rounded text-[11px] text-muted border border-border hover:text-foreground hover:border-border-hover transition-colors disabled:opacity-40 focus-ring"
-                >
-                  Save as New
-                </button>
-              )}
-              <button
-                onClick={handleSave}
-                disabled={isSaving || !name.trim() || !systemPrompt.trim()}
-                className="h-7 px-3 rounded bg-foreground text-background text-[11px] font-medium hover:bg-foreground/90 transition-colors disabled:opacity-40 disabled:cursor-not-allowed focus-ring"
-              >
-                {isSaving ? "Saving..." : selectedId ? "Save" : "Create"}
-              </button>
-            </div>
-          </div>
+          )}
         </div>
       </div>
-    </dialog>
+    </div>
   );
 }

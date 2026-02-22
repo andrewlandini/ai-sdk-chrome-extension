@@ -1,6 +1,15 @@
 import { neon } from "@neondatabase/serverless";
 
-export const sql = neon(process.env.DATABASE_URL!);
+let _sql: ReturnType<typeof neon>;
+export function getSql() {
+  const connStr = process.env.DATABASE_URL || process.env.POSTGRES_URL;
+  if (!connStr) throw new Error("Missing DATABASE_URL or POSTGRES_URL environment variable");
+  if (!_sql) _sql = neon(connStr);
+  return _sql;
+}
+// Tagged-template wrapper so call sites stay as sql`...`
+export const sql: ReturnType<typeof neon> = ((strings: TemplateStringsArray, ...values: unknown[]) =>
+  getSql()(strings, ...values)) as ReturnType<typeof neon>;
 
 // ── Blog Audio ──
 
@@ -315,6 +324,94 @@ export async function cleanupOldJobs(): Promise<void> {
     WHERE status NOT IN ('done', 'error')
     AND created_at < NOW() - INTERVAL '10 minutes'
   `;
+}
+
+// ── Style Vibe Presets ──
+
+export interface StyleVibePreset {
+  id: number;
+  label: string;
+  default_prompt: string;
+  user_prompt: string | null;
+  created_at: string;
+}
+
+export async function getStyleVibePresets(): Promise<StyleVibePreset[]> {
+  const rows = await sql`SELECT * FROM style_vibe_presets ORDER BY id ASC`;
+  return rows as StyleVibePreset[];
+}
+
+export async function updateStyleVibePreset(id: number, userPrompt: string): Promise<StyleVibePreset> {
+  const rows = await sql`
+    UPDATE style_vibe_presets SET user_prompt = ${userPrompt} WHERE id = ${id} RETURNING *
+  `;
+  return rows[0] as StyleVibePreset;
+}
+
+export async function resetStyleVibePreset(id: number): Promise<StyleVibePreset> {
+  const rows = await sql`
+    UPDATE style_vibe_presets SET user_prompt = NULL WHERE id = ${id} RETURNING *
+  `;
+  return rows[0] as StyleVibePreset;
+}
+
+// ── Prompt Nodes ──
+
+export interface PromptNode {
+  id: number;
+  slug: string;
+  label: string;
+  default_prompt: string;
+  user_prompt: string | null;
+  model: string;
+  default_model: string;
+  updated_at: string;
+}
+
+export interface PromptNodeHistoryEntry {
+  id: number;
+  node_slug: string;
+  prompt: string;
+  model: string;
+  changed_at: string;
+}
+
+export async function getAllPromptNodes(): Promise<PromptNode[]> {
+  const rows = await sql`SELECT * FROM prompt_nodes ORDER BY id ASC`;
+  return rows as PromptNode[];
+}
+
+export async function getPromptNodeBySlug(slug: string): Promise<PromptNode | null> {
+  const rows = await sql`SELECT * FROM prompt_nodes WHERE slug = ${slug} LIMIT 1`;
+  return rows.length > 0 ? (rows[0] as PromptNode) : null;
+}
+
+export async function updatePromptNode(slug: string, data: { user_prompt: string | null; model: string }): Promise<PromptNode> {
+  // Save history first
+  await sql`
+    INSERT INTO prompt_node_history (node_slug, prompt, model)
+    VALUES (${slug}, ${data.user_prompt ?? ''}, ${data.model})
+  `;
+  const rows = await sql`
+    UPDATE prompt_nodes SET user_prompt = ${data.user_prompt}, model = ${data.model}, updated_at = NOW()
+    WHERE slug = ${slug} RETURNING *
+  `;
+  return rows[0] as PromptNode;
+}
+
+export async function resetPromptNode(slug: string): Promise<PromptNode> {
+  const rows = await sql`
+    UPDATE prompt_nodes SET user_prompt = NULL, model = default_model, updated_at = NOW()
+    WHERE slug = ${slug} RETURNING *
+  `;
+  return rows[0] as PromptNode;
+}
+
+export async function getPromptNodeHistory(slug: string): Promise<PromptNodeHistoryEntry[]> {
+  const rows = await sql`
+    SELECT * FROM prompt_node_history WHERE node_slug = ${slug} ORDER BY changed_at DESC LIMIT 20
+  `;
+  return rows as PromptNodeHistoryEntry[];
 }
 
 // ── Credits Cache ──

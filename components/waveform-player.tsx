@@ -310,7 +310,7 @@ export function WaveformPlayer({
             <button
               onClick={() => skip(-SKIP_SECONDS)}
               disabled={idle}
-              className={`flex items-center justify-center w-8 h-8 rounded-md text-muted hover:text-foreground hover:bg-surface-3 transition-colors focus-ring ${idle ? "opacity-30 cursor-default" : ""}`}
+              className={`flex items-center justify-center w-11 h-11 rounded-md text-muted hover:text-foreground hover:bg-surface-3 transition-colors focus-ring ${idle ? "opacity-30 cursor-default" : ""}`}
               aria-label={`Rewind ${SKIP_SECONDS} seconds`}
             >
               <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" aria-hidden="true">
@@ -322,7 +322,7 @@ export function WaveformPlayer({
             <button
               onClick={togglePlayPause}
               disabled={idle}
-              className={`flex items-center justify-center w-9 h-9 rounded-full bg-foreground text-background hover:bg-foreground/90 transition-colors focus-ring ${idle ? "opacity-30 cursor-default" : ""}`}
+              className={`flex items-center justify-center w-11 h-11 rounded-full bg-foreground text-background hover:bg-foreground/90 transition-colors focus-ring ${idle ? "opacity-30 cursor-default" : ""}`}
               aria-label={isPlaying ? "Pause" : "Play"}
             >
               {isPlaying ? (
@@ -340,7 +340,7 @@ export function WaveformPlayer({
             <button
               onClick={() => skip(SKIP_SECONDS)}
               disabled={idle}
-              className={`flex items-center justify-center w-8 h-8 rounded-md text-muted hover:text-foreground hover:bg-surface-3 transition-colors focus-ring ${idle ? "opacity-30 cursor-default" : ""}`}
+              className={`flex items-center justify-center w-11 h-11 rounded-md text-muted hover:text-foreground hover:bg-surface-3 transition-colors focus-ring ${idle ? "opacity-30 cursor-default" : ""}`}
               aria-label={`Forward ${SKIP_SECONDS} seconds`}
             >
               <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" aria-hidden="true">
