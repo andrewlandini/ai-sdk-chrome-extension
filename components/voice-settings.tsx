@@ -19,30 +19,18 @@ interface VoicePreset {
 
 // Voice IDs -- names and descriptions are fetched dynamically from the ElevenLabs API
 const VOICE_IDS = [
-  // Premade voices
-  "CwhRBWXzGAHq8TQ4Fs17", // Roger
-  "EXAVITQu4vr4xnSDxMaL", // Sarah
-  "IKne3meq5aSn9XLyUdCD", // Charlie
-  "JBFqnCBsd6RMkjVDRZzb", // George
-  "TX3LPaxmHKxFdv7VOQHJ", // Liam
-  "Xb7hH8MSUJpSbSDYk0k2", // Alice
-  "XrExE9yKIg1WjnnlVkGX", // Matilda
-  "nPczCjzI2devNBz1zQrb", // Brian
-  "onwK4e9ZLuTAKqWW03F9", // Daniel
-  "pFZP5JQG7iQjIQuC4Bku", // Lily
-  "pqHfZKP75CvOlQylNhV4", // Bill
-  "cgSgspJ2msm6clMCkdW9", // Jessica
-  "cjVigY5qzO86Huf0OWal", // Eric
-  "SAz9YHcvj6GT2YYXdXww", // River
-  // Professional voices
+  "PIGsltMj3gFMR34aFDI3", // Jonathan Livingston
   "UgBBYS2sOqTuMpoF3BR0", // Mark
-  "EkK5I93UQWFDigLMpZcX", // James
-  "n1PvBOwxb8X6m7tahp2h", // Vincent
-  "Bj9UqZbhQsanLzgalpEG", // Austin
-  "4YYIPFl9wE5c4L2eu2Gb", // Burt Reynolds
-  "BL7YSL1bAkmW8U0JnU8o", // Jen
-  "c6SfcYrb2t09NHXiT80T", // Jarnathan
-  "hpp4J3VqNfWAUOO0d1Us", // Bella
+  "X03mvPuTfprif8QBAVeJ", // Christina
+  "tnSpp4vdxKPjI9w0GnoV", // Hope
+  "kPzsL2i3teMYv0FxEYQ6", // Brittney
+  "15CVCzDByBinCIoCblXo", // Lucan Rook
+  "q0IMILNRPxOgtBTS4taI", // Drew
+  "6u6JbqKdaQy89ENzLSju", // Brielle
+  "fDeOZu1sNd7qahm2fV4k", // Luna
+  "yr43K8H5LoTp6S1QFSGg", // Matt
+  "eXpIbVcVbLo8ZJQDlDnl", // Siren
+  "IoYPiP0wwoQzmraBbiju", // Patrick
 ];
 
 const fetcher = (url: string) => fetch(url).then((r) => r.json());
