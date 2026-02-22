@@ -92,7 +92,7 @@ type CreditsData = {
 };
 
 const DEFAULT_VOICE_CONFIG: VoiceConfig = {
-  voiceId: "TX3LPaxmHKxFdv7VOQHJ",
+  voiceId: "PIGsltMj3gFMR34aFDI3",
   stability: 0,
   label: "",
   styleVibe: "Confident and genuinely excited about the content, but grounded and conversational -- not over the top",

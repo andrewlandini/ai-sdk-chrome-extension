@@ -17,25 +17,27 @@ interface VoicePreset {
   stability: number;
 }
 
-const VOICES = [
-  { id: "TX3LPaxmHKxFdv7VOQHJ", name: "Liam", desc: "Young, articulate" },
-  { id: "nPczCjzI2devNBz1zQrb", name: "Brian", desc: "Deep, narrator" },
-  { id: "JBFqnCBsd6RMkjVDRZzb", name: "George", desc: "British, warm" },
-  { id: "onwK4e9ZLuTAKqWW03F9", name: "Daniel", desc: "British, authoritative" },
-  { id: "pFZP5JQG7iQjIQuC4Bku", name: "Lily", desc: "British, warm" },
-  { id: "21m00Tcm4TlvDq8ikWAM", name: "Rachel", desc: "Calm, professional" },
-  { id: "EXAVITQu4vr4xnSDxMaL", name: "Sarah", desc: "News, clear" },
-  { id: "Xb7hH8MSUJpSbSDYk0k2", name: "Alice", desc: "British, confident" },
-  { id: "IKne3meq5aSn9XLyUdCD", name: "Charlie", desc: "Australian, casual" },
-  { id: "cjVigY5qzO86Huf0OWal", name: "Eric", desc: "American, friendly" },
-  { id: "N2lVS1w4EtoT3dr4eOWO", name: "Callum", desc: "Intense, transatlantic" },
-  { id: "iP95p4xoKVk53GoZ742B", name: "Chris", desc: "Casual, conversational" },
+// Voice IDs -- names and descriptions are fetched dynamically from the API
+const VOICE_IDS = [
+  "PIGsltMj3gFMR34aFDI3",
+  "UgBBYS2sOqTuMpoF3BR0",
+  "X03mvPuTfprif8QBAVeJ",
+  "tnSpp4vdxKPjI9w0GnoV",
+  "kPzsL2i3teMYv0FxEYQ6",
+  "15CVCzDByBinCIoCblXo",
+  "q0IMILNRPxOgtBTS4taI",
+  "6u6JbqKdaQy89ENzLSju",
+  "fDeOZu1sNd7qahm2fV4k",
+  "yr43K8H5LoTp6S1QFSGg",
+  "eXpIbVcVbLo8ZJQDlDnl",
+  "IoYPiP0wwoQzmraBbiju",
 ];
 
 const fetcher = (url: string) => fetch(url).then((r) => r.json());
 
-function getVoiceName(id: string) {
-  return VOICES.find((v) => v.id === id)?.name ?? id;
+// Exported so other components (e.g. VersionsList) can look up voice names
+export function getVoiceName(id: string, meta?: Record<string, { name: string }> | null) {
+  return meta?.[id]?.name ?? id.slice(0, 8);
 }
 
 interface VoiceSettingsProps {
@@ -59,8 +61,12 @@ export function VoiceSettings({ config, onChange, isGenerating = false, generate
 
   const presets = presetsData?.presets ?? [];
 
-  const { data: voicePreviewData } = useSWR<{ voices: Record<string, string> }>("/api/voices", fetcher);
+  const { data: voicePreviewData } = useSWR<{
+    voices: Record<string, string>;
+    voiceMeta: Record<string, { name: string; desc: string; gender: string }>;
+  }>("/api/voices", fetcher);
   const previewUrls = voicePreviewData?.voices ?? {};
+  const voiceMeta = voicePreviewData?.voiceMeta ?? {};
   const audioRef = useRef<HTMLAudioElement | null>(null);
   const [playingVoiceId, setPlayingVoiceId] = useState<string | null>(null);
 
@@ -202,7 +208,7 @@ export function VoiceSettings({ config, onChange, isGenerating = false, generate
                       {preset.name}
                     </span>
                     <span className="text-[10px] text-muted-foreground font-mono">
-                      {getVoiceName(preset.voice_id)} / stability {preset.stability.toFixed(2)}
+                      {getVoiceName(preset.voice_id, voiceMeta)} / stability {preset.stability.toFixed(2)}
                     </span>
                   </div>
                   <button
@@ -237,14 +243,17 @@ export function VoiceSettings({ config, onChange, isGenerating = false, generate
       <fieldset className="flex flex-col gap-2">
         <legend className="text-xs text-muted font-medium">Voice</legend>
         <div className="flex flex-col gap-0.5">
-          {VOICES.map((v) => {
-            const isSelected = config.voiceId === v.id;
-            const isPlaying = playingVoiceId === v.id;
-            const hasPreview = !!previewUrls[v.id];
+          {VOICE_IDS.map((vid) => {
+            const meta = voiceMeta[vid];
+            const vName = meta?.name ?? vid.slice(0, 8);
+            const vDesc = meta?.desc ?? "";
+            const isSelected = config.voiceId === vid;
+            const isPlaying = playingVoiceId === vid;
+            const hasPreview = !!previewUrls[vid];
 
             return (
               <div
-                key={v.id}
+                key={vid}
                 className={`group flex items-center h-8 rounded-md transition-colors border ${
                   isSelected
                     ? "bg-accent/15 border-accent/30"
@@ -255,9 +264,9 @@ export function VoiceSettings({ config, onChange, isGenerating = false, generate
                 <button
                   onClick={(e) => {
                     e.stopPropagation();
-                    if (hasPreview) handlePreview(v.id);
+                    if (hasPreview) handlePreview(vid);
                   }}
-                  aria-label={isPlaying ? `Stop ${v.name} preview` : `Preview ${v.name}`}
+                  aria-label={isPlaying ? `Stop ${vName} preview` : `Preview ${vName}`}
                   disabled={!hasPreview}
                   className={`flex items-center justify-center w-8 h-full flex-shrink-0 rounded-l-md transition-colors focus-ring ${
                     !hasPreview
@@ -280,12 +289,12 @@ export function VoiceSettings({ config, onChange, isGenerating = false, generate
                 </button>
                 {/* Voice select button */}
                 <button
-                  onClick={() => update({ voiceId: v.id })}
+                  onClick={() => update({ voiceId: vid })}
                   aria-pressed={isSelected}
                   className="flex-1 min-w-0 flex items-center gap-3 pr-3 py-1 text-left focus-ring rounded-r-md h-full"
                 >
-                  <span className={`text-xs font-medium ${isSelected ? "text-accent" : "text-foreground"}`}>{v.name}</span>
-                  <span className="text-[10px] text-muted-foreground">{v.desc}</span>
+                  <span className={`text-xs font-medium ${isSelected ? "text-accent" : "text-foreground"}`}>{vName}</span>
+                  <span className="text-[10px] text-muted-foreground">{vDesc}</span>
                 </button>
               </div>
             );
