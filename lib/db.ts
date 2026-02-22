@@ -461,6 +461,62 @@ export async function getPromptNodeHistory(slug: string): Promise<PromptNodeHist
   return rows as PromptNodeHistoryEntry[];
 }
 
+// ── Raw Content History ──
+
+export interface RawContentHistoryEntry {
+  id: number;
+  url: string;
+  content: string;
+  word_count: number;
+  created_at: string;
+}
+
+export async function getRawContentHistoryByUrl(url: string): Promise<RawContentHistoryEntry[]> {
+  const rows = await sql`SELECT * FROM raw_content_history WHERE url = ${url} ORDER BY created_at DESC`;
+  return rows as RawContentHistoryEntry[];
+}
+
+export async function insertRawContentHistory(data: { url: string; content: string; word_count: number }): Promise<RawContentHistoryEntry> {
+  const rows = await sql`
+    INSERT INTO raw_content_history (url, content, word_count)
+    VALUES (${data.url}, ${data.content}, ${data.word_count})
+    RETURNING *
+  `;
+  return rows[0] as RawContentHistoryEntry;
+}
+
+export async function deleteRawContentHistory(id: number): Promise<void> {
+  await sql`DELETE FROM raw_content_history WHERE id = ${id}`;
+}
+
+// ── Script History ──
+
+export interface ScriptHistoryEntry {
+  id: number;
+  url: string;
+  script: string;
+  word_count: number;
+  created_at: string;
+}
+
+export async function getScriptHistoryByUrl(url: string): Promise<ScriptHistoryEntry[]> {
+  const rows = await sql`SELECT * FROM script_history WHERE url = ${url} ORDER BY created_at DESC`;
+  return rows as ScriptHistoryEntry[];
+}
+
+export async function insertScriptHistory(data: { url: string; script: string; word_count: number }): Promise<ScriptHistoryEntry> {
+  const rows = await sql`
+    INSERT INTO script_history (url, script, word_count)
+    VALUES (${data.url}, ${data.script}, ${data.word_count})
+    RETURNING *
+  `;
+  return rows[0] as ScriptHistoryEntry;
+}
+
+export async function deleteScriptHistory(id: number): Promise<void> {
+  await sql`DELETE FROM script_history WHERE id = ${id}`;
+}
+
 // ── Credits Cache ──
 
 export interface CachedCredits {

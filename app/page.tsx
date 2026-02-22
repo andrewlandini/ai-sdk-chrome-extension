@@ -172,6 +172,16 @@ function HomePage() {
   const [historyOpen, setHistoryOpen] = useState(false);
   const [selectedHistoryScript, setSelectedHistoryScript] = useState<string | null>(null);
   const historyRef = useRef<HTMLDivElement>(null);
+
+  // Raw content history
+  const [rawContentHistory, setRawContentHistory] = useState<{ id: number; content: string; word_count: number; created_at: string }[]>([]);
+  const [rawContentHistoryOpen, setRawContentHistoryOpen] = useState(false);
+  const rawContentHistoryRef = useRef<HTMLDivElement>(null);
+
+  // Script history
+  const [scriptHistoryList, setScriptHistoryList] = useState<{ id: number; script: string; word_count: number; created_at: string }[]>([]);
+  const [scriptHistoryOpen, setScriptHistoryOpen] = useState(false);
+  const scriptHistoryRef = useRef<HTMLDivElement>(null);
   const styleAgentRef = useRef<StyleAgentHandle>(null);
   const restoredRef = useRef(false);
 
@@ -333,6 +343,23 @@ function HomePage() {
   useEffect(() => { mutateVersionsRef.current = mutateVersions; }, [mutateVersions]);
   useEffect(() => { mutateCreditsRef.current = mutateCredits; }, [mutateCredits]);
 
+  // Fetch raw content + script history when URL changes
+  useEffect(() => {
+    if (!scriptUrl) {
+      setRawContentHistory([]);
+      setScriptHistoryList([]);
+      return;
+    }
+    fetch(`/api/raw-content-history?url=${encodeURIComponent(scriptUrl)}`)
+      .then(r => r.json())
+      .then(d => setRawContentHistory(d.entries ?? []))
+      .catch(() => {});
+    fetch(`/api/script-history?url=${encodeURIComponent(scriptUrl)}`)
+      .then(r => r.json())
+      .then(d => setScriptHistoryList(d.entries ?? []))
+      .catch(() => {});
+  }, [scriptUrl]);
+
   // ── Handlers ──
 
   const handleSelectPost = useCallback((url: string, title: string) => {
@@ -422,6 +449,22 @@ function HomePage() {
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ url: result.url, script: result.summary }),
       });
+
+      // Save to script history
+      const wc = result.summary.trim().split(/\s+/).filter(Boolean).length;
+      fetch("/api/script-history", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ url: result.url, script: result.summary, word_count: wc }),
+      })
+        .then(() => {
+          fetch(`/api/script-history?url=${encodeURIComponent(result.url)}`)
+            .then(r => r.json())
+            .then(d => setScriptHistoryList(d.entries ?? []))
+            .catch(() => {});
+        })
+        .catch(() => {});
+
       mutateVersions();
       mutateHistory();
     } catch (err) {
@@ -694,7 +737,24 @@ function HomePage() {
         body: JSON.stringify({ url: targetUrl }),
       });
       const data = await res.json();
-      if (data.rawContent) setRawContent(data.rawContent);
+      if (data.rawContent) {
+        setRawContent(data.rawContent);
+        // Save to history
+        const wc = data.rawContent.trim().split(/\s+/).filter(Boolean).length;
+        fetch("/api/raw-content-history", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ url: targetUrl, content: data.rawContent, word_count: wc }),
+        })
+          .then(r => r.json())
+          .then(() => {
+            fetch(`/api/raw-content-history?url=${encodeURIComponent(targetUrl)}`)
+              .then(r => r.json())
+              .then(d => setRawContentHistory(d.entries ?? []))
+              .catch(() => {});
+          })
+          .catch(() => {});
+      }
     } catch (err) {
       console.error("Failed to fetch raw content:", err);
     } finally {
@@ -1147,6 +1207,50 @@ function HomePage() {
                             <path d="M12 2a10 10 0 0 1 10 10" stroke="currentColor" strokeWidth="2" strokeLinecap="round" />
                           </svg>
                         )}
+                        {/* History dropdown */}
+                        <div className="relative" ref={rawContentHistoryRef}>
+                          <button
+                            onClick={() => setRawContentHistoryOpen(prev => !prev)}
+                            className={`flex items-center gap-1 text-[10px] transition-colors focus-ring rounded px-1 py-0.5 ${
+                              rawContentHistory.length > 0 ? "text-muted hover:text-foreground" : "text-muted/40 cursor-default"
+                            }`}
+                            disabled={rawContentHistory.length === 0}
+                          >
+                            <svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" aria-hidden="true">
+                              <circle cx="12" cy="12" r="10" /><polyline points="12 6 12 12 16 14" />
+                            </svg>
+                            {rawContentHistory.length > 0 && (
+                              <span className="text-[9px] font-mono text-accent bg-accent/10 px-1 rounded">{rawContentHistory.length}</span>
+                            )}
+                          </button>
+                          {rawContentHistoryOpen && rawContentHistory.length > 0 && (
+                            <>
+                              <div className="fixed inset-0 z-40" onClick={() => setRawContentHistoryOpen(false)} />
+                              <div className="absolute right-0 top-full mt-1 z-50 w-72 max-h-64 overflow-y-auto rounded-lg border border-border bg-surface-1 shadow-lg">
+                                <div className="px-3 py-2 border-b border-border">
+                                  <p className="text-[11px] font-medium text-muted">Previous Fetches</p>
+                                </div>
+                                {rawContentHistory.map((entry) => (
+                                  <button
+                                    key={entry.id}
+                                    onClick={() => { setRawContent(entry.content); setRawContentHistoryOpen(false); }}
+                                    className="w-full text-left px-3 py-2.5 hover:bg-surface-2 transition-colors border-b border-border last:border-b-0"
+                                  >
+                                    <div className="flex items-center justify-between gap-2 mb-1">
+                                      <span className="text-[10px] text-muted font-mono tabular-nums">{entry.word_count}w</span>
+                                      <span className="text-[10px] text-muted">
+                                        {new Date(entry.created_at).toLocaleString("en-US", { timeZone: "America/Los_Angeles", month: "short", day: "numeric", hour: "2-digit", minute: "2-digit" })}
+                                      </span>
+                                    </div>
+                                    <p className="text-[11px] text-muted-foreground line-clamp-2 leading-relaxed">
+                                      {entry.content.slice(0, 120)}...
+                                    </p>
+                                  </button>
+                                ))}
+                              </div>
+                            </>
+                          )}
+                        </div>
                       </div>
                     </div>
                     <div className="flex-1 min-h-0 overflow-y-auto">
@@ -1232,6 +1336,50 @@ function HomePage() {
                             </svg>
                           </button>
                         )}
+                        {/* Script History dropdown */}
+                        <div className="relative" ref={scriptHistoryRef}>
+                          <button
+                            onClick={() => setScriptHistoryOpen(prev => !prev)}
+                            className={`flex items-center gap-1 text-[10px] transition-colors focus-ring rounded px-1 py-0.5 ${
+                              scriptHistoryList.length > 0 ? "text-muted hover:text-foreground" : "text-muted/40 cursor-default"
+                            }`}
+                            disabled={scriptHistoryList.length === 0}
+                          >
+                            <svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" aria-hidden="true">
+                              <circle cx="12" cy="12" r="10" /><polyline points="12 6 12 12 16 14" />
+                            </svg>
+                            {scriptHistoryList.length > 0 && (
+                              <span className="text-[9px] font-mono text-accent bg-accent/10 px-1 rounded">{scriptHistoryList.length}</span>
+                            )}
+                          </button>
+                          {scriptHistoryOpen && scriptHistoryList.length > 0 && (
+                            <>
+                              <div className="fixed inset-0 z-40" onClick={() => setScriptHistoryOpen(false)} />
+                              <div className="absolute right-0 top-full mt-1 z-50 w-72 max-h-64 overflow-y-auto rounded-lg border border-border bg-surface-1 shadow-lg">
+                                <div className="px-3 py-2 border-b border-border">
+                                  <p className="text-[11px] font-medium text-muted">Previous Scripts</p>
+                                </div>
+                                {scriptHistoryList.map((entry) => (
+                                  <button
+                                    key={entry.id}
+                                    onClick={() => { setScript(entry.script); setScriptHistoryOpen(false); }}
+                                    className="w-full text-left px-3 py-2.5 hover:bg-surface-2 transition-colors border-b border-border last:border-b-0"
+                                  >
+                                    <div className="flex items-center justify-between gap-2 mb-1">
+                                      <span className="text-[10px] text-muted font-mono tabular-nums">{entry.word_count}w</span>
+                                      <span className="text-[10px] text-muted">
+                                        {new Date(entry.created_at).toLocaleString("en-US", { timeZone: "America/Los_Angeles", month: "short", day: "numeric", hour: "2-digit", minute: "2-digit" })}
+                                      </span>
+                                    </div>
+                                    <p className="text-[11px] text-muted-foreground line-clamp-2 leading-relaxed">
+                                      {entry.script.slice(0, 120)}...
+                                    </p>
+                                  </button>
+                                ))}
+                              </div>
+                            </>
+                          )}
+                        </div>
                       </div>
                     </div>
                     <div className="flex-1 min-h-0 overflow-y-auto">
@@ -1309,66 +1457,6 @@ function HomePage() {
                 <div className="flex items-center gap-2">
                   <span className="text-sm font-semibold tracking-tight">Voice Over</span>
                 </div>
-                {/* History dropdown */}
-                <div className="relative" ref={historyRef}>
-                  <button
-                    onClick={() => setHistoryOpen(prev => !prev)}
-                    className={`flex items-center gap-1.5 text-xs transition-colors focus-ring rounded px-2 py-1 ${
-                      styleHistory.length > 0
-                        ? "text-muted hover:text-foreground"
-                        : "text-muted/40 cursor-default"
-                    }`}
-                    disabled={styleHistory.length === 0}
-                  >
-                    <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" aria-hidden="true">
-                      <circle cx="12" cy="12" r="10" />
-                      <polyline points="12 6 12 12 16 14" />
-                    </svg>
-                    <span>History</span>
-                    {styleHistory.length > 0 && (
-                      <span className="text-[10px] font-mono text-accent bg-accent/10 px-1 py-0.5 rounded">{styleHistory.length}</span>
-                    )}
-                  </button>
-                  {historyOpen && styleHistory.length > 0 && (
-                    <>
-                      {/* Backdrop */}
-                      <div className="fixed inset-0 z-40" onClick={() => setHistoryOpen(false)} />
-                      {/* Dropdown */}
-                      <div className="absolute right-0 top-full mt-1 z-50 w-72 max-h-64 overflow-y-auto rounded-lg border border-border bg-surface-1 shadow-lg">
-                        <div className="px-3 py-2 border-b border-border">
-                          <p className="text-[11px] font-medium text-muted">Previous Generations</p>
-                        </div>
-                        {styleHistory.map((entry) => (
-                          <button
-                            key={entry.id}
-  onClick={() => {
-  setSelectedHistoryScript(entry.script);
-  setStyledScript(entry.script);
-  setActiveChunkMap(null); // Clear chunk view so textarea shows
-  setHistoryOpen(false);
-  }}
-                            className="w-full text-left px-3 py-2.5 hover:bg-surface-2 transition-colors border-b border-border last:border-b-0 group"
-                          >
-                            <div className="flex items-center justify-between gap-2 mb-1">
-                              <span className="text-[10px] font-medium text-accent bg-accent/10 px-1.5 py-0.5 rounded truncate max-w-[160px]">
-                                {entry.vibe.length > 30 ? entry.vibe.slice(0, 30) + "..." : entry.vibe}
-                              </span>
-                              <span className="text-[10px] text-muted font-mono tabular-nums flex-shrink-0">
-                                {entry.wordCount}w
-                              </span>
-                            </div>
-                            <p className="text-[11px] text-muted-foreground line-clamp-2 leading-relaxed">
-                              {entry.script.slice(0, 120)}...
-                            </p>
-                            <p className="text-[10px] text-muted mt-1">
-                              {entry.timestamp.toLocaleTimeString("en-US", { timeZone: "America/Los_Angeles", hour: "2-digit", minute: "2-digit" })}
-                            </p>
-                          </button>
-                        ))}
-                      </div>
-                    </>
-                  )}
-                </div>
               </div>
               {/* ElevenLabs Script subheader */}
               <div className="flex items-center justify-between px-3 py-1.5 border-b border-border bg-surface-2/30 flex-shrink-0">
@@ -1385,6 +1473,73 @@ function HomePage() {
                   <span className="text-[10px] text-muted font-mono tabular-nums">
                     {styledScript.trim() ? `${styledScript.trim().split(/\s+/).filter(Boolean).length}w` : "---"}
                   </span>
+                  {/* Regenerate */}
+                  {styledScript.trim() && !isStyleRunning && (
+                    <button
+                      onClick={() => styleAgentRef.current?.runAgent()}
+                      aria-label="Re-style script"
+                      className="flex items-center gap-1 text-[10px] text-muted hover:text-foreground transition-colors focus-ring rounded px-1 py-0.5 flex-shrink-0"
+                    >
+                      <svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" aria-hidden="true">
+                        <path d="M1 4v6h6M23 20v-6h-6" />
+                        <path d="M20.49 9A9 9 0 0 0 5.64 5.64L1 10m22 4l-4.64 4.36A9 9 0 0 1 3.51 15" />
+                      </svg>
+                    </button>
+                  )}
+                  {/* Style History dropdown */}
+                  <div className="relative" ref={historyRef}>
+                    <button
+                      onClick={() => setHistoryOpen(prev => !prev)}
+                      className={`flex items-center gap-1 text-[10px] transition-colors focus-ring rounded px-1 py-0.5 ${
+                        styleHistory.length > 0 ? "text-muted hover:text-foreground" : "text-muted/40 cursor-default"
+                      }`}
+                      disabled={styleHistory.length === 0}
+                    >
+                      <svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" aria-hidden="true">
+                        <circle cx="12" cy="12" r="10" /><polyline points="12 6 12 12 16 14" />
+                      </svg>
+                      {styleHistory.length > 0 && (
+                        <span className="text-[9px] font-mono text-accent bg-accent/10 px-1 rounded">{styleHistory.length}</span>
+                      )}
+                    </button>
+                    {historyOpen && styleHistory.length > 0 && (
+                      <>
+                        <div className="fixed inset-0 z-40" onClick={() => setHistoryOpen(false)} />
+                        <div className="absolute right-0 top-full mt-1 z-50 w-72 max-h-64 overflow-y-auto rounded-lg border border-border bg-surface-1 shadow-lg">
+                          <div className="px-3 py-2 border-b border-border">
+                            <p className="text-[11px] font-medium text-muted">Previous Styled Scripts</p>
+                          </div>
+                          {styleHistory.map((entry) => (
+                            <button
+                              key={entry.id}
+                              onClick={() => {
+                                setSelectedHistoryScript(entry.script);
+                                setStyledScript(entry.script);
+                                setActiveChunkMap(null);
+                                setHistoryOpen(false);
+                              }}
+                              className="w-full text-left px-3 py-2.5 hover:bg-surface-2 transition-colors border-b border-border last:border-b-0"
+                            >
+                              <div className="flex items-center justify-between gap-2 mb-1">
+                                <span className="text-[10px] font-medium text-accent bg-accent/10 px-1.5 py-0.5 rounded truncate max-w-[160px]">
+                                  {entry.vibe.length > 30 ? entry.vibe.slice(0, 30) + "..." : entry.vibe}
+                                </span>
+                                <span className="text-[10px] text-muted font-mono tabular-nums flex-shrink-0">
+                                  {entry.wordCount}w
+                                </span>
+                              </div>
+                              <p className="text-[11px] text-muted-foreground line-clamp-2 leading-relaxed">
+                                {entry.script.slice(0, 120)}...
+                              </p>
+                              <p className="text-[10px] text-muted mt-1">
+                                {entry.timestamp.toLocaleTimeString("en-US", { timeZone: "America/Los_Angeles", hour: "2-digit", minute: "2-digit" })}
+                              </p>
+                            </button>
+                          ))}
+                        </div>
+                      </>
+                    )}
+                  </div>
                 </div>
               </div>
               {/* Vibe preset grid */}
