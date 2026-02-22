@@ -825,7 +825,7 @@ function HomePage() {
     summarizeAbortRef.current?.abort();
   }, []);
 
-  const handleFetchRawContent = useCallback(async (url?: string) => {
+  const handleFetchRawContent = useCallback(async (url?: string, force = true) => {
     const targetUrl = url || scriptUrl;
     if (!targetUrl) return;
     setFetchingRawContent(true);
@@ -833,7 +833,7 @@ function HomePage() {
       const res = await fetch("/api/raw-content", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ url: targetUrl }),
+        body: JSON.stringify({ url: targetUrl, force }),
       });
       const data = await res.json();
       if (data.rawContent) {

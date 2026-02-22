@@ -14,13 +14,15 @@ export async function GET(req: Request) {
 
 // POST: scrape blog text and store it
 export async function POST(req: Request) {
-  const { url } = await req.json();
+  const { url, force } = await req.json();
   if (!url) return Response.json({ error: "Missing url" }, { status: 400 });
 
-  // Check if already scraped
-  const existing = await sql`SELECT raw_content FROM blog_posts_cache WHERE url = ${url} LIMIT 1`;
-  if (existing[0]?.raw_content) {
-    return Response.json({ rawContent: existing[0].raw_content });
+  // Check if already scraped (skip if force re-scrape)
+  if (!force) {
+    const existing = await sql`SELECT raw_content FROM blog_posts_cache WHERE url = ${url} LIMIT 1`;
+    if (existing[0]?.raw_content) {
+      return Response.json({ rawContent: existing[0].raw_content });
+    }
   }
 
   const scraped = await scrapeBlogPost(url);

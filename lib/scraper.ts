@@ -25,7 +25,15 @@ export async function scrapeBlogPost(url: string): Promise<ScrapedContent> {
 
   // Remove unwanted elements
   $(
-    "script, style, noscript, nav, footer, header, aside, iframe, form, [role='navigation'], [role='banner'], [role='contentinfo'], .sidebar, .comments, .advertisement, .ad, .social-share"
+    "script, style, noscript, nav, footer, header, aside, iframe, form, " +
+    "[role='navigation'], [role='banner'], [role='contentinfo'], " +
+    ".sidebar, .comments, .advertisement, .ad, .social-share, " +
+    // Vercel blog specific cruft
+    "button, [data-copy], [aria-label='Copy'], [aria-label='Copy URL'], " +
+    ".copy-button, .share-button, .reading-time, time, " +
+    "[class*='breadcrumb'], [class*='table-of-contents'], [class*='toc'], " +
+    "[class*='share'], [class*='social'], [class*='newsletter'], " +
+    "[class*='subscribe'], [class*='related-posts'], [class*='author-bio']"
   ).remove();
 
   // Extract title
@@ -60,6 +68,21 @@ export async function scrapeBlogPost(url: string): Promise<ScrapedContent> {
   if (!text) {
     text = $("body").text().trim();
   }
+
+  // Strip common UI artifacts that survive DOM removal
+  text = text
+    // Reading time patterns: "4 min read", "5 minute read", etc.
+    .replace(/\d+\s*min(ute)?\s*read/gi, "")
+    // "Copy URL", "Copied to clipboard!", "Copy", "Link to heading"
+    .replace(/Copy\s*URL/gi, "")
+    .replace(/Copied to clipboard!?/gi, "")
+    .replace(/Link to heading/gi, "")
+    // Standalone "Copy" that appears from copy buttons (but not inside words)
+    .replace(/(?<=\s|^)Copy(?=\s|$)/g, "")
+    // Date prefixes at start: "Feb 3, 2026" pattern
+    .replace(/^(Jan|Feb|Mar|Apr|May|Jun|Jul|Aug|Sep|Oct|Nov|Dec)\s+\d{1,2},?\s*\d{4}\s*/i, "")
+    // Line number prefixes from code blocks: "1npm i geist", "2export default..."
+    .replace(/(?<=\s|^)\d{1,3}(?=[a-zA-Z])/g, "");
 
   // Clean up whitespace
   text = text.replace(/\s+/g, " ").trim();
