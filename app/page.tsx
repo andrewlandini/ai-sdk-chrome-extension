@@ -846,8 +846,24 @@ function HomePage() {
               <VersionsList
                 versions={versions}
                 activeId={activeEntry?.id ?? null}
+                isPlaying={isAudioPlaying}
                 onSelect={handleSelectVersion}
                 onDelete={handleDeleteVersion}
+                onEdit={(v) => {
+                  if (v.summary) {
+                    setStyledScript(v.summary);
+                    setActiveChunkMap(v.chunk_map || null);
+                  }
+                }}
+                onTogglePlay={(v) => {
+                  if (v.id === activeEntry?.id) {
+                    // Toggle play/pause on the current audio
+                    const audio = document.querySelector("audio");
+                    if (audio) { audio.paused ? audio.play() : audio.pause(); }
+                  } else {
+                    handleSelectVersion(v);
+                  }
+                }}
               />
             </div>
 
@@ -917,8 +933,23 @@ function HomePage() {
             <VersionsList
               versions={versions}
               activeId={activeEntry?.id ?? null}
+              isPlaying={isAudioPlaying}
               onSelect={handleSelectVersion}
               onDelete={handleDeleteVersion}
+              onEdit={(v) => {
+                if (v.summary) {
+                  setStyledScript(v.summary);
+                  setActiveChunkMap(v.chunk_map || null);
+                }
+              }}
+              onTogglePlay={(v) => {
+                if (v.id === activeEntry?.id) {
+                  const audio = document.querySelector("audio");
+                  if (audio) { audio.paused ? audio.play() : audio.pause(); }
+                } else {
+                  handleSelectVersion(v);
+                }
+              }}
             />
           </div>
 
@@ -1243,6 +1274,10 @@ function HomePage() {
                   currentPlaybackTime={playbackTime}
                   isAudioPlaying={isAudioPlaying}
                   onRegenerateChunk={handleRegenerateChunk}
+                  onSeekToTime={(t) => {
+                    const audio = document.querySelector("audio");
+                    if (audio) { audio.currentTime = t; audio.play(); }
+                  }}
                 />
               </div>
 

@@ -35,6 +35,7 @@ interface StyleAgentProps {
   currentPlaybackTime?: number;
   isAudioPlaying?: boolean;
   onRegenerateChunk?: (chunkIndex: number, newText: string) => void;
+  onSeekToTime?: (time: number) => void;
 }
 
 export interface StyleAgentHandle {
@@ -60,6 +61,7 @@ export const StyleAgent = forwardRef<StyleAgentHandle, StyleAgentProps>(function
     currentPlaybackTime = 0,
     isAudioPlaying = false,
     onRegenerateChunk,
+    onSeekToTime,
   },
   ref,
 ) {
@@ -256,7 +258,37 @@ export const StyleAgent = forwardRef<StyleAgentHandle, StyleAgentProps>(function
             >
               {/* Chunk header */}
               <div className="flex items-center justify-between px-3 py-1.5 bg-surface-2/50">
-                <div className="flex items-center gap-2">
+                <div className="flex items-center gap-1.5">
+                  {/* Play/Pause button */}
+                  {onSeekToTime && (
+                    <button
+                      onClick={() => {
+                        if (isActive && isAudioPlaying) {
+                          // Pause
+                          const audio = document.querySelector("audio");
+                          if (audio) audio.pause();
+                        } else {
+                          // Seek to this chunk's start and play
+                          onSeekToTime(chunk.startTime);
+                        }
+                      }}
+                      className={`p-0.5 rounded transition-colors ${
+                        isActive ? "text-accent" : "text-muted-foreground hover:text-foreground"
+                      }`}
+                      aria-label={isActive && isAudioPlaying ? "Pause" : `Play chunk ${i + 1}`}
+                    >
+                      {isActive && isAudioPlaying ? (
+                        <svg width="10" height="10" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true">
+                          <rect x="6" y="4" width="4" height="16" rx="1" />
+                          <rect x="14" y="4" width="4" height="16" rx="1" />
+                        </svg>
+                      ) : (
+                        <svg width="10" height="10" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true">
+                          <polygon points="5,3 19,12 5,21" />
+                        </svg>
+                      )}
+                    </button>
+                  )}
                   <span className="text-[10px] font-mono text-muted-foreground tabular-nums">
                     {i + 1}/{chunkMap.length}
                   </span>
@@ -265,7 +297,7 @@ export const StyleAgent = forwardRef<StyleAgentHandle, StyleAgentProps>(function
                     {" - "}
                     {Math.floor(chunk.endTime / 60)}:{String(Math.floor(chunk.endTime % 60)).padStart(2, "0")}
                   </span>
-                  {isActive && (
+                  {isActive && isAudioPlaying && (
                     <span className="text-[9px] font-medium text-accent uppercase tracking-wider">
                       Playing
                     </span>
