@@ -268,7 +268,7 @@ export function PostsList({ entries, selectedUrl, activeId, onSelect, onPlay, on
                     <button
                       onClick={(e) => { e.stopPropagation(); onPreview(group.url, group.title); }}
                       aria-label="Preview original blog text"
-                      className="w-6 flex-shrink-0 flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity text-muted hover:text-foreground"
+                      className="w-6 flex-shrink-0 flex items-center justify-center text-muted hover:text-foreground transition-colors"
                     >
                       <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" aria-hidden="true">
                         <path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z" />
