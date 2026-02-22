@@ -304,8 +304,17 @@ function HomePage() {
       urlRestoredRef.current = true;
       setScriptUrl(match.url);
       setScriptTitle(match.title || "");
-      const cachedScript = (match as BlogAudio & { cached_script?: string | null })?.cached_script;
-      setScript(cachedScript || "");
+      const matchExt = match as BlogAudio & { cached_script?: string | null; raw_content?: string | null };
+      setScript(matchExt?.cached_script || "");
+      if (matchExt?.raw_content) {
+        setRawContent(matchExt.raw_content);
+      } else {
+        // Fetch from DB if not in history response
+        fetch(`/api/raw-content?url=${encodeURIComponent(match.url)}`)
+          .then(r => r.json())
+          .then(d => { if (d.rawContent) setRawContent(d.rawContent); })
+          .catch(() => {});
+      }
     }
   }, [entries, searchParams]);
 
@@ -396,6 +405,12 @@ function HomePage() {
       setScript(result.summary);
       setScriptTitle(result.title);
       setScriptUrl(result.url);
+
+      // Fetch raw content that was saved during scraping
+      fetch(`/api/raw-content?url=${encodeURIComponent(result.url)}`)
+        .then(r => r.json())
+        .then(d => { if (d.rawContent) setRawContent(d.rawContent); })
+        .catch(() => {});
 
       // Save to cache (same as Load Scripts)
       await fetch("/api/save-script", {

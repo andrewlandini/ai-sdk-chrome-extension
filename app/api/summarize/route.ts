@@ -44,8 +44,11 @@ export async function POST(request: Request) {
     }
 
     // Save raw scraped content to DB for reference
+    const contentUrl = scraped.url || url;
     await sql`
-      UPDATE blog_posts_cache SET raw_content = ${scraped.text || null} WHERE url = ${scraped.url || url}
+      INSERT INTO blog_posts_cache (url, title, raw_content)
+      VALUES (${contentUrl}, ${scraped.title || ''}, ${scraped.text || null})
+      ON CONFLICT (url) DO UPDATE SET raw_content = EXCLUDED.raw_content
     `;
 
     // Build blog content as clean readable text, not JSON
