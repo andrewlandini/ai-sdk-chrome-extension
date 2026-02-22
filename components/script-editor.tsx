@@ -45,11 +45,7 @@ export function ScriptEditor({
             </svg>
             <p className="text-[11px] text-accent font-medium">Streaming script...</p>
           </div>
-        ) : (
-          <p className="text-[11px] text-muted">
-            Verbatim source script from the blog post.
-          </p>
-        )}
+        ) : null}
         <span className="text-[10px] text-muted font-mono tabular-nums flex-shrink-0">
           {wordCount}w / {charCount}c
         </span>
