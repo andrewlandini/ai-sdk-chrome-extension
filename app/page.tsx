@@ -456,7 +456,7 @@ function HomePage() {
       });
 
       if (!response.ok) {
-        let errorMsg = "Failed to generate audio";
+        let errorMsg = `Failed to generate audio (${response.status})`;
         try {
           const data = await response.json();
           errorMsg = data.error || errorMsg;

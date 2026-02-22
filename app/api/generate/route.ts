@@ -323,8 +323,16 @@ export async function POST(request: Request) {
         controller.close();
       } catch (error) {
         console.error("Generate error:", error);
-        const message =
-          error instanceof Error ? error.message : "An unexpected error occurred";
+        let message = "An unexpected error occurred";
+        if (error instanceof Error) {
+          // Extract ElevenLabs API details if present
+          const errAny = error as any;
+          if (errAny.statusCode || errAny.status) {
+            message = `ElevenLabs API error (${errAny.statusCode || errAny.status}): ${error.message}`;
+          } else {
+            message = error.message;
+          }
+        }
         await updateGenerationJob(job.id, { status: "error", message }).catch(() => {});
         send({ type: "error", error: message });
         controller.close();
