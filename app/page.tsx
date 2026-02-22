@@ -521,7 +521,6 @@ function HomePage() {
   setActiveChunkMap(version.chunk_map || null);
   if (version.summary) {
     setStyledScript(version.summary);
-    setSelectedHistoryScript(version.summary);
   }
   }, []);
 
@@ -538,7 +537,6 @@ function HomePage() {
   setActiveChunkMap(entry.chunk_map || null);
   if (entry.summary) {
     setStyledScript(entry.summary);
-    setSelectedHistoryScript(entry.summary);
   }
   router.replace(`?post=${encodeURIComponent(slugFromUrl(entry.url))}`, { scroll: false });
   }, [router]);
@@ -1114,11 +1112,12 @@ function HomePage() {
                         {styleHistory.map((entry) => (
                           <button
                             key={entry.id}
-                            onClick={() => {
-                              setSelectedHistoryScript(entry.script);
-                              setStyledScript(entry.script);
-                              setHistoryOpen(false);
-                            }}
+  onClick={() => {
+  setSelectedHistoryScript(entry.script);
+  setStyledScript(entry.script);
+  setActiveChunkMap(null); // Clear chunk view so textarea shows
+  setHistoryOpen(false);
+  }}
                             className="w-full text-left px-3 py-2.5 hover:bg-surface-2 transition-colors border-b border-border last:border-b-0 group"
                           >
                             <div className="flex items-center justify-between gap-2 mb-1">
@@ -1235,7 +1234,7 @@ function HomePage() {
                   onUseStyledScript={setScript}
                   isGeneratingAudio={isGenerating}
                   onGenerateAudio={handleGenerateFromStyled}
-                  onStyledScriptChange={(s) => { setStyledScript(s); setIsStyleRunning(false); }}
+                  onStyledScriptChange={(s) => { setStyledScript(s); setIsStyleRunning(false); setActiveChunkMap(null); }}
                   onHistoryChange={setStyleHistory}
                   externalScript={selectedHistoryScript}
                   styleVibe={voiceConfig.styleVibe}
