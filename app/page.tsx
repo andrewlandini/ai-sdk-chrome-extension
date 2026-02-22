@@ -1063,8 +1063,8 @@ function HomePage() {
                 </div>
               )}
 
-              {/* No post selected */}
-              {!scriptUrl && !isSummarizing && (
+              {/* No post selected (hide if URL restore is pending) */}
+              {!scriptUrl && !isSummarizing && !searchParams.get("post") && (
                 <div className="flex-1 flex flex-col items-center justify-center px-8 py-12 gap-3">
                   <div className="w-12 h-12 rounded-full bg-surface-2 flex items-center justify-center">
                     <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" className="text-muted" aria-hidden="true">
