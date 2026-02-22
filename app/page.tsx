@@ -1058,7 +1058,7 @@ function HomePage() {
               <div className="grid grid-cols-3 md:grid-cols-4 gap-1.5 px-3 py-2 border-b border-border flex-shrink-0">
                 {vibePresets.map((preset) => {
                   const isActive = selectedVibeId === preset.id;
-                  const isDanger = preset.label === "Chaos mode";
+                  const isDanger = preset.label === "Chaos";
                   return (
                     <button
                       key={preset.id}
