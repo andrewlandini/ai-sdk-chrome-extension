@@ -1012,7 +1012,7 @@ function HomePage() {
             onFocus={() => setContentFocused(true)}
             onBlur={(e) => { if (!e.currentTarget.contains(e.relatedTarget)) setContentFocused(false); }}
           >
-            <div className="flex items-center justify-between px-3 py-2 border-b border-border flex-shrink-0">
+            <div className="flex items-center justify-between px-3 h-10 border-b border-border flex-shrink-0">
               <div className="flex items-center gap-2">
                 <span className="text-sm font-semibold tracking-tight">Content</span>
               </div>
@@ -1230,7 +1230,7 @@ function HomePage() {
             {/* Voice Over column + Versions below */}
             <div className={`flex-1 min-w-0 flex-col overflow-hidden ${activeTab === "voiceover" ? "flex" : "hidden md:flex"}`}>
               {/* Voice Over header */}
-              <div className="flex items-center justify-between px-3 py-2 border-b border-border flex-shrink-0">
+              <div className="flex items-center justify-between px-3 h-10 border-b border-border flex-shrink-0">
                 <div className="flex items-center gap-2">
                   <span className="text-sm font-semibold tracking-tight">Voice Over</span>
                 </div>
@@ -1427,7 +1427,7 @@ function HomePage() {
 
             {/* Voice Settings panel -- full height */}
             <aside className={`w-full xl:flex-1 min-w-0 border-t xl:border-t-0 xl:border-l border-border flex-col overflow-hidden bg-surface-1 ${activeTab === "settings" ? "flex" : "hidden md:flex"}`}>
-              <div className="flex items-center justify-between px-3 py-2 border-b border-border flex-shrink-0">
+              <div className="flex items-center justify-between px-3 h-10 border-b border-border flex-shrink-0">
                 <div className="flex items-center gap-2">
                   <span className="text-sm font-semibold tracking-tight">Voice Settings</span>
                 </div>
