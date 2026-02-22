@@ -362,6 +362,42 @@ function HomePage() {
 
   // ── Handlers ──
 
+  // Helper: stream summarize API and progressively build script text
+  const streamSummarize = useCallback(async (
+    url: string,
+    options: { signal?: AbortSignal; onDelta?: (accumulated: string) => void } = {}
+  ): Promise<{ title: string; summary: string; url: string }> => {
+    const response = await fetch("/api/summarize", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ url }),
+      signal: options.signal,
+    });
+
+    if (!response.ok) {
+      const data = await response.json();
+      throw new Error(data.error || "Failed to summarize");
+    }
+
+    const title = decodeURIComponent(response.headers.get("X-Title") || "");
+    const resolvedUrl = decodeURIComponent(response.headers.get("X-Url") || url);
+
+    const reader = response.body?.getReader();
+    const decoder = new TextDecoder();
+    let accumulated = "";
+
+    if (reader) {
+      while (true) {
+        const { done, value } = await reader.read();
+        if (done) break;
+        accumulated += decoder.decode(value, { stream: true });
+        options.onDelta?.(accumulated);
+      }
+    }
+
+    return { title, summary: accumulated, url: resolvedUrl };
+  }, []);
+
   const handleSelectPost = useCallback(async (url: string, title: string) => {
     setScriptUrl(url);
     setScriptTitle(title);
@@ -461,42 +497,6 @@ function HomePage() {
       }
     }
   }, [entries, advanceName, streamSummarize, mutateVersions, mutateHistory]);
-
-  // Helper: stream summarize API and progressively build script text
-  const streamSummarize = useCallback(async (
-    url: string,
-    options: { signal?: AbortSignal; onDelta?: (accumulated: string) => void } = {}
-  ): Promise<{ title: string; summary: string; url: string }> => {
-    const response = await fetch("/api/summarize", {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ url }),
-      signal: options.signal,
-    });
-
-    if (!response.ok) {
-      const data = await response.json();
-      throw new Error(data.error || "Failed to summarize");
-    }
-
-    const title = decodeURIComponent(response.headers.get("X-Title") || "");
-    const resolvedUrl = decodeURIComponent(response.headers.get("X-Url") || url);
-
-    const reader = response.body?.getReader();
-    const decoder = new TextDecoder();
-    let accumulated = "";
-
-    if (reader) {
-      while (true) {
-        const { done, value } = await reader.read();
-        if (done) break;
-        accumulated += decoder.decode(value, { stream: true });
-        options.onDelta?.(accumulated);
-      }
-    }
-
-    return { title, summary: accumulated, url: resolvedUrl };
-  }, []);
 
   const handleGenerateScript = useCallback(async () => {
     if (!scriptUrl) return;
