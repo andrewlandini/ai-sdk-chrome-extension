@@ -1,6 +1,12 @@
 import { neon } from "@neondatabase/serverless";
 
-export const sql = neon(process.env.DATABASE_URL!);
+let _sql: ReturnType<typeof neon> | null = null;
+function sql(strings: TemplateStringsArray, ...values: unknown[]) {
+  if (!_sql) _sql = neon(process.env.DATABASE_URL!);
+  return _sql(strings, ...values);
+}
+
+export { sql };
 
 // ── Blog Audio ──
 
