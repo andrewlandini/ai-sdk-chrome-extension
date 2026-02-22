@@ -1054,6 +1054,20 @@ function HomePage() {
         open={promptEditorOpen}
         onClose={() => setPromptEditorOpen(false)}
       />
+
+      {/* Mobile fixed-bottom player (hidden on md+ where desktop sidebar player exists) */}
+      {activeEntry?.audio_url && (
+        <div className="fixed bottom-0 left-0 right-0 z-50 md:hidden border-t border-border bg-background">
+          <WaveformPlayer
+            key={`mobile-${activeEntry.id}`}
+            audioUrl={activeEntry.audio_url}
+            title={activeEntry.title || undefined}
+            summary={activeEntry.summary || undefined}
+            url={activeEntry.url}
+            autoplay={autoplay}
+          />
+        </div>
+      )}
     </div>
   );
 }
@@ -1160,20 +1174,6 @@ function AddPostButton({ mutateHistory }: { mutateHistory: () => void }) {
               </span>
             )}
           </form>
-        </div>
-      )}
-
-      {/* Mobile fixed-bottom player (hidden on md+ where desktop sidebar player exists) */}
-      {activeEntry?.audio_url && (
-        <div className="fixed bottom-0 left-0 right-0 z-50 md:hidden border-t border-border bg-background">
-          <WaveformPlayer
-            key={`mobile-${activeEntry.id}`}
-            audioUrl={activeEntry.audio_url}
-            title={activeEntry.title || undefined}
-            summary={activeEntry.summary || undefined}
-            url={activeEntry.url}
-            autoplay={autoplay}
-          />
         </div>
       )}
     </div>
