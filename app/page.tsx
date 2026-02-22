@@ -1224,11 +1224,7 @@ function HomePage() {
             onFocus={() => setContentFocused(true)}
             onBlur={(e) => { if (!e.currentTarget.contains(e.relatedTarget)) setContentFocused(false); }}
           >
-            <div className="flex items-center justify-between px-3 h-10 border-b border-border flex-shrink-0">
-              <div className="flex items-center gap-2">
-                <span className="text-sm font-semibold tracking-tight">Content</span>
-              </div>
-            </div>
+
             <div className="flex-1 min-h-0 flex flex-col overflow-hidden">
               {error && (
                 <div className="mx-4 mt-3 flex items-center gap-2 text-xs text-destructive border border-destructive/20 bg-destructive/5 rounded-md px-3 py-2 flex-shrink-0" role="alert">
@@ -1511,12 +1507,7 @@ function HomePage() {
 
             {/* Voice Over column + Versions below */}
             <div className={`flex-1 min-w-0 flex-col overflow-hidden bg-background ${activeTab === "voiceover" ? "flex" : "hidden md:flex"}`}>
-              {/* Voice Over header */}
-              <div className="flex items-center justify-between px-3 h-10 border-b border-border flex-shrink-0">
-                <div className="flex items-center gap-2">
-                  <span className="text-sm font-semibold tracking-tight">Voice Over</span>
-                </div>
-              </div>
+
               {/* ElevenLabs Script subheader */}
               <div className="flex items-center justify-between px-3 py-1.5 border-b border-border bg-surface-2/30 flex-shrink-0">
                 <div className="flex items-center gap-2">
