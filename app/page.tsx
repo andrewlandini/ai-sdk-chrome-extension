@@ -1095,15 +1095,23 @@ function HomePage() {
                 })}
               </div>
 
-              {/* Editable prompt – always visible, takes ~half the column */}
-              <div className="flex-1 min-h-0 border-b border-border px-3 py-2 flex flex-col gap-2">
+              {/* Editable prompt – always visible */}
+              <div className="flex-shrink-0 border-b border-border px-3 py-2 flex flex-col gap-1.5">
                 <textarea
                   value={editedPrompt}
-                  onChange={(e) => handleVibePromptChange(e.target.value)}
-                  className="w-full flex-1 min-h-0 bg-surface-2 text-sm text-foreground rounded-md border border-border px-3 py-2 resize-none focus:outline-none focus:border-accent transition-colors"
+                  onChange={(e) => {
+                    if (e.target.value.length <= 200) handleVibePromptChange(e.target.value);
+                  }}
+                  maxLength={200}
+                  rows={2}
+                  className="w-full bg-surface-2 text-xs text-foreground rounded-md border border-border px-2.5 py-1.5 resize-none focus:outline-none focus:border-accent transition-colors leading-snug"
                   placeholder={selectedVibeId ? "Describe the voice style..." : "Select a style above or type a custom prompt..."}
                 />
-                <div className="flex items-center justify-end gap-2 flex-shrink-0">
+                <div className="flex items-center justify-between flex-shrink-0">
+                  <span className={`text-[10px] tabular-nums ${editedPrompt.length >= 180 ? "text-red-400" : "text-muted-foreground"}`}>
+                    {editedPrompt.length}/200
+                  </span>
+                  <div className="flex items-center gap-2">
                     <button
                       onClick={handleResetVibePrompt}
                       disabled={isSavingVibe || !selectedVibeId}
@@ -1118,6 +1126,7 @@ function HomePage() {
                     >
                       {isSavingVibe ? "Saving..." : "Save"}
                     </button>
+                  </div>
                 </div>
               </div>
 
