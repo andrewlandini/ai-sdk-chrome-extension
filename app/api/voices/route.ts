@@ -46,7 +46,7 @@ export async function GET() {
 
     const data = await res.json();
     const voices: Record<string, string> = {};
-    const voiceMeta: Record<string, { name: string; desc: string; gender: string; accent?: string; age?: string; useCase?: string; category?: string }> = {};
+    const voiceMeta: Record<string, { name: string; desc: string; gender: string }> = {};
 
     for (const voice of data.voices ?? []) {
       if (ALLOWED_IDS.has(voice.voice_id)) {
