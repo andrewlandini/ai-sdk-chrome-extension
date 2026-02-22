@@ -1,5 +1,6 @@
 "use client";
 
+import useSWR from "swr";
 import type { BlogAudio } from "@/lib/db";
 import { formatRelativeShort } from "@/lib/timezone";
 
@@ -15,20 +16,7 @@ interface VersionsListProps {
 
 const VISIBLE_ROWS = 5;
 
-const VOICE_NAMES: Record<string, string> = {
-  TX3LPaxmHKxFdv7VOQHJ: "Liam",
-  nPczCjzI2devNBz1zQrb: "Brian",
-  JBFqnCBsd6RMkjVDRZzb: "George",
-  onwK4e9ZLuTAKqWW03F9: "Daniel",
-  pFZP5JQG7iQjIQuC4Bku: "Lily",
-  "21m00Tcm4TlvDq8ikWAM": "Rachel",
-  EXAVITQu4vr4xnSDxMaL: "Sarah",
-  Xb7hH8MSUJpSbSDYk0k2: "Alice",
-  IKne3meq5aSn9XLyUdCD: "Charlie",
-  cjVigY5qzO86Huf0OWal: "Eric",
-  N2lVS1w4EtoT3dr4eOWO: "Callum",
-  iP95p4xoKVk53GoZ742B: "Chris",
-};
+const fetcher = (url: string) => fetch(url).then((r) => r.json());
 
 // Map full vibe description values to short display names
 const VIBE_PRESETS: { keyword: string; name: string }[] = [
@@ -61,6 +49,11 @@ export function VersionsList({
   onTogglePlay,
 }: VersionsListProps) {
   // Pad to always show VISIBLE_ROWS
+  const { data: voiceData } = useSWR<{
+    voiceMeta: Record<string, { name: string; desc: string; gender: string }>;
+  }>("/api/voices", fetcher);
+  const voiceMeta = voiceData?.voiceMeta ?? {};
+
   const emptyCount = Math.max(0, VISIBLE_ROWS - versions.length);
 
   return (
@@ -78,7 +71,7 @@ export function VersionsList({
         {versions.map((v) => {
           const isActive = v.id === activeId;
           const voiceName = v.voice_id
-            ? VOICE_NAMES[v.voice_id] || v.voice_id.substring(0, 6)
+            ? voiceMeta[v.voice_id]?.name || v.voice_id.substring(0, 6)
             : "Default";
 
           return (

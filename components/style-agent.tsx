@@ -264,9 +264,8 @@ export const StyleAgent = forwardRef<StyleAgentHandle, StyleAgentProps>(function
                     <button
                       onClick={() => {
                         if (isActive && isAudioPlaying) {
-                          // Pause
-                          const audio = document.querySelector("audio");
-                          if (audio) audio.pause();
+                          // Pause -- seek to same time triggers pause in parent
+                          onSeekToTime(-1);
                         } else {
                           // Seek to this chunk's start and play
                           onSeekToTime(chunk.startTime);
@@ -377,7 +376,7 @@ export const StyleAgent = forwardRef<StyleAgentHandle, StyleAgentProps>(function
           className={`flex-1 w-full bg-transparent text-sm font-mono leading-relaxed text-foreground p-4 resize-none border-none focus:outline-none overflow-y-auto transition-opacity duration-300 ${dimmed ? "opacity-30 hover:opacity-100 focus:opacity-100" : ""}`}
         />
       ) : (
-        <div className="flex-1 flex flex-col items-center justify-center px-8 py-12 gap-5">
+        <div className="flex-1 flex flex-col items-center justify-center h-full px-8 py-12 gap-5">
           <div className="w-14 h-14 rounded-full border border-muted-foreground/20 flex items-center justify-center">
             {isRunning ? (
               <svg className="animate-spin text-muted-foreground" width="28" height="28" viewBox="0 0 24 24" fill="none" aria-hidden="true">
@@ -397,6 +396,15 @@ export const StyleAgent = forwardRef<StyleAgentHandle, StyleAgentProps>(function
               ? "Analyzing script and applying performance direction..."
               : "Click Style Script to generate a styled version with Audio Tags."}
           </p>
+          {!isRunning && (
+            <button
+              onClick={() => handleRunAgent()}
+              disabled={!sourceScript.trim()}
+              className="flex items-center justify-center gap-2 h-9 rounded-lg bg-accent text-primary-foreground px-5 text-xs font-semibold transition-colors hover:bg-accent-hover disabled:opacity-40 disabled:cursor-not-allowed focus-ring"
+            >
+              Style Script
+            </button>
+          )}
         </div>
       )}
 

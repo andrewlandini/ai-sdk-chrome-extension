@@ -1,24 +1,12 @@
 "use client";
 
 import { useState, useMemo, useCallback } from "react";
+import useSWR from "swr";
 import { WaveformPlayer } from "@/components/waveform-player";
 import type { BlogAudio } from "@/lib/db";
 import { formatDateFull, formatTime, formatRelative } from "@/lib/timezone";
 
-const VOICE_NAMES: Record<string, string> = {
-  TX3LPaxmHKxFdv7VOQHJ: "Liam",
-  nPczCjzI2devNBz1zQrb: "Brian",
-  JBFqnCBsd6RMkjVDRZzb: "George",
-  onwK4e9ZLuTAKqWW03F9: "Daniel",
-  pFZP5JQG7iQjIQuC4Bku: "Lily",
-  "21m00Tcm4TlvDq8ikWAM": "Rachel",
-  EXAVITQu4vr4xnSDxMaL: "Sarah",
-  Xb7hH8MSUJpSbSDYk0k2: "Alice",
-  IKne3meq5aSn9XLyUdCD: "Charlie",
-  cjVigY5qzO86Huf0OWal: "Eric",
-  N2lVS1w4EtoT3dr4eOWO: "Callum",
-  iP95p4xoKVk53GoZ742B: "Chris",
-};
+const fetcher = (url: string) => fetch(url).then((r) => r.json());
 
 type SortField = "title" | "count" | "latest";
 type SortDir = "asc" | "desc";
@@ -65,6 +53,17 @@ export function LibraryView({
   const [pageSize, setPageSize] = useState<number>(25);
   const [expandedUrl, setExpandedUrl] = useState<string | null>(null);
   const [detailEntry, setDetailEntry] = useState<BlogAudio | null>(null);
+
+  const { data: voiceData } = useSWR<{
+    voiceMeta: Record<string, { name: string; desc: string; gender: string }>;
+  }>("/api/voices", fetcher);
+  const VOICE_NAMES: Record<string, string> = useMemo(() => {
+    const map: Record<string, string> = {};
+    for (const [id, meta] of Object.entries(voiceData?.voiceMeta ?? {})) {
+      map[id] = meta.name;
+    }
+    return map;
+  }, [voiceData]);
 
   // Group entries by blog post URL
   const groups = useMemo(() => {

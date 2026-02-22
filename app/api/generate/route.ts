@@ -9,21 +9,7 @@ export const maxDuration = 300;
 const MODEL = "eleven_v3";
 const MAX_CHARS = 4000;
 
-// Map voice IDs to human-readable names for filenames
-const VOICE_MAP: Record<string, string> = {
-  TX3LPaxmHKxFdv7VOQHJ: "Liam",
-  nPczCjzI2devNBz1zQrb: "Brian",
-  JBFqnCBsd6RMkjVDRZzb: "George",
-  onwK4e9ZLuTAKqWW03F9: "Daniel",
-  pFZP5JQG7iQjIQuC4Bku: "Lily",
-  "21m00Tcm4TlvDq8ikWAM": "Rachel",
-  EXAVITQu4vr4xnSDxMaL: "Sarah",
-  Xb7hH8MSUJpSbSDYk0k2: "Alice",
-  IKne3meq5aSn9XLyUdCD: "Charlie",
-  cjVigY5qzO86Huf0OWal: "Eric",
-  N2lVS1w4EtoT3dr4eOWO: "Callum",
-  iP95p4xoKVk53GoZ742B: "Chris",
-};
+// Voice map is no longer hardcoded; names are resolved dynamically via /api/voices
 
 /**
  * Use an AI model to intelligently segment a styled script into logical
@@ -146,7 +132,7 @@ export async function POST(request: Request) {
     url,
     title,
     summary,
-    voiceId = "TX3LPaxmHKxFdv7VOQHJ",
+    voiceId = "PIGsltMj3gFMR34aFDI3",
     stability,
   } = body;
 
@@ -191,7 +177,7 @@ export async function POST(request: Request) {
         send({ type: "status", step: "segmenting", message: "Analyzing script for optimal audio segments..." });
         const chunks = await segmentWithAI(summary);
         const totalChars = summary.length;
-        const voiceName = VOICE_MAP[voiceId] || "Unknown";
+        const voiceName = voiceId.slice(0, 8);
 
         send({
           type: "status",
@@ -337,8 +323,16 @@ export async function POST(request: Request) {
         controller.close();
       } catch (error) {
         console.error("Generate error:", error);
-        const message =
-          error instanceof Error ? error.message : "An unexpected error occurred";
+        let message = "An unexpected error occurred";
+        if (error instanceof Error) {
+          // Extract ElevenLabs API details if present
+          const errAny = error as any;
+          if (errAny.statusCode || errAny.status) {
+            message = `ElevenLabs API error (${errAny.statusCode || errAny.status}): ${error.message}`;
+          } else {
+            message = error.message;
+          }
+        }
         await updateGenerationJob(job.id, { status: "error", message }).catch(() => {});
         send({ type: "error", error: message });
         controller.close();

@@ -7,14 +7,14 @@ import {
   useEffect,
   Suspense,
 } from "react";
-import { useSearchParams, useRouter } from "next/navigation";
+import { useSearchParams } from "next/navigation";
 import useSWR from "swr";
 import { PostsList } from "@/components/posts-list";
 import { ScriptEditor } from "@/components/script-editor";
 import { StyleAgent, type StyleHistoryEntry, type StyleAgentHandle } from "@/components/style-agent";
 import { VoiceSettings, type VoiceConfig } from "@/components/voice-settings";
 import { VersionsList } from "@/components/versions-list";
-import { WaveformPlayer } from "@/components/waveform-player";
+import { WaveformPlayer, type WaveformPlayerHandle } from "@/components/waveform-player";
 import { PromptEditorModal } from "@/components/prompt-editor-modal";
 import type { BlogAudio, ChunkMapEntry } from "@/lib/db";
 
@@ -92,7 +92,7 @@ type CreditsData = {
 };
 
 const DEFAULT_VOICE_CONFIG: VoiceConfig = {
-  voiceId: "TX3LPaxmHKxFdv7VOQHJ",
+  voiceId: "PIGsltMj3gFMR34aFDI3",
   stability: 0,
   label: "",
   styleVibe: "Confident and genuinely excited about the content, but grounded and conversational -- not over the top",
@@ -129,7 +129,6 @@ export default function Page() {
 
 function HomePage() {
   const searchParams = useSearchParams();
-  const router = useRouter();
   const isDesktop = useIsDesktop();
   const { name: productName, fading: nameFading, advance: advanceName } = useProductName();
   const { data: credits, mutate: mutateCredits } = useSWR<CreditsData>("/api/credits", fetcher, {
@@ -139,18 +138,24 @@ function HomePage() {
   const creditsPercent = credits?.characterCount != null && credits?.characterLimit
     ? Math.round((credits.characterCount / credits.characterLimit) * 100)
     : 0;
+  const playerRef = useRef<WaveformPlayerHandle>(null);
   const [promptEditorOpen, setPromptEditorOpen] = useState(false);
   const [contentFocused, setContentFocused] = useState(false);
   const [sidebarOpen, setSidebarOpen] = useState(false);
   const [activeTab, setActiveTab] = useState<"content" | "voiceover" | "settings">("content");
   const [loadingScripts, setLoadingScripts] = useState(false);
   const [scriptProgress, setScriptProgress] = useState<{ done: number; total: number; currentTitle?: string }>({ done: 0, total: 0 });
+  const [showReloadAllConfirm, setShowReloadAllConfirm] = useState(false);
+  const longPressTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const longPressFiredRef = useRef(false);
 
   // Active selection
   const [activeEntry, setActiveEntry] = useState<BlogAudio | null>(null);
   const [autoplay, setAutoplay] = useState(false);
 
   // Generator state
+  const [rawContent, setRawContent] = useState("");
+  const [fetchingRawContent, setFetchingRawContent] = useState(false);
   const [script, setScript] = useState("");
   const [scriptTitle, setScriptTitle] = useState("");
   const [scriptUrl, setScriptUrl] = useState("");
@@ -167,6 +172,16 @@ function HomePage() {
   const [historyOpen, setHistoryOpen] = useState(false);
   const [selectedHistoryScript, setSelectedHistoryScript] = useState<string | null>(null);
   const historyRef = useRef<HTMLDivElement>(null);
+
+  // Raw content history
+  const [rawContentHistory, setRawContentHistory] = useState<{ id: number; content: string; word_count: number; created_at: string }[]>([]);
+  const [rawContentHistoryOpen, setRawContentHistoryOpen] = useState(false);
+  const rawContentHistoryRef = useRef<HTMLDivElement>(null);
+
+  // Script history
+  const [scriptHistoryList, setScriptHistoryList] = useState<{ id: number; script: string; word_count: number; created_at: string }[]>([]);
+  const [scriptHistoryOpen, setScriptHistoryOpen] = useState(false);
+  const scriptHistoryRef = useRef<HTMLDivElement>(null);
   const styleAgentRef = useRef<StyleAgentHandle>(null);
   const restoredRef = useRef(false);
 
@@ -186,7 +201,7 @@ function HomePage() {
   const [activeChunkMap, setActiveChunkMap] = useState<ChunkMapEntry[] | null>(null);
   const [isRegeneratingChunk, setIsRegeneratingChunk] = useState(false);
 
-  // ── Restore session on mount ──
+  // ─�� Restore session on mount ──
   useEffect(() => {
     if (restoredRef.current) return;
     restoredRef.current = true;
@@ -198,8 +213,8 @@ function HomePage() {
     if (!hasUrlParam) {
       if (s.scriptUrl) {
         setScriptUrl(s.scriptUrl);
-        // Sync URL bar to match restored post
-        router.replace(`?post=${encodeURIComponent(slugFromUrl(s.scriptUrl))}`, { scroll: false });
+        // Sync URL bar without triggering Next.js re-render
+        window.history.replaceState(null, "", `?post=${encodeURIComponent(slugFromUrl(s.scriptUrl))}`);
       }
       if (s.scriptTitle) setScriptTitle(s.scriptTitle);
       if (s.script) setScript(s.script);
@@ -303,8 +318,17 @@ function HomePage() {
       urlRestoredRef.current = true;
       setScriptUrl(match.url);
       setScriptTitle(match.title || "");
-      const cachedScript = (match as BlogAudio & { cached_script?: string | null })?.cached_script;
-      setScript(cachedScript || "");
+      const matchExt = match as BlogAudio & { cached_script?: string | null; raw_content?: string | null };
+      setScript(matchExt?.cached_script || "");
+      if (matchExt?.raw_content) {
+        setRawContent(matchExt.raw_content);
+      } else {
+        // Fetch from DB if not in history response
+        fetch(`/api/raw-content?url=${encodeURIComponent(match.url)}`)
+          .then(r => r.json())
+          .then(d => { if (d.rawContent) setRawContent(d.rawContent); })
+          .catch(() => {});
+      }
     }
   }, [entries, searchParams]);
 
@@ -318,6 +342,23 @@ function HomePage() {
   useEffect(() => { mutateHistoryRef.current = mutateHistory; }, [mutateHistory]);
   useEffect(() => { mutateVersionsRef.current = mutateVersions; }, [mutateVersions]);
   useEffect(() => { mutateCreditsRef.current = mutateCredits; }, [mutateCredits]);
+
+  // Fetch raw content + script history when URL changes
+  useEffect(() => {
+    if (!scriptUrl) {
+      setRawContentHistory([]);
+      setScriptHistoryList([]);
+      return;
+    }
+    fetch(`/api/raw-content-history?url=${encodeURIComponent(scriptUrl)}`)
+      .then(r => r.json())
+      .then(d => setRawContentHistory(d.entries ?? []))
+      .catch(() => {});
+    fetch(`/api/script-history?url=${encodeURIComponent(scriptUrl)}`)
+      .then(r => r.json())
+      .then(d => setScriptHistoryList(d.entries ?? []))
+      .catch(() => {});
+  }, [scriptUrl]);
 
   // ── Handlers ──
 
@@ -333,15 +374,16 @@ function HomePage() {
     setSidebarOpen(false);
     advanceName();
 
-    // Push slug to URL
+    // Sync URL bar without triggering Next.js navigation/re-render
     const slug = slugFromUrl(url);
-    router.replace(`?post=${encodeURIComponent(slug)}`, { scroll: false });
+    window.history.replaceState(null, "", `?post=${encodeURIComponent(slug)}`);
 
-    // Check if there's a cached script for this post
+    // Check if there's a cached script and raw content for this post
     const entry = entries.find((e) => e.url === url);
-    const cachedScript = (entry as BlogAudio & { cached_script?: string | null })?.cached_script;
-    setScript(cachedScript || "");
-  }, [entries, advanceName, router]);
+    const entryExt = entry as BlogAudio & { cached_script?: string | null; raw_content?: string | null };
+    setScript(entryExt?.cached_script || "");
+    setRawContent(entryExt?.raw_content || "");
+  }, [entries, advanceName]);
 
   // Helper: stream summarize API and progressively build script text
   const streamSummarize = useCallback(async (
@@ -395,12 +437,34 @@ function HomePage() {
       setScriptTitle(result.title);
       setScriptUrl(result.url);
 
+      // Fetch raw content that was saved during scraping
+      fetch(`/api/raw-content?url=${encodeURIComponent(result.url)}`)
+        .then(r => r.json())
+        .then(d => { if (d.rawContent) setRawContent(d.rawContent); })
+        .catch(() => {});
+
       // Save to cache (same as Load Scripts)
       await fetch("/api/save-script", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ url: result.url, script: result.summary }),
       });
+
+      // Save to script history
+      const wc = result.summary.trim().split(/\s+/).filter(Boolean).length;
+      fetch("/api/script-history", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ url: result.url, script: result.summary, word_count: wc }),
+      })
+        .then(() => {
+          fetch(`/api/script-history?url=${encodeURIComponent(result.url)}`)
+            .then(r => r.json())
+            .then(d => setScriptHistoryList(d.entries ?? []))
+            .catch(() => {});
+        })
+        .catch(() => {});
+
       mutateVersions();
       mutateHistory();
     } catch (err) {
@@ -435,7 +499,7 @@ function HomePage() {
       });
 
       if (!response.ok) {
-        let errorMsg = "Failed to generate audio";
+        let errorMsg = `Failed to generate audio (${response.status})`;
         try {
           const data = await response.json();
           errorMsg = data.error || errorMsg;
@@ -531,15 +595,16 @@ function HomePage() {
   setScriptUrl(entry.url);
   setScriptTitle(entry.title || "");
   // Use cached_script (original content script) if available, not summary (which is the styled/audio script)
-  const cachedScript = (entry as BlogAudio & { cached_script?: string | null })?.cached_script;
-  setScript(cachedScript || entry.summary || "");
+  const entryExt = entry as BlogAudio & { cached_script?: string | null; raw_content?: string | null };
+  setScript(entryExt?.cached_script || entry.summary || "");
+  setRawContent(entryExt?.raw_content || "");
   // Load chunk map and styled script into Voice Over
   setActiveChunkMap(entry.chunk_map || null);
   if (entry.summary) {
     setStyledScript(entry.summary);
   }
-  router.replace(`?post=${encodeURIComponent(slugFromUrl(entry.url))}`, { scroll: false });
-  }, [router]);
+  window.history.replaceState(null, "", `?post=${encodeURIComponent(slugFromUrl(entry.url))}`);
+  }, []);
 
   const handleDeleteEntry = useCallback(async (entry: BlogAudio) => {
     try {
@@ -661,6 +726,42 @@ function HomePage() {
     summarizeAbortRef.current?.abort();
   }, []);
 
+  const handleFetchRawContent = useCallback(async (url?: string) => {
+    const targetUrl = url || scriptUrl;
+    if (!targetUrl) return;
+    setFetchingRawContent(true);
+    try {
+      const res = await fetch("/api/raw-content", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ url: targetUrl }),
+      });
+      const data = await res.json();
+      if (data.rawContent) {
+        setRawContent(data.rawContent);
+        // Save to history
+        const wc = data.rawContent.trim().split(/\s+/).filter(Boolean).length;
+        fetch("/api/raw-content-history", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ url: targetUrl, content: data.rawContent, word_count: wc }),
+        })
+          .then(r => r.json())
+          .then(() => {
+            fetch(`/api/raw-content-history?url=${encodeURIComponent(targetUrl)}`)
+              .then(r => r.json())
+              .then(d => setRawContentHistory(d.entries ?? []))
+              .catch(() => {});
+          })
+          .catch(() => {});
+      }
+    } catch (err) {
+      console.error("Failed to fetch raw content:", err);
+    } finally {
+      setFetchingRawContent(false);
+    }
+  }, [scriptUrl]);
+
   const handleLoadScripts = useCallback(async () => {
     // Get all cached posts without scripts
     const res = await fetch("/api/history");
@@ -707,10 +808,80 @@ function HomePage() {
         });
 
         setScript(result.summary);
+
+        // Fetch raw content that was saved during scraping
+        fetch(`/api/raw-content?url=${encodeURIComponent(url)}`)
+          .then(r => r.json())
+          .then(d => { if (d.rawContent) setRawContent(d.rawContent); })
+          .catch(() => {});
+
         mutateHistory();
       } catch (err) {
         if (err instanceof DOMException && err.name === "AbortError") break;
         console.error(`Failed to load script for ${url}:`, err);
+      }
+      setScriptProgress({ done: i + 1, total: urlList.length });
+    }
+
+    summarizeAbortRef.current = null;
+    setLoadingScripts(false);
+    mutateHistory();
+  }, [mutateHistory, streamSummarize]);
+
+  const handleReloadAllScripts = useCallback(async () => {
+    setShowReloadAllConfirm(false);
+    const res = await fetch("/api/history");
+    const data = await res.json();
+    const allEntries: (BlogAudio & { cached_script?: string | null })[] = data.entries ?? [];
+
+    // Get ALL unique URLs (including ones with existing scripts)
+    const uniqueUrls = new Map<string, string>();
+    for (const entry of allEntries) {
+      if (!uniqueUrls.has(entry.url)) {
+        uniqueUrls.set(entry.url, entry.title || "Untitled");
+      }
+    }
+
+    const urlList = Array.from(uniqueUrls.entries());
+    if (urlList.length === 0) return;
+
+    const abortController = new AbortController();
+    summarizeAbortRef.current = abortController;
+    setLoadingScripts(true);
+    setScriptProgress({ done: 0, total: urlList.length });
+
+    for (let i = 0; i < urlList.length; i++) {
+      if (abortController.signal.aborted) break;
+      const [url, title] = urlList[i];
+      setScriptProgress({ done: i, total: urlList.length, currentTitle: title });
+
+      setScriptUrl(url);
+      setScriptTitle(title);
+      setScript("");
+
+      try {
+        const result = await streamSummarize(url, {
+          signal: abortController.signal,
+          onDelta: (text) => setScript(text),
+        });
+
+        await fetch("/api/save-script", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ url, script: result.summary }),
+        });
+
+        setScript(result.summary);
+
+        fetch(`/api/raw-content?url=${encodeURIComponent(url)}`)
+          .then(r => r.json())
+          .then(d => { if (d.rawContent) setRawContent(d.rawContent); })
+          .catch(() => {});
+
+        mutateHistory();
+      } catch (err) {
+        if (err instanceof DOMException && err.name === "AbortError") break;
+        console.error(`Failed to reload script for ${url}:`, err);
       }
       setScriptProgress({ done: i + 1, total: urlList.length });
     }
@@ -750,28 +921,25 @@ function HomePage() {
         {/* Spacer to push right items */}
         <div className="flex-1" />
 
-        {loadingScripts ? (
-          <button
-            onClick={handleStopGenerating}
-            className="flex items-center gap-1.5 text-xs text-red-400 hover:text-red-300 transition-colors focus-ring rounded px-2 py-1.5 flex-shrink-0"
-          >
-            <svg width="11" height="11" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true">
-              <rect x="4" y="4" width="16" height="16" rx="2" />
-            </svg>
-            <span className="hidden sm:inline">Stop</span>
-            <span>({scriptProgress.done}/{scriptProgress.total})</span>
-          </button>
-        ) : (
-          <button
-            onClick={handleLoadScripts}
-            className="flex items-center gap-1.5 text-xs text-muted hover:text-foreground transition-colors focus-ring rounded px-2 py-1.5 flex-shrink-0"
-          >
-            <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" aria-hidden="true">
-              <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4M7 10l5 5 5-5M12 15V3" />
-            </svg>
-            <span className="hidden sm:inline">Load Scripts</span>
-          </button>
-        )}
+        <button
+          onClick={() => { if (!longPressFiredRef.current) handleLoadScripts(); }}
+          onPointerDown={() => {
+            longPressFiredRef.current = false;
+            longPressTimerRef.current = setTimeout(() => {
+              longPressFiredRef.current = true;
+              setShowReloadAllConfirm(true);
+            }, 600);
+          }}
+          onPointerUp={() => { if (longPressTimerRef.current) { clearTimeout(longPressTimerRef.current); longPressTimerRef.current = null; } }}
+          onPointerLeave={() => { if (longPressTimerRef.current) { clearTimeout(longPressTimerRef.current); longPressTimerRef.current = null; } }}
+          disabled={loadingScripts}
+          className="flex items-center gap-1.5 text-xs text-muted hover:text-foreground transition-colors focus-ring rounded px-2 py-1.5 flex-shrink-0 disabled:opacity-40 disabled:pointer-events-none"
+        >
+          <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" aria-hidden="true">
+            <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4M7 10l5 5 5-5M12 15V3" />
+          </svg>
+          <span className="hidden sm:inline">Load Scripts</span>
+        </button>
 
         <button
           onClick={() => setPromptEditorOpen(true)}
@@ -857,9 +1025,7 @@ function HomePage() {
                 }}
                 onTogglePlay={(v) => {
                   if (v.id === activeEntry?.id) {
-                    // Toggle play/pause on the current audio
-                    const audio = document.querySelector("audio");
-                    if (audio) { audio.paused ? audio.play() : audio.pause(); }
+                    playerRef.current?.togglePlayPause();
                   } else {
                     handleSelectVersion(v);
                   }
@@ -944,8 +1110,7 @@ function HomePage() {
               }}
               onTogglePlay={(v) => {
                 if (v.id === activeEntry?.id) {
-                  const audio = document.querySelector("audio");
-                  if (audio) { audio.paused ? audio.play() : audio.pause(); }
+                  playerRef.current?.togglePlayPause();
                 } else {
                   handleSelectVersion(v);
                 }
@@ -956,15 +1121,16 @@ function HomePage() {
   {/* Player -- desktop only (mobile player rendered separately) */}
   <div className="flex-shrink-0 border-t border-border">
   {isDesktop && (
-    <WaveformPlayer
-      key={activeEntry?.id ?? "idle"}
-      audioUrl={activeEntry?.audio_url}
-      title={activeEntry?.title || undefined}
-      summary={activeEntry?.summary || undefined}
-      url={activeEntry?.url}
-      autoplay={autoplay}
-      onTimeUpdate={(t) => setPlaybackTime(t)}
-      onPlayStateChange={(p) => setIsAudioPlaying(p)}
+<WaveformPlayer
+  ref={playerRef}
+  key={activeEntry?.id ?? "idle"}
+  audioUrl={activeEntry?.audio_url}
+  title={activeEntry?.title || undefined}
+  summary={activeEntry?.summary || undefined}
+  url={activeEntry?.url}
+  autoplay={autoplay}
+  onTimeUpdate={(t) => setPlaybackTime(t)}
+  onPlayStateChange={(p) => setIsAudioPlaying(p)}
     />
   )}
   </div>
@@ -975,44 +1141,20 @@ function HomePage() {
 
           {/* Content column -- full height, verbatim blog script */}
           <div
-            className={`flex-1 min-w-0 flex-col overflow-hidden border-r border-border ${activeTab === "content" ? "flex" : "hidden md:flex"}`}
+            className={`flex-1 min-w-0 flex-col overflow-hidden border-r border-border bg-background ${activeTab === "content" ? "flex" : "hidden md:flex"}`}
             onMouseEnter={() => setContentFocused(true)}
             onMouseLeave={() => setContentFocused(false)}
             onFocus={() => setContentFocused(true)}
             onBlur={(e) => { if (!e.currentTarget.contains(e.relatedTarget)) setContentFocused(false); }}
           >
-            <div className="flex items-center justify-between px-3 py-2 border-b border-border flex-shrink-0">
+            <div className="flex items-center justify-between px-3 h-10 border-b border-border flex-shrink-0">
               <div className="flex items-center gap-2">
                 <span className="text-sm font-semibold tracking-tight">Content</span>
-                <span className="text-[10px] font-mono text-accent bg-accent/10 px-1.5 py-0.5 rounded">Source</span>
               </div>
-              {script && scriptUrl && !isSummarizing && !loadingScripts && (
-              <button
-                onClick={handleGenerateScript}
-                className="flex items-center gap-1.5 text-xs text-muted hover:text-foreground transition-colors focus-ring rounded px-2 py-1 flex-shrink-0"
-              >
-                <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" aria-hidden="true">
-                  <path d="M1 4v6h6M23 20v-6h-6" />
-                  <path d="M20.49 9A9 9 0 0 0 5.64 5.64L1 10m22 4l-4.64 4.36A9 9 0 0 1 3.51 15" />
-                </svg>
-                <span>Regenerate</span>
-              </button>
-              )}
-              {(isSummarizing || loadingScripts) && (
-              <button
-                onClick={handleStopGenerating}
-                className="flex items-center gap-1.5 text-xs text-red-400 hover:text-red-300 transition-colors focus-ring rounded px-2 py-1 flex-shrink-0"
-              >
-                <svg width="11" height="11" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true">
-                  <rect x="4" y="4" width="16" height="16" rx="2" />
-                </svg>
-                <span>Stop</span>
-              </button>
-              )}
             </div>
-            <div className="flex-1 min-h-0 overflow-y-auto">
+            <div className="flex-1 min-h-0 flex flex-col overflow-hidden">
               {error && (
-                <div className="mx-4 mt-3 flex items-center gap-2 text-xs text-destructive border border-destructive/20 bg-destructive/5 rounded-md px-3 py-2" role="alert">
+                <div className="mx-4 mt-3 flex items-center gap-2 text-xs text-destructive border border-destructive/20 bg-destructive/5 rounded-md px-3 py-2 flex-shrink-0" role="alert">
                   <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" aria-hidden="true">
                     <circle cx="12" cy="12" r="10" /><path d="M12 8v4m0 4h.01" />
                   </svg>
@@ -1020,61 +1162,9 @@ function HomePage() {
                 </div>
               )}
 
-              {/* Centered Generate Script CTA when no script yet */}
-              {!script && scriptUrl && !isSummarizing && !loadingScripts && (
-                <div className="flex-1 flex flex-col items-center justify-center h-full px-8 py-12 gap-4">
-                  <div className="w-12 h-12 rounded-full bg-accent/10 flex items-center justify-center">
-                    <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" className="text-accent" aria-hidden="true">
-                      <path d="M12 3c.132 0 .263 0 .393 0a7.5 7.5 0 0 0 7.92 12.446A9 9 0 1 1 12 3Z" />
-                      <path d="M17 4a2 2 0 0 1 2 2" />
-                      <path d="M21 8a6 6 0 0 1-6 6" />
-                    </svg>
-                  </div>
-                  <div className="text-center">
-                    <p className="text-sm font-medium text-foreground mb-1">Ready to generate</p>
-                    <p className="text-xs text-muted max-w-[240px]">Extract an audio-ready script from the selected blog post.</p>
-                  </div>
-                  <button
-                    onClick={handleGenerateScript}
-                    className="flex items-center justify-center gap-2 h-11 rounded-lg bg-accent text-primary-foreground px-6 text-sm font-semibold transition-colors hover:bg-accent-hover focus-ring"
-                  >
-                    <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" aria-hidden="true">
-                      <path d="M5 12h14M12 5l7 7-7 7" />
-                    </svg>
-                    Generate Script
-                  </button>
-                </div>
-              )}
-
-              {/* Summarizing / batch loading spinner (before first chunk arrives) */}
-              {!script && (isSummarizing || loadingScripts) && (
-                <div className="flex-1 flex flex-col items-center justify-center h-full px-8 py-12 gap-4">
-                  <div className="w-12 h-12 rounded-full bg-accent/10 flex items-center justify-center">
-                    <svg className="animate-spin text-accent" width="24" height="24" viewBox="0 0 24 24" fill="none" aria-hidden="true">
-                      <circle cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="2" strokeOpacity="0.2" />
-                      <path d="M12 2a10 10 0 0 1 10 10" stroke="currentColor" strokeWidth="2" strokeLinecap="round" />
-                    </svg>
-                  </div>
-                  <p className="text-sm text-muted">
-              {loadingScripts && scriptProgress.currentTitle
-                ? `Generating script for "${scriptProgress.currentTitle}"...`
-                : "Generating script from blog post..."}
-              </p>
-              <button
-                onClick={handleStopGenerating}
-                className="flex items-center gap-1.5 text-xs text-red-400 hover:text-red-300 transition-colors focus-ring rounded px-2.5 py-1.5 border border-red-500/20 hover:border-red-500/40"
-              >
-                <svg width="11" height="11" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true">
-                  <rect x="4" y="4" width="16" height="16" rx="2" />
-                </svg>
-                <span>Stop generating</span>
-              </button>
-              </div>
-              )}
-
-              {/* No post selected */}
-              {!script && !scriptUrl && !isSummarizing && (
-                <div className="flex-1 flex flex-col items-center justify-center h-full px-8 py-12 gap-3">
+              {/* No post selected (hide if URL restore is pending) */}
+              {!scriptUrl && !isSummarizing && !searchParams.get("post") && (
+                <div className="flex-1 flex flex-col items-center justify-center px-8 py-12 gap-3">
                   <div className="w-12 h-12 rounded-full bg-surface-2 flex items-center justify-center">
                     <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" className="text-muted" aria-hidden="true">
                       <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8Z" />
@@ -1086,16 +1176,273 @@ function HomePage() {
                 </div>
               )}
 
-              {/* Script editor when script exists */}
-              {script && (
-                <ScriptEditor
-                  script={script}
-                  title={scriptTitle}
-                  isLoading={isGenerating}
-                  isStreaming={isSummarizing || loadingScripts}
-                  isStyled={!!styledScript.trim()}
-                  onScriptChange={setScript}
-                />
+              {/* Post selected: split view */}
+              {scriptUrl && (
+                <>
+                  {/* Top half: Raw blog content (read-only) */}
+                  <div className="flex-1 min-h-0 flex flex-col border-b border-border bg-background">
+                    <div className="flex items-center justify-between px-3 py-1.5 border-b border-border bg-surface-2/30 flex-shrink-0">
+                      <div className="flex items-center gap-2">
+                        <span className="text-[10px] font-medium text-accent uppercase tracking-wider">Original Blog Text</span>
+                      </div>
+                      <div className="flex items-center gap-2">
+                        <span className="text-[10px] text-muted font-mono tabular-nums">
+                          {rawContent ? `${rawContent.trim().split(/\s+/).filter(Boolean).length}w` : "---"}
+                        </span>
+                        {rawContent && !fetchingRawContent && (
+                          <button
+                            onClick={() => { setRawContent(""); handleFetchRawContent(); }}
+                            aria-label="Re-fetch blog text"
+                            className="flex items-center gap-1 text-[10px] text-muted hover:text-foreground transition-colors focus-ring rounded px-1 py-0.5 flex-shrink-0"
+                          >
+                            <svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" aria-hidden="true">
+                              <path d="M1 4v6h6M23 20v-6h-6" />
+                              <path d="M20.49 9A9 9 0 0 0 5.64 5.64L1 10m22 4l-4.64 4.36A9 9 0 0 1 3.51 15" />
+                            </svg>
+                          </button>
+                        )}
+                        {fetchingRawContent && (
+                          <svg className="animate-spin text-accent" width="10" height="10" viewBox="0 0 24 24" fill="none" aria-hidden="true">
+                            <circle cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="2" strokeOpacity="0.2" />
+                            <path d="M12 2a10 10 0 0 1 10 10" stroke="currentColor" strokeWidth="2" strokeLinecap="round" />
+                          </svg>
+                        )}
+                        {/* History dropdown */}
+                        <div className="relative" ref={rawContentHistoryRef}>
+                          <button
+                            onClick={() => setRawContentHistoryOpen(prev => !prev)}
+                            className={`flex items-center gap-1 text-[10px] transition-colors focus-ring rounded px-1 py-0.5 ${
+                              rawContentHistory.length > 0 ? "text-muted hover:text-foreground" : "text-muted/40 cursor-default"
+                            }`}
+                            disabled={rawContentHistory.length === 0}
+                          >
+                            <svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" aria-hidden="true">
+                              <circle cx="12" cy="12" r="10" /><polyline points="12 6 12 12 16 14" />
+                            </svg>
+                            {rawContentHistory.length > 0 && (
+                              <span className="text-[9px] font-mono text-accent bg-accent/10 px-1 rounded">{rawContentHistory.length}</span>
+                            )}
+                          </button>
+                          {rawContentHistoryOpen && rawContentHistory.length > 0 && (
+                            <>
+                              <div className="fixed inset-0 z-40" onClick={() => setRawContentHistoryOpen(false)} />
+                              <div className="absolute right-0 top-full mt-1 z-50 w-72 max-h-64 overflow-y-auto rounded-lg border border-border bg-surface-1 shadow-lg">
+                                <div className="px-3 py-2 border-b border-border">
+                                  <p className="text-[11px] font-medium text-muted">Previous Fetches</p>
+                                </div>
+                                {rawContentHistory.map((entry) => (
+                                  <button
+                                    key={entry.id}
+                                    onClick={() => { setRawContent(entry.content); setRawContentHistoryOpen(false); }}
+                                    className="w-full text-left px-3 py-2.5 hover:bg-surface-2 transition-colors border-b border-border last:border-b-0"
+                                  >
+                                    <div className="flex items-center justify-between gap-2 mb-1">
+                                      <span className="text-[10px] text-muted font-mono tabular-nums">{entry.word_count}w</span>
+                                      <span className="text-[10px] text-muted">
+                                        {new Date(entry.created_at).toLocaleString("en-US", { timeZone: "America/Los_Angeles", month: "short", day: "numeric", hour: "2-digit", minute: "2-digit" })}
+                                      </span>
+                                    </div>
+                                    <p className="text-[11px] text-muted-foreground line-clamp-2 leading-relaxed">
+                                      {entry.content.slice(0, 120)}...
+                                    </p>
+                                  </button>
+                                ))}
+                              </div>
+                            </>
+                          )}
+                        </div>
+                      </div>
+                    </div>
+                    <div className="flex-1 min-h-0 overflow-y-auto">
+                      {rawContent ? (
+                        <div className={`p-4 text-xs font-mono leading-relaxed text-foreground whitespace-pre-wrap select-text transition-opacity duration-300 ${
+                          styledScript.trim() ? "opacity-30 hover:opacity-100 focus-within:opacity-100" : ""
+                        }`}>
+                          {rawContent}
+                        </div>
+                      ) : (
+                        <div className="flex-1 flex flex-col items-center justify-center h-full px-8 py-12 gap-5">
+                          <div className="w-14 h-14 rounded-full border border-muted-foreground/20 flex items-center justify-center">
+                            {fetchingRawContent ? (
+                              <svg className="animate-spin text-muted-foreground" width="28" height="28" viewBox="0 0 24 24" fill="none" aria-hidden="true">
+                                <circle cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="2" strokeOpacity="0.2" />
+                                <path d="M12 2a10 10 0 0 1 10 10" stroke="currentColor" strokeWidth="2" strokeLinecap="round" />
+                              </svg>
+                            ) : (
+                              <svg width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" className="text-muted-foreground" aria-hidden="true">
+                                <path d="M4 19.5v-15A2.5 2.5 0 0 1 6.5 2H20v20H6.5a2.5 2.5 0 0 1 0-5H20" />
+                              </svg>
+                            )}
+                          </div>
+                          <p className="text-sm text-muted-foreground text-center max-w-[280px]">
+                            {fetchingRawContent
+                              ? "Fetching blog text..."
+                              : "Click Fetch Blog Text to retrieve the original article content."}
+                          </p>
+                          {!fetchingRawContent && (
+                            <button
+                              onClick={() => handleFetchRawContent()}
+                              className="flex items-center justify-center gap-2 h-9 rounded-lg bg-accent text-primary-foreground px-5 text-xs font-semibold transition-colors hover:bg-accent-hover focus-ring"
+                            >
+                              <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" aria-hidden="true">
+                                <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4" />
+                                <polyline points="7 10 12 15 17 10" />
+                                <line x1="12" y1="15" x2="12" y2="3" />
+                              </svg>
+                              Fetch Blog Text
+                            </button>
+                          )}
+                        </div>
+                      )}
+                    </div>
+                  </div>
+
+                  {/* Bottom half: Script Generator output (editable) */}
+                  <div className="flex-1 min-h-0 flex flex-col bg-background">
+                    <div className="flex items-center justify-between px-3 py-1.5 border-b border-border bg-surface-2/30 flex-shrink-0">
+                      <div className="flex items-center gap-2">
+                        <span className="text-[10px] font-medium text-accent uppercase tracking-wider">Generated Script</span>
+                        {(isSummarizing || loadingScripts) && (
+                          <svg className="animate-spin text-accent" width="10" height="10" viewBox="0 0 24 24" fill="none" aria-hidden="true">
+                            <circle cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="2" strokeOpacity="0.2" />
+                            <path d="M12 2a10 10 0 0 1 10 10" stroke="currentColor" strokeWidth="2" strokeLinecap="round" />
+                          </svg>
+                        )}
+                      </div>
+                      <div className="flex items-center gap-2">
+                        <span className="text-[10px] text-muted font-mono tabular-nums">
+                          {script ? `${script.trim().split(/\s+/).filter(Boolean).length}w` : "---"}
+                        </span>
+                        {script && !isSummarizing && !loadingScripts && (
+                          <button
+                            onClick={handleGenerateScript}
+                            aria-label="Regenerate script"
+                            className="flex items-center gap-1 text-[10px] text-muted hover:text-foreground transition-colors focus-ring rounded px-1 py-0.5 flex-shrink-0"
+                          >
+                            <svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" aria-hidden="true">
+                              <path d="M1 4v6h6M23 20v-6h-6" />
+                              <path d="M20.49 9A9 9 0 0 0 5.64 5.64L1 10m22 4l-4.64 4.36A9 9 0 0 1 3.51 15" />
+                            </svg>
+                          </button>
+                        )}
+                        {(isSummarizing || loadingScripts) && (
+                          <button
+                            onClick={handleStopGenerating}
+                            aria-label="Stop generating"
+                            className="flex items-center gap-1 text-[10px] text-red-400 hover:text-red-300 transition-colors focus-ring rounded px-1 py-0.5 flex-shrink-0"
+                          >
+                            <svg width="10" height="10" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true">
+                              <rect x="4" y="4" width="16" height="16" rx="2" />
+                            </svg>
+                          </button>
+                        )}
+                        {/* Script History dropdown */}
+                        <div className="relative" ref={scriptHistoryRef}>
+                          <button
+                            onClick={() => setScriptHistoryOpen(prev => !prev)}
+                            className={`flex items-center gap-1 text-[10px] transition-colors focus-ring rounded px-1 py-0.5 ${
+                              scriptHistoryList.length > 0 ? "text-muted hover:text-foreground" : "text-muted/40 cursor-default"
+                            }`}
+                            disabled={scriptHistoryList.length === 0}
+                          >
+                            <svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" aria-hidden="true">
+                              <circle cx="12" cy="12" r="10" /><polyline points="12 6 12 12 16 14" />
+                            </svg>
+                            {scriptHistoryList.length > 0 && (
+                              <span className="text-[9px] font-mono text-accent bg-accent/10 px-1 rounded">{scriptHistoryList.length}</span>
+                            )}
+                          </button>
+                          {scriptHistoryOpen && scriptHistoryList.length > 0 && (
+                            <>
+                              <div className="fixed inset-0 z-40" onClick={() => setScriptHistoryOpen(false)} />
+                              <div className="absolute right-0 top-full mt-1 z-50 w-72 max-h-64 overflow-y-auto rounded-lg border border-border bg-surface-1 shadow-lg">
+                                <div className="px-3 py-2 border-b border-border">
+                                  <p className="text-[11px] font-medium text-muted">Previous Scripts</p>
+                                </div>
+                                {scriptHistoryList.map((entry) => (
+                                  <button
+                                    key={entry.id}
+                                    onClick={() => { setScript(entry.script); setScriptHistoryOpen(false); }}
+                                    className="w-full text-left px-3 py-2.5 hover:bg-surface-2 transition-colors border-b border-border last:border-b-0"
+                                  >
+                                    <div className="flex items-center justify-between gap-2 mb-1">
+                                      <span className="text-[10px] text-muted font-mono tabular-nums">{entry.word_count}w</span>
+                                      <span className="text-[10px] text-muted">
+                                        {new Date(entry.created_at).toLocaleString("en-US", { timeZone: "America/Los_Angeles", month: "short", day: "numeric", hour: "2-digit", minute: "2-digit" })}
+                                      </span>
+                                    </div>
+                                    <p className="text-[11px] text-muted-foreground line-clamp-2 leading-relaxed">
+                                      {entry.script.slice(0, 120)}...
+                                    </p>
+                                  </button>
+                                ))}
+                              </div>
+                            </>
+                          )}
+                        </div>
+                      </div>
+                    </div>
+                    <div className="flex-1 min-h-0 overflow-y-auto">
+                      {!script && (
+                        <div className="flex-1 flex flex-col items-center justify-center h-full px-8 py-12 gap-5">
+                          <div className="w-14 h-14 rounded-full border border-muted-foreground/20 flex items-center justify-center">
+                            {(isSummarizing || loadingScripts) ? (
+                              <svg className="animate-spin text-muted-foreground" width="28" height="28" viewBox="0 0 24 24" fill="none" aria-hidden="true">
+                                <circle cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="2" strokeOpacity="0.2" />
+                                <path d="M12 2a10 10 0 0 1 10 10" stroke="currentColor" strokeWidth="2" strokeLinecap="round" />
+                              </svg>
+                            ) : (
+                              <svg width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" className="text-muted-foreground" aria-hidden="true">
+                                <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8Z" />
+                                <path d="M14 2v6h6" />
+                                <path d="M16 13H8M16 17H8M10 9H8" />
+                              </svg>
+                            )}
+                          </div>
+                          <p className="text-sm text-muted-foreground text-center max-w-[280px]">
+                            {(isSummarizing || loadingScripts)
+                              ? loadingScripts && scriptProgress.currentTitle
+                                ? `Generating script for "${scriptProgress.currentTitle}"...`
+                                : "Generating script from blog post..."
+                              : "Click Generate Script to convert the blog post into a spoken-word script."}
+                          </p>
+                          {(isSummarizing || loadingScripts) ? (
+                            <button
+                              onClick={handleStopGenerating}
+                              className="flex items-center gap-1.5 text-[10px] text-red-400 hover:text-red-300 transition-colors focus-ring rounded px-2 py-1 border border-red-500/20 hover:border-red-500/40"
+                            >
+                              <svg width="9" height="9" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true">
+                                <rect x="4" y="4" width="16" height="16" rx="2" />
+                              </svg>
+                              <span>Stop</span>
+                            </button>
+                          ) : (
+                            <button
+                              onClick={handleGenerateScript}
+                              className="flex items-center justify-center gap-2 h-9 rounded-lg bg-accent text-primary-foreground px-5 text-xs font-semibold transition-colors hover:bg-accent-hover focus-ring"
+                            >
+                              <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" aria-hidden="true">
+                                <path d="M5 12h14M12 5l7 7-7 7" />
+                              </svg>
+                              Generate Script
+                            </button>
+                          )}
+                        </div>
+                      )}
+
+                      {script && (
+                        <ScriptEditor
+                          script={script}
+                          title={scriptTitle}
+                          isLoading={isGenerating}
+                          isStreaming={isSummarizing || loadingScripts}
+                          isStyled={!!styledScript.trim()}
+                          onScriptChange={setScript}
+                        />
+                      )}
+                    </div>
+                  </div>
+                </>
               )}
             </div>
           </div>
@@ -1104,72 +1451,95 @@ function HomePage() {
           <div className={`flex-[2] min-w-0 flex-col xl:flex-row overflow-hidden ${activeTab !== "content" ? "flex" : "hidden md:flex"}`}>
 
             {/* Voice Over column + Versions below */}
-            <div className={`flex-1 min-w-0 flex-col overflow-hidden ${activeTab === "voiceover" ? "flex" : "hidden md:flex"}`}>
+            <div className={`flex-1 min-w-0 flex-col overflow-hidden bg-background ${activeTab === "voiceover" ? "flex" : "hidden md:flex"}`}>
               {/* Voice Over header */}
-              <div className="flex items-center justify-between px-3 py-2 border-b border-border flex-shrink-0">
+              <div className="flex items-center justify-between px-3 h-10 border-b border-border flex-shrink-0">
                 <div className="flex items-center gap-2">
                   <span className="text-sm font-semibold tracking-tight">Voice Over</span>
-                  <span className="text-[10px] font-mono text-accent bg-accent/10 px-1.5 py-0.5 rounded">Styled</span>
                 </div>
-                {/* History dropdown */}
-                <div className="relative" ref={historyRef}>
-                  <button
-                    onClick={() => setHistoryOpen(prev => !prev)}
-                    className={`flex items-center gap-1.5 text-xs transition-colors focus-ring rounded px-2 py-1 ${
-                      styleHistory.length > 0
-                        ? "text-muted hover:text-foreground"
-                        : "text-muted/40 cursor-default"
-                    }`}
-                    disabled={styleHistory.length === 0}
-                  >
-                    <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" aria-hidden="true">
-                      <circle cx="12" cy="12" r="10" />
-                      <polyline points="12 6 12 12 16 14" />
+              </div>
+              {/* ElevenLabs Script subheader */}
+              <div className="flex items-center justify-between px-3 py-1.5 border-b border-border bg-surface-2/30 flex-shrink-0">
+                <div className="flex items-center gap-2">
+                  <span className="text-[10px] font-medium text-accent uppercase tracking-wider">ElevenLabs Script</span>
+                  {isStyleRunning && (
+                    <svg className="animate-spin text-accent" width="10" height="10" viewBox="0 0 24 24" fill="none" aria-hidden="true">
+                      <circle cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="2" strokeOpacity="0.2" />
+                      <path d="M12 2a10 10 0 0 1 10 10" stroke="currentColor" strokeWidth="2" strokeLinecap="round" />
                     </svg>
-                    <span>History</span>
-                    {styleHistory.length > 0 && (
-                      <span className="text-[10px] font-mono text-accent bg-accent/10 px-1 py-0.5 rounded">{styleHistory.length}</span>
-                    )}
-                  </button>
-                  {historyOpen && styleHistory.length > 0 && (
-                    <>
-                      {/* Backdrop */}
-                      <div className="fixed inset-0 z-40" onClick={() => setHistoryOpen(false)} />
-                      {/* Dropdown */}
-                      <div className="absolute right-0 top-full mt-1 z-50 w-72 max-h-64 overflow-y-auto rounded-lg border border-border bg-surface-1 shadow-lg">
-                        <div className="px-3 py-2 border-b border-border">
-                          <p className="text-[11px] font-medium text-muted">Previous Generations</p>
-                        </div>
-                        {styleHistory.map((entry) => (
-                          <button
-                            key={entry.id}
-  onClick={() => {
-  setSelectedHistoryScript(entry.script);
-  setStyledScript(entry.script);
-  setActiveChunkMap(null); // Clear chunk view so textarea shows
-  setHistoryOpen(false);
-  }}
-                            className="w-full text-left px-3 py-2.5 hover:bg-surface-2 transition-colors border-b border-border last:border-b-0 group"
-                          >
-                            <div className="flex items-center justify-between gap-2 mb-1">
-                              <span className="text-[10px] font-medium text-accent bg-accent/10 px-1.5 py-0.5 rounded truncate max-w-[160px]">
-                                {entry.vibe.length > 30 ? entry.vibe.slice(0, 30) + "..." : entry.vibe}
-                              </span>
-                              <span className="text-[10px] text-muted font-mono tabular-nums flex-shrink-0">
-                                {entry.wordCount}w
-                              </span>
-                            </div>
-                            <p className="text-[11px] text-muted-foreground line-clamp-2 leading-relaxed">
-                              {entry.script.slice(0, 120)}...
-                            </p>
-                            <p className="text-[10px] text-muted mt-1">
-                              {entry.timestamp.toLocaleTimeString("en-US", { timeZone: "America/Los_Angeles", hour: "2-digit", minute: "2-digit" })}
-                            </p>
-                          </button>
-                        ))}
-                      </div>
-                    </>
                   )}
+                </div>
+                <div className="flex items-center gap-2">
+                  <span className="text-[10px] text-muted font-mono tabular-nums">
+                    {styledScript.trim() ? `${styledScript.trim().split(/\s+/).filter(Boolean).length}w` : "---"}
+                  </span>
+                  {/* Regenerate */}
+                  {styledScript.trim() && !isStyleRunning && (
+                    <button
+                      onClick={() => styleAgentRef.current?.runAgent()}
+                      aria-label="Re-style script"
+                      className="flex items-center gap-1 text-[10px] text-muted hover:text-foreground transition-colors focus-ring rounded px-1 py-0.5 flex-shrink-0"
+                    >
+                      <svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" aria-hidden="true">
+                        <path d="M1 4v6h6M23 20v-6h-6" />
+                        <path d="M20.49 9A9 9 0 0 0 5.64 5.64L1 10m22 4l-4.64 4.36A9 9 0 0 1 3.51 15" />
+                      </svg>
+                    </button>
+                  )}
+                  {/* Style History dropdown */}
+                  <div className="relative" ref={historyRef}>
+                    <button
+                      onClick={() => setHistoryOpen(prev => !prev)}
+                      className={`flex items-center gap-1 text-[10px] transition-colors focus-ring rounded px-1 py-0.5 ${
+                        styleHistory.length > 0 ? "text-muted hover:text-foreground" : "text-muted/40 cursor-default"
+                      }`}
+                      disabled={styleHistory.length === 0}
+                    >
+                      <svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" aria-hidden="true">
+                        <circle cx="12" cy="12" r="10" /><polyline points="12 6 12 12 16 14" />
+                      </svg>
+                      {styleHistory.length > 0 && (
+                        <span className="text-[9px] font-mono text-accent bg-accent/10 px-1 rounded">{styleHistory.length}</span>
+                      )}
+                    </button>
+                    {historyOpen && styleHistory.length > 0 && (
+                      <>
+                        <div className="fixed inset-0 z-40" onClick={() => setHistoryOpen(false)} />
+                        <div className="absolute right-0 top-full mt-1 z-50 w-72 max-h-64 overflow-y-auto rounded-lg border border-border bg-surface-1 shadow-lg">
+                          <div className="px-3 py-2 border-b border-border">
+                            <p className="text-[11px] font-medium text-muted">Previous Styled Scripts</p>
+                          </div>
+                          {styleHistory.map((entry) => (
+                            <button
+                              key={entry.id}
+                              onClick={() => {
+                                setSelectedHistoryScript(entry.script);
+                                setStyledScript(entry.script);
+                                setActiveChunkMap(null);
+                                setHistoryOpen(false);
+                              }}
+                              className="w-full text-left px-3 py-2.5 hover:bg-surface-2 transition-colors border-b border-border last:border-b-0"
+                            >
+                              <div className="flex items-center justify-between gap-2 mb-1">
+                                <span className="text-[10px] font-medium text-accent bg-accent/10 px-1.5 py-0.5 rounded truncate max-w-[160px]">
+                                  {entry.vibe.length > 30 ? entry.vibe.slice(0, 30) + "..." : entry.vibe}
+                                </span>
+                                <span className="text-[10px] text-muted font-mono tabular-nums flex-shrink-0">
+                                  {entry.wordCount}w
+                                </span>
+                              </div>
+                              <p className="text-[11px] text-muted-foreground line-clamp-2 leading-relaxed">
+                                {entry.script.slice(0, 120)}...
+                              </p>
+                              <p className="text-[10px] text-muted mt-1">
+                                {entry.timestamp.toLocaleTimeString("en-US", { timeZone: "America/Los_Angeles", hour: "2-digit", minute: "2-digit" })}
+                              </p>
+                            </button>
+                          ))}
+                        </div>
+                      </>
+                    )}
+                  </div>
                 </div>
               </div>
               {/* Vibe preset grid */}
@@ -1232,30 +1602,6 @@ function HomePage() {
                 </div>
               </div>
 
-              {/* Style Script button */}
-              <div className="flex-shrink-0 px-3 py-2 border-b border-border flex justify-center">
-                <button
-                  onClick={() => {
-                    setIsStyleRunning(true);
-                    styleAgentRef.current?.runAgent();
-                  }}
-                  disabled={isStyleRunning || !script.trim()}
-                  className="flex items-center justify-center gap-2 h-8 rounded-md bg-accent text-primary-foreground px-5 text-xs font-medium transition-colors hover:bg-accent-hover disabled:opacity-40 disabled:cursor-not-allowed focus-ring"
-                >
-                  {isStyleRunning ? (
-                    <>
-                      <svg className="animate-spin" width="12" height="12" viewBox="0 0 24 24" fill="none" aria-hidden="true">
-                        <circle cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="2" strokeOpacity="0.2" />
-                        <path d="M12 2a10 10 0 0 1 10 10" stroke="currentColor" strokeWidth="2" strokeLinecap="round" />
-                      </svg>
-                      <span>Styling...</span>
-                    </>
-                  ) : (
-                    <span>Style Script</span>
-                  )}
-                </button>
-              </div>
-
               {/* Style agent output */}
               <div className="flex-1 min-h-0 flex flex-col overflow-hidden">
                 <StyleAgent
@@ -1274,10 +1620,16 @@ function HomePage() {
                   currentPlaybackTime={playbackTime}
                   isAudioPlaying={isAudioPlaying}
                   onRegenerateChunk={handleRegenerateChunk}
-                  onSeekToTime={(t) => {
-                    const audio = document.querySelector("audio");
-                    if (audio) { audio.currentTime = t; audio.play(); }
-                  }}
+  onSeekToTime={(t) => {
+    if (playerRef.current) {
+      if (t < 0) {
+        playerRef.current.pause();
+      } else {
+        playerRef.current.seekTo(t);
+        playerRef.current.play();
+      }
+    }
+  }}
                 />
               </div>
 
@@ -1305,10 +1657,9 @@ function HomePage() {
 
             {/* Voice Settings panel -- full height */}
             <aside className={`w-full xl:flex-1 min-w-0 border-t xl:border-t-0 xl:border-l border-border flex-col overflow-hidden bg-surface-1 ${activeTab === "settings" ? "flex" : "hidden md:flex"}`}>
-              <div className="flex items-center justify-between px-3 py-2 border-b border-border flex-shrink-0">
+              <div className="flex items-center justify-between px-3 h-10 border-b border-border flex-shrink-0">
                 <div className="flex items-center gap-2">
                   <span className="text-sm font-semibold tracking-tight">Voice Settings</span>
-                  <span className="text-[10px] font-mono text-accent bg-accent/10 px-1.5 py-0.5 rounded">v3</span>
                 </div>
               </div>
               <div className="flex-1 overflow-y-auto p-4">
@@ -1326,18 +1677,45 @@ function HomePage() {
         onClose={() => setPromptEditorOpen(false)}
       />
 
+      {/* Reload All Scripts Confirmation */}
+      {showReloadAllConfirm && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60" onClick={() => setShowReloadAllConfirm(false)}>
+          <div className="bg-surface border border-border rounded-lg shadow-xl max-w-sm w-full mx-4 p-5" onClick={(e) => e.stopPropagation()}>
+            <h3 className="text-sm font-semibold text-foreground mb-2">Reload All Scripts</h3>
+            <p className="text-xs text-muted-foreground mb-4 leading-relaxed">
+              This will regenerate scripts for <span className="text-foreground font-medium">every</span> blog post, including ones that already have scripts. Posts are processed one at a time. This may take a while.
+            </p>
+            <div className="flex items-center justify-end gap-2">
+              <button
+                onClick={() => setShowReloadAllConfirm(false)}
+                className="h-8 px-3 text-xs text-muted-foreground hover:text-foreground rounded-md border border-border hover:border-muted-foreground/40 transition-colors focus-ring"
+              >
+                Cancel
+              </button>
+              <button
+                onClick={handleReloadAllScripts}
+                className="h-8 px-4 text-xs font-semibold rounded-md bg-accent text-primary-foreground hover:bg-accent-hover transition-colors focus-ring"
+              >
+                Reload All
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
   {/* Mobile fixed-bottom player (only rendered on mobile) */}
   {!isDesktop && activeEntry?.audio_url && (
   <div className="fixed bottom-0 left-0 right-0 z-50 border-t border-border bg-background">
-    <WaveformPlayer
-      key={`mobile-${activeEntry.id}`}
-      audioUrl={activeEntry.audio_url}
-      title={activeEntry.title || undefined}
-      summary={activeEntry.summary || undefined}
-      url={activeEntry.url}
-      autoplay={autoplay}
-      onTimeUpdate={(t) => setPlaybackTime(t)}
-      onPlayStateChange={(p) => setIsAudioPlaying(p)}
+<WaveformPlayer
+  ref={playerRef}
+  key={`mobile-${activeEntry.id}`}
+  audioUrl={activeEntry.audio_url}
+  title={activeEntry.title || undefined}
+  summary={activeEntry.summary || undefined}
+  url={activeEntry.url}
+  autoplay={autoplay}
+  onTimeUpdate={(t) => setPlaybackTime(t)}
+  onPlayStateChange={(p) => setIsAudioPlaying(p)}
     />
   </div>
   )}

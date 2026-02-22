@@ -1,6 +1,6 @@
 import { streamText } from "ai";
 import { scrapeBlogPost } from "@/lib/scraper";
-import { getActivePromptPreset, getPromptNodeBySlug } from "@/lib/db";
+import { getActivePromptPreset, getPromptNodeBySlug, sql } from "@/lib/db";
 
 export const maxDuration = 60;
 
@@ -43,19 +43,29 @@ export async function POST(request: Request) {
       }
     }
 
-    // Build blog content payload
-    const blogContent = JSON.stringify({
-      text: scraped.text,
-      url: scraped.url,
-      title: scraped.title,
-    });
+    // Save raw scraped content to DB for reference
+    const contentUrl = scraped.url || url;
+    await sql`
+      INSERT INTO blog_posts_cache (url, title, raw_content)
+      VALUES (${contentUrl}, ${scraped.title || ''}, ${scraped.text || null})
+      ON CONFLICT (url) DO UPDATE SET raw_content = EXCLUDED.raw_content
+    `;
+
+    // Build blog content as clean readable text, not JSON
+    const blogContent = [
+      scraped.title ? `# ${scraped.title}` : "",
+      scraped.url ? `Source: ${scraped.url}` : "",
+      "",
+      scraped.text,
+    ].filter(Boolean).join("\n");
 
     // Inject {{BLOG_CONTENT}} placeholder if present, otherwise pass as user prompt
     let finalSystem: string;
     let finalPrompt: string;
     if (systemPrompt.includes("{{BLOG_CONTENT}}")) {
-      finalSystem = systemPrompt.replace("{{BLOG_CONTENT}}", blogContent);
-      finalPrompt = "Convert the blog content above into an audio script.";
+      // Put instructions in system, blog content in user prompt for better attention
+      finalSystem = systemPrompt.split("{{BLOG_CONTENT}}")[0].trim();
+      finalPrompt = blogContent + "\n\n---\n\nApply every rule and transformation example from your instructions above. Follow all WRITTEN → SPOKEN transformations exactly.";
     } else {
       finalSystem = systemPrompt;
       finalPrompt = blogContent;
