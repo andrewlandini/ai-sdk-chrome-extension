@@ -11,7 +11,7 @@
     "@ai-sdk/elevenlabs": "^1.0.10",
     "@neondatabase/serverless": "^0.10.4",
     "@vercel/blob": "^0.27.1",
-    "@vercel/speed-insights": "^0.2.0",
+    "@vercel/speed-insights": "^1.3.1",
     "ai": "^6.0.0",
     "cheerio": "^1.0.0",
     "next": "^15.3.3",
