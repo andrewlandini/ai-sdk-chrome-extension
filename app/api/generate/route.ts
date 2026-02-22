@@ -238,13 +238,23 @@ export async function POST(request: Request) {
 
         const postSlug = await getAudioIdByUrl(url);
         const genCount = await getGenerationCountByUrl(url);
-        const genNum = String(genCount + 1).padStart(3, "0");
-        const slug = postSlug || (title || "untitled")
+        const versionNum = genCount + 1;
+        // Build label: YYYYMMDD_first-two-words_vN
+        const dateStr = new Date().toISOString().slice(0, 10).replace(/-/g, "");
+        const titleWords = (title || "untitled")
+          .toLowerCase()
+          .replace(/[^a-z0-9\s]+/g, "")
+          .trim()
+          .split(/\s+/)
+          .slice(0, 2)
+          .join("-");
+        const versionLabel = `${dateStr}_${titleWords}_v${versionNum}`;
+        const blobSlug = postSlug || (title || "untitled")
           .toLowerCase()
           .substring(0, 60)
           .replace(/[^a-z0-9]+/g, "-")
           .replace(/(^-|-$)/g, "");
-        const filename = `blog-audio/${slug}-gen-${genNum}.mp3`;
+        const filename = `blog-audio/${versionLabel}.mp3`;
         const blob = await put(filename, finalAudio, {
           access: "public",
           contentType: "audio/mpeg",
@@ -254,7 +264,7 @@ export async function POST(request: Request) {
         const chunkMap: ChunkMapEntry[] = [];
         let cumulativeTime = 0;
         for (let i = 0; i < chunks.length; i++) {
-          const chunkFilename = `blog-audio/${slug}-gen-${genNum}-chunk-${String(i).padStart(3, "0")}.mp3`;
+          const chunkFilename = `blog-audio/${versionLabel}-chunk-${String(i).padStart(3, "0")}.mp3`;
           const chunkBlob = await put(chunkFilename, audioBuffers[i], {
             access: "public",
             contentType: "audio/mpeg",
@@ -273,9 +283,6 @@ export async function POST(request: Request) {
 
         // Save to database
         send({ type: "status", step: "saving", message: "Saving to database..." });
-
-        const versionNum = genCount + 1;
-        const versionLabel = `${slug}_v${versionNum}`;
 
         let entry;
         try {
