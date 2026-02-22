@@ -1239,24 +1239,8 @@ function HomePage() {
                 </div>
               )}
 
-              {/* No post selected (hide if URL restore is pending) */}
-              {!scriptUrl && !isSummarizing && !searchParams.get("post") && (
-                <div className="flex-1 flex flex-col items-center justify-center px-8 py-12 gap-3">
-                  <div className="w-12 h-12 rounded-full bg-surface-2 flex items-center justify-center">
-                    <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" className="text-muted" aria-hidden="true">
-                      <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8Z" />
-                      <path d="M14 2v6h6" />
-                      <path d="M16 13H8M16 17H8M10 9H8" />
-                    </svg>
-                  </div>
-                  <p className="text-sm text-muted">Select a blog post to get started</p>
-                </div>
-              )}
-
-              {/* Post selected: split view */}
-              {scriptUrl && (
-                <>
-                  {/* Top half: Raw blog content (read-only) */}
+              {/* Split view: always visible */}
+              {/* Top half: Raw blog content (read-only) */}
                   <div className="flex-1 min-h-0 flex flex-col border-b border-border bg-background">
                     <div className="flex items-center justify-between px-3 py-1.5 border-b border-border bg-surface-2/30 flex-shrink-0">
                       <div className="flex items-center gap-2">
@@ -1519,8 +1503,6 @@ function HomePage() {
                       )}
                     </div>
                   </div>
-                </>
-              )}
             </div>
           </div>
 
