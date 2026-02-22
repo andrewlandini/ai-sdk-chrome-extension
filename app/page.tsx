@@ -1,6 +1,12 @@
 "use client";
 
-import { useState, useCallback, useRef, useEffect, Suspense } from "react";
+import {
+  useState,
+  useCallback,
+  useRef,
+  useEffect,
+  Suspense,
+} from "react";
 import { useSearchParams, useRouter } from "next/navigation";
 import useSWR from "swr";
 import { PostsList } from "@/components/posts-list";

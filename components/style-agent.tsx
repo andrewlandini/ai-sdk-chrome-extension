@@ -1,6 +1,13 @@
 "use client";
 
-import { useState, useCallback, useRef, useEffect, useImperativeHandle, forwardRef } from "react";
+import {
+  useState,
+  useCallback,
+  useRef,
+  useEffect,
+  useImperativeHandle,
+  forwardRef,
+} from "react";
 
 interface HistoryEntry {
   id: number;
@@ -36,8 +43,8 @@ export const StyleAgent = forwardRef<StyleAgentHandle, StyleAgentProps>(function
   {
     sourceScript,
     postUrl,
-    isGeneratingAudio,
-    onGenerateAudio,
+    isGeneratingAudio: _isGeneratingAudio,
+    onGenerateAudio: _onGenerateAudio,
     onStyledScriptChange,
     onHistoryChange,
     externalScript,
