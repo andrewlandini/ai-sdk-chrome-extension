@@ -8,7 +8,7 @@ interface HistoryEntry {
   vibe: string;
   timestamp: Date;
   wordCount: number;
-  dbId?: number; // ID from the database
+  dbId?: number;
 }
 
 interface StyleAgentProps {
@@ -32,17 +32,20 @@ export interface StyleAgentHandle {
 
 export type { HistoryEntry as StyleHistoryEntry };
 
-export const StyleAgent = forwardRef<StyleAgentHandle, StyleAgentProps>(function StyleAgent({
-  sourceScript,
-  postUrl,
-  isGeneratingAudio,
-  onGenerateAudio,
-  onStyledScriptChange,
-  onHistoryChange,
-  externalScript,
-  styleVibe = "",
-  dimmed = false,
-}, ref) {
+export const StyleAgent = forwardRef<StyleAgentHandle, StyleAgentProps>(function StyleAgent(
+  {
+    sourceScript,
+    postUrl,
+    isGeneratingAudio,
+    onGenerateAudio,
+    onStyledScriptChange,
+    onHistoryChange,
+    externalScript,
+    styleVibe = "",
+    dimmed = false,
+  },
+  ref,
+) {
   const styleInstructions = styleVibe;
   const [styledScript, setStyledScript] = useState("");
   const [isRunning, setIsRunning] = useState(false);
@@ -53,41 +56,57 @@ export const StyleAgent = forwardRef<StyleAgentHandle, StyleAgentProps>(function
   const wordCount = styledScript.trim().split(/\s+/).filter(Boolean).length;
   const charCount = styledScript.length;
 
-  // Reset styled script and load history when post URL changes
   useEffect(() => {
     setStyledScript("");
     setError(null);
-    if (!postUrl) { setHistory([]); return; }
+    if (!postUrl) {
+      setHistory([]);
+      return;
+    }
     let cancelled = false;
     fetch(`/api/style-history?url=${encodeURIComponent(postUrl)}`)
-      .then(r => r.json())
-      .then(data => {
+      .then((r) => r.json())
+      .then((data) => {
         if (cancelled) return;
-        const entries: HistoryEntry[] = (data.entries || []).map((e: { id: number; script: string; vibe: string | null; word_count: number; created_at: string }, i: number) => ({
-          id: i + 1,
-          dbId: e.id,
-          script: e.script,
-          vibe: e.vibe || "Default",
-          timestamp: new Date(e.created_at),
-          wordCount: e.word_count,
-        }));
+        const entries: HistoryEntry[] = (data.entries || []).map(
+          (
+            e: {
+              id: number;
+              script: string;
+              vibe: string | null;
+              word_count: number;
+              created_at: string;
+            },
+            i: number,
+          ) => ({
+            id: i + 1,
+            dbId: e.id,
+            script: e.script,
+            vibe: e.vibe || "Default",
+            timestamp: new Date(e.created_at),
+            wordCount: e.word_count,
+          }),
+        );
         setHistory(entries);
         nextId.current = entries.length + 1;
       })
-      .catch(() => { /* ignore */ });
-    return () => { cancelled = true; };
+      .catch(() => {
+        /* ignore */
+      });
+    return () => {
+      cancelled = true;
+    };
   }, [postUrl]);
 
-  // Notify parent of history changes
   useEffect(() => {
     onHistoryChange?.(history);
   }, [history, onHistoryChange]);
 
-  // Sync when parent pushes a script from history selection
   useEffect(() => {
     if (externalScript != null && externalScript !== styledScript) {
       setStyledScript(externalScript);
     }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [externalScript]);
 
   const handleRunAgent = useCallback(async () => {
@@ -98,17 +117,13 @@ export const StyleAgent = forwardRef<StyleAgentHandle, StyleAgentProps>(function
       const res = await fetch("/api/style-agent", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          script: sourceScript,
-          styleInstructions,
-        }),
+        body: JSON.stringify({ script: sourceScript, styleInstructions }),
       });
       const data = await res.json();
       if (!res.ok) throw new Error(data.error || "Style agent failed");
       setStyledScript(data.styledScript);
       onStyledScriptChange?.(data.styledScript);
 
-      // Save to DB and add to local history
       const wc = data.styledScript.trim().split(/\s+/).filter(Boolean).length;
       try {
         const saveRes = await fetch("/api/style-history", {
@@ -130,9 +145,8 @@ export const StyleAgent = forwardRef<StyleAgentHandle, StyleAgentProps>(function
           timestamp: new Date(),
           wordCount: wc,
         };
-        setHistory(prev => [entry, ...prev]);
+        setHistory((prev) => [entry, ...prev]);
       } catch {
-        // Fallback to local-only if save fails
         const entry: HistoryEntry = {
           id: nextId.current++,
           script: data.styledScript,
@@ -140,7 +154,7 @@ export const StyleAgent = forwardRef<StyleAgentHandle, StyleAgentProps>(function
           timestamp: new Date(),
           wordCount: wc,
         };
-        setHistory(prev => [entry, ...prev]);
+        setHistory((prev) => [entry, ...prev]);
       }
     } catch (err) {
       setError(err instanceof Error ? err.message : "Failed to style script");
@@ -149,24 +163,23 @@ export const StyleAgent = forwardRef<StyleAgentHandle, StyleAgentProps>(function
     }
   }, [sourceScript, styleInstructions, postUrl, onStyledScriptChange]);
 
-  const loadFromHistory = useCallback((entry: HistoryEntry) => {
-    setStyledScript(entry.script);
-    onStyledScriptChange?.(entry.script);
-  }, [onStyledScriptChange]);
-
-  // Expose imperative handle for parent to trigger run and read state
-  useImperativeHandle(ref, () => ({
-    runAgent: handleRunAgent,
-    getStyledScript: () => styledScript,
-    isRunning,
-  }), [handleRunAgent, styledScript, isRunning]);
+  useImperativeHandle(
+    ref,
+    () => ({
+      runAgent: handleRunAgent,
+      getStyledScript: () => styledScript,
+      isRunning,
+    }),
+    [handleRunAgent, styledScript, isRunning],
+  );
 
   return (
     <div className="flex flex-col h-full">
-
-      {/* Error */}
       {error && (
-        <div className="flex-shrink-0 mx-4 mt-3 flex items-center gap-2 text-xs text-destructive border border-destructive/20 bg-destructive/5 rounded px-3 py-2" role="alert">
+        <div
+          className="flex-shrink-0 mx-4 mt-3 flex items-center gap-2 text-xs text-destructive border border-destructive/20 bg-destructive/5 rounded px-3 py-2"
+          role="alert"
+        >
           <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" aria-hidden="true">
             <circle cx="12" cy="12" r="10" />
             <path d="M12 8v4m0 4h.01" />
@@ -175,11 +188,13 @@ export const StyleAgent = forwardRef<StyleAgentHandle, StyleAgentProps>(function
         </div>
       )}
 
-      {/* Styled script output */}
       {styledScript ? (
         <textarea
           value={styledScript}
-          onChange={(e) => { setStyledScript(e.target.value); onStyledScriptChange?.(e.target.value); }}
+          onChange={(e) => {
+            setStyledScript(e.target.value);
+            onStyledScriptChange?.(e.target.value);
+          }}
           aria-label="Styled audio script with Audio Tags"
           className={`flex-1 w-full bg-transparent text-sm font-mono leading-relaxed text-foreground p-4 resize-none border-none focus:outline-none overflow-y-auto transition-opacity duration-300 ${dimmed ? "opacity-30 hover:opacity-100 focus:opacity-100" : ""}`}
         />
@@ -207,7 +222,6 @@ export const StyleAgent = forwardRef<StyleAgentHandle, StyleAgentProps>(function
         </div>
       )}
 
-      {/* Footer */}
       {styledScript && (
         <div className="flex-shrink-0 border-t border-border px-4 py-2 flex items-center justify-end">
           <span className="text-[10px] text-muted font-mono tabular-nums flex-shrink-0">
