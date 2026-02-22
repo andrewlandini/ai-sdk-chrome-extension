@@ -1,6 +1,6 @@
 import { streamText } from "ai";
 import { scrapeBlogPost } from "@/lib/scraper";
-import { getActivePromptPreset, getPromptNodeBySlug } from "@/lib/db";
+import { getActivePromptPreset, getPromptNodeBySlug, sql } from "@/lib/db";
 
 export const maxDuration = 60;
 
@@ -42,6 +42,11 @@ export async function POST(request: Request) {
         }
       }
     }
+
+    // Save raw scraped content to DB for reference
+    await sql`
+      UPDATE blog_posts_cache SET raw_content = ${scraped.text || null} WHERE url = ${scraped.url || url}
+    `;
 
     // Build blog content as clean readable text, not JSON
     const blogContent = [

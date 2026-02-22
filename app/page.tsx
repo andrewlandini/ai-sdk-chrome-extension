@@ -151,6 +151,7 @@ function HomePage() {
   const [autoplay, setAutoplay] = useState(false);
 
   // Generator state
+  const [rawContent, setRawContent] = useState("");
   const [script, setScript] = useState("");
   const [scriptTitle, setScriptTitle] = useState("");
   const [scriptUrl, setScriptUrl] = useState("");
@@ -337,10 +338,11 @@ function HomePage() {
     const slug = slugFromUrl(url);
     router.replace(`?post=${encodeURIComponent(slug)}`, { scroll: false });
 
-    // Check if there's a cached script for this post
+    // Check if there's a cached script and raw content for this post
     const entry = entries.find((e) => e.url === url);
-    const cachedScript = (entry as BlogAudio & { cached_script?: string | null })?.cached_script;
-    setScript(cachedScript || "");
+    const entryExt = entry as BlogAudio & { cached_script?: string | null; raw_content?: string | null };
+    setScript(entryExt?.cached_script || "");
+    setRawContent(entryExt?.raw_content || "");
   }, [entries, advanceName, router]);
 
   // Helper: stream summarize API and progressively build script text
@@ -531,8 +533,9 @@ function HomePage() {
   setScriptUrl(entry.url);
   setScriptTitle(entry.title || "");
   // Use cached_script (original content script) if available, not summary (which is the styled/audio script)
-  const cachedScript = (entry as BlogAudio & { cached_script?: string | null })?.cached_script;
-  setScript(cachedScript || entry.summary || "");
+  const entryExt = entry as BlogAudio & { cached_script?: string | null; raw_content?: string | null };
+  setScript(entryExt?.cached_script || entry.summary || "");
+  setRawContent(entryExt?.raw_content || "");
   // Load chunk map and styled script into Voice Over
   setActiveChunkMap(entry.chunk_map || null);
   if (entry.summary) {
@@ -984,7 +987,6 @@ function HomePage() {
             <div className="flex items-center justify-between px-3 py-2 border-b border-border flex-shrink-0">
               <div className="flex items-center gap-2">
                 <span className="text-sm font-semibold tracking-tight">Content</span>
-                <span className="text-[10px] font-mono text-accent bg-accent/10 px-1.5 py-0.5 rounded">Source</span>
               </div>
               {script && scriptUrl && !isSummarizing && !loadingScripts && (
               <button
@@ -1010,9 +1012,9 @@ function HomePage() {
               </button>
               )}
             </div>
-            <div className="flex-1 min-h-0 overflow-y-auto">
+            <div className="flex-1 min-h-0 flex flex-col overflow-hidden">
               {error && (
-                <div className="mx-4 mt-3 flex items-center gap-2 text-xs text-destructive border border-destructive/20 bg-destructive/5 rounded-md px-3 py-2" role="alert">
+                <div className="mx-4 mt-3 flex items-center gap-2 text-xs text-destructive border border-destructive/20 bg-destructive/5 rounded-md px-3 py-2 flex-shrink-0" role="alert">
                   <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" aria-hidden="true">
                     <circle cx="12" cy="12" r="10" /><path d="M12 8v4m0 4h.01" />
                   </svg>
@@ -1020,61 +1022,9 @@ function HomePage() {
                 </div>
               )}
 
-              {/* Centered Generate Script CTA when no script yet */}
-              {!script && scriptUrl && !isSummarizing && !loadingScripts && (
-                <div className="flex-1 flex flex-col items-center justify-center h-full px-8 py-12 gap-4">
-                  <div className="w-12 h-12 rounded-full bg-accent/10 flex items-center justify-center">
-                    <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" className="text-accent" aria-hidden="true">
-                      <path d="M12 3c.132 0 .263 0 .393 0a7.5 7.5 0 0 0 7.92 12.446A9 9 0 1 1 12 3Z" />
-                      <path d="M17 4a2 2 0 0 1 2 2" />
-                      <path d="M21 8a6 6 0 0 1-6 6" />
-                    </svg>
-                  </div>
-                  <div className="text-center">
-                    <p className="text-sm font-medium text-foreground mb-1">Ready to generate</p>
-                    <p className="text-xs text-muted max-w-[240px]">Extract an audio-ready script from the selected blog post.</p>
-                  </div>
-                  <button
-                    onClick={handleGenerateScript}
-                    className="flex items-center justify-center gap-2 h-11 rounded-lg bg-accent text-primary-foreground px-6 text-sm font-semibold transition-colors hover:bg-accent-hover focus-ring"
-                  >
-                    <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" aria-hidden="true">
-                      <path d="M5 12h14M12 5l7 7-7 7" />
-                    </svg>
-                    Generate Script
-                  </button>
-                </div>
-              )}
-
-              {/* Summarizing / batch loading spinner (before first chunk arrives) */}
-              {!script && (isSummarizing || loadingScripts) && (
-                <div className="flex-1 flex flex-col items-center justify-center h-full px-8 py-12 gap-4">
-                  <div className="w-12 h-12 rounded-full bg-accent/10 flex items-center justify-center">
-                    <svg className="animate-spin text-accent" width="24" height="24" viewBox="0 0 24 24" fill="none" aria-hidden="true">
-                      <circle cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="2" strokeOpacity="0.2" />
-                      <path d="M12 2a10 10 0 0 1 10 10" stroke="currentColor" strokeWidth="2" strokeLinecap="round" />
-                    </svg>
-                  </div>
-                  <p className="text-sm text-muted">
-              {loadingScripts && scriptProgress.currentTitle
-                ? `Generating script for "${scriptProgress.currentTitle}"...`
-                : "Generating script from blog post..."}
-              </p>
-              <button
-                onClick={handleStopGenerating}
-                className="flex items-center gap-1.5 text-xs text-red-400 hover:text-red-300 transition-colors focus-ring rounded px-2.5 py-1.5 border border-red-500/20 hover:border-red-500/40"
-              >
-                <svg width="11" height="11" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true">
-                  <rect x="4" y="4" width="16" height="16" rx="2" />
-                </svg>
-                <span>Stop generating</span>
-              </button>
-              </div>
-              )}
-
               {/* No post selected */}
-              {!script && !scriptUrl && !isSummarizing && (
-                <div className="flex-1 flex flex-col items-center justify-center h-full px-8 py-12 gap-3">
+              {!scriptUrl && !isSummarizing && (
+                <div className="flex-1 flex flex-col items-center justify-center px-8 py-12 gap-3">
                   <div className="w-12 h-12 rounded-full bg-surface-2 flex items-center justify-center">
                     <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" className="text-muted" aria-hidden="true">
                       <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8Z" />
@@ -1086,16 +1036,95 @@ function HomePage() {
                 </div>
               )}
 
-              {/* Script editor when script exists */}
-              {script && (
-                <ScriptEditor
-                  script={script}
-                  title={scriptTitle}
-                  isLoading={isGenerating}
-                  isStreaming={isSummarizing || loadingScripts}
-                  isStyled={!!styledScript.trim()}
-                  onScriptChange={setScript}
-                />
+              {/* Post selected: split view */}
+              {scriptUrl && (
+                <>
+                  {/* Top half: Raw blog content (read-only) */}
+                  <div className="flex-1 min-h-0 flex flex-col border-b border-border">
+                    <div className="flex items-center justify-between px-3 py-1.5 border-b border-border bg-surface-2/30 flex-shrink-0">
+                      <div className="flex items-center gap-2">
+                        <span className="text-[10px] font-medium text-muted uppercase tracking-wider">Original Blog Text</span>
+                      </div>
+                      <span className="text-[10px] text-muted font-mono tabular-nums">
+                        {rawContent ? `${rawContent.trim().split(/\s+/).filter(Boolean).length}w` : "---"}
+                      </span>
+                    </div>
+                    <div className="flex-1 min-h-0 overflow-y-auto">
+                      {rawContent ? (
+                        <div className="p-4 text-xs font-mono leading-relaxed text-muted-foreground whitespace-pre-wrap select-text">
+                          {rawContent}
+                        </div>
+                      ) : (
+                        <div className="flex-1 flex items-center justify-center h-full py-8">
+                          <p className="text-xs text-muted">Raw content will appear after generating a script</p>
+                        </div>
+                      )}
+                    </div>
+                  </div>
+
+                  {/* Bottom half: Script Generator output (editable) */}
+                  <div className="flex-1 min-h-0 flex flex-col">
+                    <div className="flex items-center justify-between px-3 py-1.5 border-b border-border bg-surface-2/30 flex-shrink-0">
+                      <div className="flex items-center gap-2">
+                        <span className="text-[10px] font-medium text-muted uppercase tracking-wider">Generated Script</span>
+                        {(isSummarizing || loadingScripts) && (
+                          <svg className="animate-spin text-accent" width="10" height="10" viewBox="0 0 24 24" fill="none" aria-hidden="true">
+                            <circle cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="2" strokeOpacity="0.2" />
+                            <path d="M12 2a10 10 0 0 1 10 10" stroke="currentColor" strokeWidth="2" strokeLinecap="round" />
+                          </svg>
+                        )}
+                      </div>
+                      <span className="text-[10px] text-muted font-mono tabular-nums">
+                        {script ? `${script.trim().split(/\s+/).filter(Boolean).length}w` : "---"}
+                      </span>
+                    </div>
+                    <div className="flex-1 min-h-0 overflow-y-auto">
+                      {!script && !isSummarizing && !loadingScripts && (
+                        <div className="flex flex-col items-center justify-center h-full px-8 py-8 gap-3">
+                          <button
+                            onClick={handleGenerateScript}
+                            className="flex items-center justify-center gap-2 h-9 rounded-lg bg-accent text-primary-foreground px-5 text-xs font-semibold transition-colors hover:bg-accent-hover focus-ring"
+                          >
+                            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" aria-hidden="true">
+                              <path d="M5 12h14M12 5l7 7-7 7" />
+                            </svg>
+                            Generate Script
+                          </button>
+                        </div>
+                      )}
+
+                      {!script && (isSummarizing || loadingScripts) && (
+                        <div className="flex flex-col items-center justify-center h-full px-8 py-8 gap-3">
+                          <p className="text-xs text-muted">
+                            {loadingScripts && scriptProgress.currentTitle
+                              ? `Generating script for "${scriptProgress.currentTitle}"...`
+                              : "Generating script from blog post..."}
+                          </p>
+                          <button
+                            onClick={handleStopGenerating}
+                            className="flex items-center gap-1.5 text-[10px] text-red-400 hover:text-red-300 transition-colors focus-ring rounded px-2 py-1 border border-red-500/20 hover:border-red-500/40"
+                          >
+                            <svg width="9" height="9" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true">
+                              <rect x="4" y="4" width="16" height="16" rx="2" />
+                            </svg>
+                            <span>Stop</span>
+                          </button>
+                        </div>
+                      )}
+
+                      {script && (
+                        <ScriptEditor
+                          script={script}
+                          title={scriptTitle}
+                          isLoading={isGenerating}
+                          isStreaming={isSummarizing || loadingScripts}
+                          isStyled={!!styledScript.trim()}
+                          onScriptChange={setScript}
+                        />
+                      )}
+                    </div>
+                  </div>
+                </>
               )}
             </div>
           </div>

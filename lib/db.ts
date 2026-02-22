@@ -150,6 +150,7 @@ export interface CachedBlogPost {
   date: string | null;
   category: string | null;
   script: string | null;
+  raw_content: string | null;
   created_at: string;
 }
 
