@@ -1,6 +1,13 @@
 import { neon } from "@neondatabase/serverless";
 
-export const sql = neon(process.env.DATABASE_URL!);
+let _sql: ReturnType<typeof neon>;
+export function getSql() {
+  if (!_sql) _sql = neon(process.env.DATABASE_URL!);
+  return _sql;
+}
+// Tagged-template wrapper so call sites stay as sql`...`
+export const sql: ReturnType<typeof neon> = ((strings: TemplateStringsArray, ...values: unknown[]) =>
+  getSql()(strings, ...values)) as ReturnType<typeof neon>;
 
 // ── Blog Audio ──
 
