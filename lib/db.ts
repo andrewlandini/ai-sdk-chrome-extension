@@ -2,7 +2,9 @@ import { neon } from "@neondatabase/serverless";
 
 let _sql: ReturnType<typeof neon>;
 export function getSql() {
-  if (!_sql) _sql = neon(process.env.DATABASE_URL!);
+  const connStr = process.env.DATABASE_URL || process.env.POSTGRES_URL;
+  if (!connStr) throw new Error("Missing DATABASE_URL or POSTGRES_URL environment variable");
+  if (!_sql) _sql = neon(connStr);
   return _sql;
 }
 // Tagged-template wrapper so call sites stay as sql`...`
