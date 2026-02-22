@@ -7,7 +7,7 @@ import {
   useEffect,
   Suspense,
 } from "react";
-import { useSearchParams, useRouter } from "next/navigation";
+import { useSearchParams } from "next/navigation";
 import useSWR from "swr";
 import { PostsList } from "@/components/posts-list";
 import { ScriptEditor } from "@/components/script-editor";
@@ -129,7 +129,6 @@ export default function Page() {
 
 function HomePage() {
   const searchParams = useSearchParams();
-  const router = useRouter();
   const isDesktop = useIsDesktop();
   const { name: productName, fading: nameFading, advance: advanceName } = useProductName();
   const { data: credits, mutate: mutateCredits } = useSWR<CreditsData>("/api/credits", fetcher, {
@@ -201,8 +200,8 @@ function HomePage() {
     if (!hasUrlParam) {
       if (s.scriptUrl) {
         setScriptUrl(s.scriptUrl);
-        // Sync URL bar to match restored post
-        router.replace(`?post=${encodeURIComponent(slugFromUrl(s.scriptUrl))}`, { scroll: false });
+        // Sync URL bar without triggering Next.js re-render
+        window.history.replaceState(null, "", `?post=${encodeURIComponent(slugFromUrl(s.scriptUrl))}`);
       }
       if (s.scriptTitle) setScriptTitle(s.scriptTitle);
       if (s.script) setScript(s.script);
@@ -345,16 +344,16 @@ function HomePage() {
     setSidebarOpen(false);
     advanceName();
 
-    // Push slug to URL
+    // Sync URL bar without triggering Next.js navigation/re-render
     const slug = slugFromUrl(url);
-    router.replace(`?post=${encodeURIComponent(slug)}`, { scroll: false });
+    window.history.replaceState(null, "", `?post=${encodeURIComponent(slug)}`);
 
     // Check if there's a cached script and raw content for this post
     const entry = entries.find((e) => e.url === url);
     const entryExt = entry as BlogAudio & { cached_script?: string | null; raw_content?: string | null };
     setScript(entryExt?.cached_script || "");
     setRawContent(entryExt?.raw_content || "");
-  }, [entries, advanceName, router]);
+  }, [entries, advanceName]);
 
   // Helper: stream summarize API and progressively build script text
   const streamSummarize = useCallback(async (
@@ -558,8 +557,8 @@ function HomePage() {
   if (entry.summary) {
     setStyledScript(entry.summary);
   }
-  router.replace(`?post=${encodeURIComponent(slugFromUrl(entry.url))}`, { scroll: false });
-  }, [router]);
+  window.history.replaceState(null, "", `?post=${encodeURIComponent(slugFromUrl(entry.url))}`);
+  }, []);
 
   const handleDeleteEntry = useCallback(async (entry: BlogAudio) => {
     try {
