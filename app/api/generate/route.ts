@@ -25,64 +25,36 @@ const VOICE_MAP: Record<string, string> = {
 };
 
 /**
- * Split text into chunks, each under MAX_CHARS.
- * Strategy: try paragraph breaks (\n\n) first, then single newlines (\n),
- * then sentence boundaries (. ! ?) as a last resort.
+ * Split text into paragraph-level chunks. Each paragraph (\n\n separated)
+ * becomes its own chunk for the chunk_map, so users can edit per-paragraph.
+ * If a single paragraph exceeds MAX_CHARS, it gets sub-split on sentence
+ * boundaries, but each sub-split is still its own chunk.
  */
-function chunkText(text: string): string[] {
-  if (text.length <= MAX_CHARS) return [text];
-
-  const chunks: string[] = [];
-
-  // Try splitting on double newlines first
-  let segments = text.split(/\n\s*\n/).map((p) => p.trim()).filter(Boolean);
-
-  // If that produced segments that are ALL too big, re-split on single newlines
-  if (segments.some((s) => s.length > MAX_CHARS)) {
-    const refined: string[] = [];
-    for (const seg of segments) {
-      if (seg.length <= MAX_CHARS) {
-        refined.push(seg);
-      } else {
-        // Split on single newlines
-        const lines = seg.split(/\n/).map((l) => l.trim()).filter(Boolean);
-        refined.push(...lines);
-      }
-    }
-    segments = refined;
-  }
-
-  // If we still have segments too big, split on sentence boundaries
-  if (segments.some((s) => s.length > MAX_CHARS)) {
-    const refined: string[] = [];
-    for (const seg of segments) {
-      if (seg.length <= MAX_CHARS) {
-        refined.push(seg);
-      } else {
-        // Split on sentence-ending punctuation followed by a space
-        const sentences = seg.match(/[^.!?]*[.!?]+[\s]*/g) || [seg];
-        refined.push(...sentences.map((s) => s.trim()).filter(Boolean));
-      }
-    }
-    segments = refined;
-  }
-
-  let current = "";
-  for (const seg of segments) {
-    const separator = current.endsWith("\n") || !current ? "" : "\n\n";
-    const combined = current ? `${current}${separator}${seg}` : seg;
-
-    if (combined.length <= MAX_CHARS) {
-      current = combined;
+function chunkByParagraph(text: string): string[] {
+  const paragraphs = text.split(/\n\s*\n/).map((p) => p.trim()).filter(Boolean);
+  const result: string[] = [];
+  for (const para of paragraphs) {
+    if (para.length <= MAX_CHARS) {
+      result.push(para);
     } else {
-      if (current) chunks.push(current);
-      current = seg;
+      // Sub-split oversized paragraphs on sentence boundaries
+      const sentences = para.match(/[^.!?]*[.!?]+[\s]*/g) || [para];
+      let current = "";
+      for (const s of sentences) {
+        const trimmed = s.trim();
+        if (!trimmed) continue;
+        const combined = current ? `${current} ${trimmed}` : trimmed;
+        if (combined.length <= MAX_CHARS) {
+          current = combined;
+        } else {
+          if (current) result.push(current);
+          current = trimmed;
+        }
+      }
+      if (current) result.push(current);
     }
   }
-
-  if (current) chunks.push(current);
-
-  return chunks;
+  return result.length > 0 ? result : [text];
 }
 
 /**
@@ -187,7 +159,7 @@ export async function POST(request: Request) {
           : {};
 
         // Split into chunks for v3's character limit
-        const chunks = chunkText(summary);
+        const chunks = chunkByParagraph(summary);
         const totalChars = summary.length;
         const voiceName = VOICE_MAP[voiceId] || "Unknown";
 
