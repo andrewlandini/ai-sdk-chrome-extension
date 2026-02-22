@@ -277,6 +277,15 @@ export function PromptEditorModal({ open, onClose }: PromptEditorModalProps) {
                     placeholder="Enter prompt..."
                     spellCheck={false}
                   />
+                  {/* Placeholder hint for Style Agent */}
+                  {selectedNode?.slug === "style_agent" && editPrompt.includes("{{STYLE_CUE}}") && (
+                    <div className="flex-shrink-0 px-5 py-2 border-t border-border bg-surface-2">
+                      <p className="text-[11px] text-muted-foreground">
+                        <span className="font-mono text-accent">{"{{STYLE_CUE}}"}</span>
+                        {" "}is replaced at runtime with the vibe you select (Confident, Calm, Podcast, Chaos). You can move it within the prompt or remove it.
+                      </p>
+                    </div>
+                  )}
                   {/* Default prompt preview when overridden */}
                   {isOverridden && !showHistory && (
                     <div className="flex-shrink-0 border-t border-border">
