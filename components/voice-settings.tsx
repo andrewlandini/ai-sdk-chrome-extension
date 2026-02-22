@@ -17,26 +17,38 @@ interface VoicePreset {
   stability: number;
 }
 
-// Voice IDs -- names and descriptions are fetched dynamically from the API
+// Voice IDs -- names and descriptions are fetched dynamically from the ElevenLabs API
 const VOICE_IDS = [
-  "PIGsltMj3gFMR34aFDI3",
-  "UgBBYS2sOqTuMpoF3BR0",
-  "X03mvPuTfprif8QBAVeJ",
-  "tnSpp4vdxKPjI9w0GnoV",
-  "kPzsL2i3teMYv0FxEYQ6",
-  "15CVCzDByBinCIoCblXo",
-  "q0IMILNRPxOgtBTS4taI",
-  "6u6JbqKdaQy89ENzLSju",
-  "fDeOZu1sNd7qahm2fV4k",
-  "yr43K8H5LoTp6S1QFSGg",
-  "eXpIbVcVbLo8ZJQDlDnl",
-  "IoYPiP0wwoQzmraBbiju",
+  // Premade voices
+  "CwhRBWXzGAHq8TQ4Fs17", // Roger
+  "EXAVITQu4vr4xnSDxMaL", // Sarah
+  "IKne3meq5aSn9XLyUdCD", // Charlie
+  "JBFqnCBsd6RMkjVDRZzb", // George
+  "TX3LPaxmHKxFdv7VOQHJ", // Liam
+  "Xb7hH8MSUJpSbSDYk0k2", // Alice
+  "XrExE9yKIg1WjnnlVkGX", // Matilda
+  "nPczCjzI2devNBz1zQrb", // Brian
+  "onwK4e9ZLuTAKqWW03F9", // Daniel
+  "pFZP5JQG7iQjIQuC4Bku", // Lily
+  "pqHfZKP75CvOlQylNhV4", // Bill
+  "cgSgspJ2msm6clMCkdW9", // Jessica
+  "cjVigY5qzO86Huf0OWal", // Eric
+  "SAz9YHcvj6GT2YYXdXww", // River
+  // Professional voices
+  "UgBBYS2sOqTuMpoF3BR0", // Mark
+  "EkK5I93UQWFDigLMpZcX", // James
+  "n1PvBOwxb8X6m7tahp2h", // Vincent
+  "Bj9UqZbhQsanLzgalpEG", // Austin
+  "4YYIPFl9wE5c4L2eu2Gb", // Burt Reynolds
+  "BL7YSL1bAkmW8U0JnU8o", // Jen
+  "c6SfcYrb2t09NHXiT80T", // Jarnathan
+  "hpp4J3VqNfWAUOO0d1Us", // Bella
 ];
 
 const fetcher = (url: string) => fetch(url).then((r) => r.json());
 
 // Exported so other components (e.g. VersionsList) can look up voice names
-export function getVoiceName(id: string, meta?: Record<string, { name: string }> | null) {
+export function getVoiceName(id: string, meta?: Record<string, { name: string; desc?: string }> | null) {
   return meta?.[id]?.name ?? id.slice(0, 8);
 }
 
@@ -63,7 +75,7 @@ export function VoiceSettings({ config, onChange, isGenerating = false, generate
 
   const { data: voicePreviewData } = useSWR<{
     voices: Record<string, string>;
-    voiceMeta: Record<string, { name: string; desc: string; gender: string }>;
+    voiceMeta: Record<string, { name: string; desc: string; gender: string; accent?: string; age?: string; useCase?: string; category?: string }>;
   }>("/api/voices", fetcher);
   const previewUrls = voicePreviewData?.voices ?? {};
   const voiceMeta = voicePreviewData?.voiceMeta ?? {};
@@ -247,14 +259,17 @@ export function VoiceSettings({ config, onChange, isGenerating = false, generate
             const meta = voiceMeta[vid];
             const vName = meta?.name ?? vid.slice(0, 8);
             const vDesc = meta?.desc ?? "";
+            const vAccent = meta?.accent ?? "";
+            const vGender = meta?.gender ?? "";
             const isSelected = config.voiceId === vid;
             const isPlaying = playingVoiceId === vid;
             const hasPreview = !!previewUrls[vid];
+            const tag = [vGender, vAccent].filter(Boolean).join(" / ");
 
             return (
               <div
                 key={vid}
-                className={`group flex items-center h-8 rounded-md transition-colors border ${
+                className={`group flex items-center min-h-[36px] rounded-md transition-colors border ${
                   isSelected
                     ? "bg-accent/15 border-accent/30"
                     : "border-transparent hover:bg-surface-2"
@@ -291,10 +306,13 @@ export function VoiceSettings({ config, onChange, isGenerating = false, generate
                 <button
                   onClick={() => update({ voiceId: vid })}
                   aria-pressed={isSelected}
-                  className="flex-1 min-w-0 flex items-center gap-3 pr-3 py-1 text-left focus-ring rounded-r-md h-full"
+                  className="flex-1 min-w-0 flex items-center gap-2 pr-3 py-1.5 text-left focus-ring rounded-r-md h-full"
                 >
-                  <span className={`text-xs font-medium ${isSelected ? "text-accent" : "text-foreground"}`}>{vName}</span>
-                  <span className="text-[10px] text-muted-foreground">{vDesc}</span>
+                  <div className="flex flex-col min-w-0">
+                    <span className={`text-xs font-medium leading-tight ${isSelected ? "text-accent" : "text-foreground"}`}>{vName}</span>
+                    {vDesc && <span className="text-[10px] text-muted-foreground leading-tight truncate">{vDesc}</span>}
+                  </div>
+                  {tag && <span className="text-[9px] text-muted-foreground/60 flex-shrink-0 ml-auto">{tag}</span>}
                 </button>
               </div>
             );

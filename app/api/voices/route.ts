@@ -2,20 +2,32 @@ import { NextResponse } from "next/server";
 
 export const maxDuration = 30;
 
-// Curated v3 voice IDs we actually show in the UI
+// Curated voice IDs fetched from ElevenLabs library
 const ALLOWED_IDS = new Set([
-  "PIGsltMj3gFMR34aFDI3",
-  "UgBBYS2sOqTuMpoF3BR0",
-  "X03mvPuTfprif8QBAVeJ",
-  "tnSpp4vdxKPjI9w0GnoV",
-  "kPzsL2i3teMYv0FxEYQ6",
-  "15CVCzDByBinCIoCblXo",
-  "q0IMILNRPxOgtBTS4taI",
-  "6u6JbqKdaQy89ENzLSju",
-  "fDeOZu1sNd7qahm2fV4k",
-  "yr43K8H5LoTp6S1QFSGg",
-  "eXpIbVcVbLo8ZJQDlDnl",
-  "IoYPiP0wwoQzmraBbiju",
+  // Premade voices
+  "CwhRBWXzGAHq8TQ4Fs17", // Roger - Laid-Back, Casual
+  "EXAVITQu4vr4xnSDxMaL", // Sarah - Mature, Confident
+  "IKne3meq5aSn9XLyUdCD", // Charlie - Deep, Energetic
+  "JBFqnCBsd6RMkjVDRZzb", // George - Warm Storyteller
+  "TX3LPaxmHKxFdv7VOQHJ", // Liam - Energetic Creator
+  "Xb7hH8MSUJpSbSDYk0k2", // Alice - Clear Educator
+  "XrExE9yKIg1WjnnlVkGX", // Matilda - Professional
+  "nPczCjzI2devNBz1zQrb", // Brian - Deep, Resonant
+  "onwK4e9ZLuTAKqWW03F9", // Daniel - Steady Broadcaster
+  "pFZP5JQG7iQjIQuC4Bku", // Lily - Velvety Actress
+  "pqHfZKP75CvOlQylNhV4", // Bill - Wise, Mature
+  "cgSgspJ2msm6clMCkdW9", // Jessica - Playful, Warm
+  "cjVigY5qzO86Huf0OWal", // Eric - Smooth, Trustworthy
+  "SAz9YHcvj6GT2YYXdXww", // River - Relaxed, Neutral
+  // Professional voices
+  "UgBBYS2sOqTuMpoF3BR0", // Mark - Natural Conversations
+  "EkK5I93UQWFDigLMpZcX", // James - Husky, Engaging
+  "n1PvBOwxb8X6m7tahp2h", // Vincent C. Michaels - Dramatic
+  "Bj9UqZbhQsanLzgalpEG", // Austin - Deep, Raspy
+  "4YYIPFl9wE5c4L2eu2Gb", // Burt Reynolds - Iconic
+  "BL7YSL1bAkmW8U0JnU8o", // Jen - Soothing, Gentle
+  "c6SfcYrb2t09NHXiT80T", // Jarnathan - Confident
+  "hpp4J3VqNfWAUOO0d1Us", // Bella - Professional, Bright
 ]);
 
 export async function GET() {
@@ -36,10 +48,16 @@ export async function GET() {
     for (const voice of data.voices ?? []) {
       if (ALLOWED_IDS.has(voice.voice_id)) {
         if (voice.preview_url) voices[voice.voice_id] = voice.preview_url;
+        const firstName = voice.name?.split(" - ")[0]?.split(" (")[0]?.trim() || voice.name || voice.voice_id;
+        const subtitle = voice.name?.includes(" - ") ? voice.name.split(" - ").slice(1).join(" - ").trim() : "";
         voiceMeta[voice.voice_id] = {
-          name: voice.name?.split(" - ")[0]?.split(" (")[0]?.trim() || voice.name || voice.voice_id,
-          desc: voice.labels?.description || voice.labels?.accent || voice.description?.slice(0, 40) || "",
+          name: firstName,
+          desc: subtitle || voice.labels?.descriptive || voice.labels?.accent || "",
           gender: voice.labels?.gender || "",
+          accent: voice.labels?.accent || "",
+          age: voice.labels?.age || "",
+          useCase: voice.labels?.use_case || "",
+          category: voice.category || "",
         };
       }
     }
@@ -58,10 +76,16 @@ export async function GET() {
               voices[id] = directData.preview_url;
             }
             if (!voiceMeta[id]) {
+              const fn = directData.name?.split(" - ")[0]?.split(" (")[0]?.trim() || directData.name || id;
+              const st = directData.name?.includes(" - ") ? directData.name.split(" - ").slice(1).join(" - ").trim() : "";
               voiceMeta[id] = {
-                name: directData.name?.split(" - ")[0]?.split(" (")[0]?.trim() || directData.name || id,
-                desc: directData.labels?.description || directData.labels?.accent || directData.description?.slice(0, 40) || "",
+                name: fn,
+                desc: st || directData.labels?.descriptive || directData.labels?.accent || "",
                 gender: directData.labels?.gender || "",
+                accent: directData.labels?.accent || "",
+                age: directData.labels?.age || "",
+                useCase: directData.labels?.use_case || "",
+                category: directData.category || "",
               };
             }
           }

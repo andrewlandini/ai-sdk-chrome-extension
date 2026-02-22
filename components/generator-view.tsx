@@ -16,7 +16,7 @@ const fetcher = (url: string) => fetch(url).then((r) => r.json());
 type SourceTab = "url" | "catalog";
 
 const DEFAULT_VOICE_CONFIG: VoiceConfig = {
-  voiceId: "PIGsltMj3gFMR34aFDI3",
+  voiceId: "CwhRBWXzGAHq8TQ4Fs17",
   stability: 0,
   label: "",
   styleVibe: "Confident and genuinely excited about the content, but grounded and conversational -- not over the top",

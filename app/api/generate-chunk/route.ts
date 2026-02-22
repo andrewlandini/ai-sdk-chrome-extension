@@ -82,7 +82,7 @@ export async function POST(request: Request) {
     }
 
     // Generate new audio for the chunk
-    const useVoice = voiceId || entry.voice_id || "PIGsltMj3gFMR34aFDI3";
+    const useVoice = voiceId || entry.voice_id || "CwhRBWXzGAHq8TQ4Fs17";
     const providerOpts = stability !== undefined
       ? { providerOptions: { elevenlabs: { voiceSettings: { stability } } } }
       : {};

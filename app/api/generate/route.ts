@@ -132,7 +132,7 @@ export async function POST(request: Request) {
     url,
     title,
     summary,
-    voiceId = "PIGsltMj3gFMR34aFDI3",
+    voiceId = "CwhRBWXzGAHq8TQ4Fs17",
     stability,
   } = body;
 
