@@ -277,15 +277,29 @@ export function PromptEditorModal({ open, onClose }: PromptEditorModalProps) {
                     placeholder="Enter prompt..."
                     spellCheck={false}
                   />
-                  {/* Placeholder hint for Style Agent */}
-                  {selectedNode?.slug === "style_agent" && editPrompt.includes("{{STYLE_CUE}}") && (
-                    <div className="flex-shrink-0 px-5 py-2 border-t border-border bg-surface-2">
-                      <p className="text-[11px] text-muted-foreground">
-                        <span className="font-mono text-accent">{"{{STYLE_CUE}}"}</span>
-                        {" "}is replaced at runtime with the vibe you select (Confident, Calm, Podcast, Chaos). You can move it within the prompt or remove it.
-                      </p>
-                    </div>
-                  )}
+                  {/* Placeholder hints */}
+                  {(() => {
+                    const placeholders: { tag: string; desc: string }[] = [];
+                    if (editPrompt.includes("{{STYLE_CUE}}"))
+                      placeholders.push({ tag: "{{STYLE_CUE}}", desc: "Replaced with the selected vibe (Confident, Calm, Podcast, Chaos)." });
+                    if (editPrompt.includes("{{BLOG_CONTENT}}"))
+                      placeholders.push({ tag: "{{BLOG_CONTENT}}", desc: "Replaced with the scraped blog post text, URL, and title." });
+                    if (editPrompt.includes("{{PAGE_URL}}"))
+                      placeholders.push({ tag: "{{PAGE_URL}}", desc: "Replaced with the blog page URL being scraped." });
+                    if (editPrompt.includes("{{PAGE_CONTENT}}"))
+                      placeholders.push({ tag: "{{PAGE_CONTENT}}", desc: "Replaced with the raw HTML content of the page." });
+                    if (placeholders.length === 0) return null;
+                    return (
+                      <div className="flex-shrink-0 px-5 py-2 border-t border-border bg-surface-2 flex flex-col gap-1">
+                        {placeholders.map(p => (
+                          <p key={p.tag} className="text-[11px] text-muted-foreground">
+                            <span className="font-mono text-accent">{p.tag}</span>
+                            {" "}{p.desc}
+                          </p>
+                        ))}
+                      </div>
+                    );
+                  })()}
                   {/* Default prompt preview when overridden */}
                   {isOverridden && !showHistory && (
                     <div className="flex-shrink-0 border-t border-border">
