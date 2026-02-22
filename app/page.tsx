@@ -1012,7 +1012,7 @@ function HomePage() {
             onFocus={() => setContentFocused(true)}
             onBlur={(e) => { if (!e.currentTarget.contains(e.relatedTarget)) setContentFocused(false); }}
           >
-            <div className="flex items-center justify-between px-3 h-10 border-b border-border flex-shrink-0">
+            <div className="section-header">
               <div className="flex items-center gap-2">
                 <span className="text-sm font-semibold tracking-tight">Content</span>
               </div>
@@ -1046,19 +1046,19 @@ function HomePage() {
                 <>
                   {/* Top half: Raw blog content (read-only) */}
                   <div className="flex-1 min-h-0 flex flex-col border-b border-border">
-                    <div className="flex items-center justify-between px-3 py-1.5 border-b border-border bg-surface-2/30 flex-shrink-0">
+                    <div className="sub-header">
                       <div className="flex items-center gap-2">
-                        <span className="text-[10px] font-medium text-accent uppercase tracking-wider">Original Blog Text</span>
+                        <span className="sub-header-label">Original Blog Text</span>
                       </div>
                       <div className="flex items-center gap-2">
-                        <span className="text-[10px] text-muted font-mono tabular-nums">
+                        <span className="word-count">
                           {rawContent ? `${rawContent.trim().split(/\s+/).filter(Boolean).length}w` : "---"}
                         </span>
                         {rawContent && !fetchingRawContent && (
                           <button
                             onClick={() => { setRawContent(""); handleFetchRawContent(); }}
                             aria-label="Re-fetch blog text"
-                            className="flex items-center gap-1 text-[10px] text-muted hover:text-foreground transition-colors focus-ring rounded px-1 py-0.5 flex-shrink-0"
+                            className="icon-btn focus-ring"
                           >
                             <svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" aria-hidden="true">
                               <path d="M1 4v6h6M23 20v-6h-6" />
@@ -1082,8 +1082,8 @@ function HomePage() {
                           {rawContent}
                         </div>
                       ) : (
-                        <div className="flex-1 flex flex-col items-center justify-center h-full px-8 py-12 gap-5">
-                          <div className="w-14 h-14 rounded-full border border-muted-foreground/20 flex items-center justify-center">
+                        <div className="empty-state">
+                          <div className="empty-state-icon">
                             {fetchingRawContent ? (
                               <svg className="animate-spin text-muted-foreground" width="28" height="28" viewBox="0 0 24 24" fill="none" aria-hidden="true">
                                 <circle cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="2" strokeOpacity="0.2" />
@@ -1095,7 +1095,7 @@ function HomePage() {
                               </svg>
                             )}
                           </div>
-                          <p className="text-sm text-muted-foreground text-center max-w-[280px]">
+                          <p className="empty-state-text">
                             {fetchingRawContent
                               ? "Fetching blog text..."
                               : "Click Fetch Blog Text to retrieve the original article content."}
@@ -1103,7 +1103,7 @@ function HomePage() {
                           {!fetchingRawContent && (
                             <button
                               onClick={() => handleFetchRawContent()}
-                              className="flex items-center justify-center gap-2 h-9 rounded-lg bg-accent text-primary-foreground px-5 text-xs font-semibold transition-colors hover:bg-accent-hover focus-ring"
+                              className="btn-primary focus-ring"
                             >
                               <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" aria-hidden="true">
                                 <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4" />
@@ -1120,9 +1120,9 @@ function HomePage() {
 
                   {/* Bottom half: Script Generator output (editable) */}
                   <div className="flex-1 min-h-0 flex flex-col">
-                    <div className="flex items-center justify-between px-3 py-1.5 border-b border-border bg-surface-2/30 flex-shrink-0">
+                    <div className="sub-header">
                       <div className="flex items-center gap-2">
-                        <span className="text-[10px] font-medium text-accent uppercase tracking-wider">Generated Script</span>
+                        <span className="sub-header-label">Generated Script</span>
                         {(isSummarizing || loadingScripts) && (
                           <svg className="animate-spin text-accent" width="10" height="10" viewBox="0 0 24 24" fill="none" aria-hidden="true">
                             <circle cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="2" strokeOpacity="0.2" />
@@ -1131,14 +1131,14 @@ function HomePage() {
                         )}
                       </div>
                       <div className="flex items-center gap-2">
-                        <span className="text-[10px] text-muted font-mono tabular-nums">
+                        <span className="word-count">
                           {script ? `${script.trim().split(/\s+/).filter(Boolean).length}w` : "---"}
                         </span>
                         {script && !isSummarizing && !loadingScripts && (
                           <button
                             onClick={handleGenerateScript}
                             aria-label="Regenerate script"
-                            className="flex items-center gap-1 text-[10px] text-muted hover:text-foreground transition-colors focus-ring rounded px-1 py-0.5 flex-shrink-0"
+                            className="icon-btn focus-ring"
                           >
                             <svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" aria-hidden="true">
                               <path d="M1 4v6h6M23 20v-6h-6" />
@@ -1150,7 +1150,7 @@ function HomePage() {
                           <button
                             onClick={handleStopGenerating}
                             aria-label="Stop generating"
-                            className="flex items-center gap-1 text-[10px] text-red-400 hover:text-red-300 transition-colors focus-ring rounded px-1 py-0.5 flex-shrink-0"
+                            className="icon-btn !text-red-400 hover:!text-red-300 focus-ring"
                           >
                             <svg width="10" height="10" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true">
                               <rect x="4" y="4" width="16" height="16" rx="2" />
@@ -1161,8 +1161,8 @@ function HomePage() {
                     </div>
                     <div className="flex-1 min-h-0 overflow-y-auto">
                       {!script && (
-                        <div className="flex-1 flex flex-col items-center justify-center h-full px-8 py-12 gap-5">
-                          <div className="w-14 h-14 rounded-full border border-muted-foreground/20 flex items-center justify-center">
+                        <div className="empty-state">
+                          <div className="empty-state-icon">
                             {(isSummarizing || loadingScripts) ? (
                               <svg className="animate-spin text-muted-foreground" width="28" height="28" viewBox="0 0 24 24" fill="none" aria-hidden="true">
                                 <circle cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="2" strokeOpacity="0.2" />
@@ -1176,7 +1176,7 @@ function HomePage() {
                               </svg>
                             )}
                           </div>
-                          <p className="text-sm text-muted-foreground text-center max-w-[280px]">
+                          <p className="empty-state-text">
                             {(isSummarizing || loadingScripts)
                               ? loadingScripts && scriptProgress.currentTitle
                                 ? `Generating script for "${scriptProgress.currentTitle}"...`
@@ -1196,7 +1196,7 @@ function HomePage() {
                           ) : (
                             <button
                               onClick={handleGenerateScript}
-                              className="flex items-center justify-center gap-2 h-9 rounded-lg bg-accent text-primary-foreground px-5 text-xs font-semibold transition-colors hover:bg-accent-hover focus-ring"
+                              className="btn-primary focus-ring"
                             >
                               <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" aria-hidden="true">
                                 <path d="M5 12h14M12 5l7 7-7 7" />
@@ -1230,7 +1230,7 @@ function HomePage() {
             {/* Voice Over column + Versions below */}
             <div className={`flex-1 min-w-0 flex-col overflow-hidden ${activeTab === "voiceover" ? "flex" : "hidden md:flex"}`}>
               {/* Voice Over header */}
-              <div className="flex items-center justify-between px-3 h-10 border-b border-border flex-shrink-0">
+              <div className="section-header">
                 <div className="flex items-center gap-2">
                   <span className="text-sm font-semibold tracking-tight">Voice Over</span>
                 </div>
@@ -1296,9 +1296,9 @@ function HomePage() {
                 </div>
               </div>
               {/* ElevenLabs Script subheader */}
-              <div className="flex items-center justify-between px-3 py-1.5 border-b border-border bg-surface-2/30 flex-shrink-0">
+              <div className="sub-header">
                 <div className="flex items-center gap-2">
-                  <span className="text-[10px] font-medium text-accent uppercase tracking-wider">ElevenLabs Script</span>
+                  <span className="sub-header-label">ElevenLabs Script</span>
                   {isStyleRunning && (
                     <svg className="animate-spin text-accent" width="10" height="10" viewBox="0 0 24 24" fill="none" aria-hidden="true">
                       <circle cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="2" strokeOpacity="0.2" />
@@ -1307,7 +1307,7 @@ function HomePage() {
                   )}
                 </div>
                 <div className="flex items-center gap-2">
-                  <span className="text-[10px] text-muted font-mono tabular-nums">
+                  <span className="word-count">
                     {styledScript.trim() ? `${styledScript.trim().split(/\s+/).filter(Boolean).length}w` : "---"}
                   </span>
                 </div>
@@ -1427,7 +1427,7 @@ function HomePage() {
 
             {/* Voice Settings panel -- full height */}
             <aside className={`w-full xl:flex-1 min-w-0 border-t xl:border-t-0 xl:border-l border-border flex-col overflow-hidden bg-surface-1 ${activeTab === "settings" ? "flex" : "hidden md:flex"}`}>
-              <div className="flex items-center justify-between px-3 h-10 border-b border-border flex-shrink-0">
+              <div className="section-header">
                 <div className="flex items-center gap-2">
                   <span className="text-sm font-semibold tracking-tight">Voice Settings</span>
                 </div>

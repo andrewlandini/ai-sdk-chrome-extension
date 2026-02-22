@@ -376,8 +376,8 @@ export const StyleAgent = forwardRef<StyleAgentHandle, StyleAgentProps>(function
           className={`flex-1 w-full bg-transparent text-sm font-mono leading-relaxed text-foreground p-4 resize-none border-none focus:outline-none overflow-y-auto transition-opacity duration-300 ${dimmed ? "opacity-30 hover:opacity-100 focus:opacity-100" : ""}`}
         />
       ) : (
-        <div className="flex-1 flex flex-col items-center justify-center px-8 py-12 gap-5">
-          <div className="w-14 h-14 rounded-full border border-muted-foreground/20 flex items-center justify-center">
+        <div className="empty-state">
+          <div className="empty-state-icon">
             {isRunning ? (
               <svg className="animate-spin text-muted-foreground" width="28" height="28" viewBox="0 0 24 24" fill="none" aria-hidden="true">
                 <circle cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="2" strokeOpacity="0.2" />
@@ -391,7 +391,7 @@ export const StyleAgent = forwardRef<StyleAgentHandle, StyleAgentProps>(function
               </svg>
             )}
           </div>
-          <p className="text-sm text-muted-foreground text-center max-w-[280px]">
+          <p className="empty-state-text">
             {isRunning
               ? "Analyzing script and applying performance direction..."
               : "Click Style Script to generate a styled version with Audio Tags."}
@@ -400,7 +400,7 @@ export const StyleAgent = forwardRef<StyleAgentHandle, StyleAgentProps>(function
             <button
               onClick={() => handleRunAgent()}
               disabled={!sourceScript.trim()}
-              className="flex items-center justify-center gap-2 h-9 rounded-lg bg-accent text-primary-foreground px-5 text-xs font-semibold transition-colors hover:bg-accent-hover disabled:opacity-40 disabled:cursor-not-allowed focus-ring"
+              className="btn-primary focus-ring"
             >
               Style Script
             </button>
