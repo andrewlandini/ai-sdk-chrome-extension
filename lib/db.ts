@@ -1,5 +1,7 @@
 import { neon } from "@neondatabase/serverless";
 
+type SqlQuery = (strings: TemplateStringsArray, ...values: unknown[]) => Promise<Record<string, unknown>[]>;
+
 let _sql: ReturnType<typeof neon>;
 export function getSql() {
   const connStr = process.env.DATABASE_URL || process.env.POSTGRES_URL;
@@ -8,8 +10,9 @@ export function getSql() {
   return _sql;
 }
 // Tagged-template wrapper so call sites stay as sql`...`
-export const sql: ReturnType<typeof neon> = ((strings: TemplateStringsArray, ...values: unknown[]) =>
-  getSql()(strings, ...values)) as ReturnType<typeof neon>;
+// Cast to SqlQuery so rows[0] indexing works without TS errors
+export const sql: SqlQuery = (strings: TemplateStringsArray, ...values: unknown[]) =>
+  getSql()(strings, ...values) as Promise<Record<string, unknown>[]>;
 
 // ── Blog Audio ──
 
