@@ -795,28 +795,16 @@ function HomePage() {
         {/* Spacer to push right items */}
         <div className="flex-1" />
 
-        {loadingScripts ? (
-          <button
-            onClick={handleStopGenerating}
-            className="flex items-center gap-1.5 text-xs text-red-400 hover:text-red-300 transition-colors focus-ring rounded px-2 py-1.5 flex-shrink-0"
-          >
-            <svg width="11" height="11" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true">
-              <rect x="4" y="4" width="16" height="16" rx="2" />
-            </svg>
-            <span className="hidden sm:inline">Stop</span>
-            <span>({scriptProgress.done}/{scriptProgress.total})</span>
-          </button>
-        ) : (
-          <button
-            onClick={handleLoadScripts}
-            className="flex items-center gap-1.5 text-xs text-muted hover:text-foreground transition-colors focus-ring rounded px-2 py-1.5 flex-shrink-0"
-          >
-            <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" aria-hidden="true">
-              <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4M7 10l5 5 5-5M12 15V3" />
-            </svg>
-            <span className="hidden sm:inline">Load Scripts</span>
-          </button>
-        )}
+        <button
+          onClick={handleLoadScripts}
+          disabled={loadingScripts}
+          className="flex items-center gap-1.5 text-xs text-muted hover:text-foreground transition-colors focus-ring rounded px-2 py-1.5 flex-shrink-0 disabled:opacity-40 disabled:pointer-events-none"
+        >
+          <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" aria-hidden="true">
+            <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4M7 10l5 5 5-5M12 15V3" />
+          </svg>
+          <span className="hidden sm:inline">Load Scripts</span>
+        </button>
 
         <button
           onClick={() => setPromptEditorOpen(true)}
