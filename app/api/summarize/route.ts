@@ -43,19 +43,21 @@ export async function POST(request: Request) {
       }
     }
 
-    // Build blog content payload
-    const blogContent = JSON.stringify({
-      text: scraped.text,
-      url: scraped.url,
-      title: scraped.title,
-    });
+    // Build blog content as clean readable text, not JSON
+    const blogContent = [
+      scraped.title ? `# ${scraped.title}` : "",
+      scraped.url ? `Source: ${scraped.url}` : "",
+      "",
+      scraped.text,
+    ].filter(Boolean).join("\n");
 
     // Inject {{BLOG_CONTENT}} placeholder if present, otherwise pass as user prompt
     let finalSystem: string;
     let finalPrompt: string;
     if (systemPrompt.includes("{{BLOG_CONTENT}}")) {
-      finalSystem = systemPrompt.replace("{{BLOG_CONTENT}}", blogContent);
-      finalPrompt = "Convert the blog content above into an audio script.";
+      // Put instructions in system, blog content in user prompt for better attention
+      finalSystem = systemPrompt.split("{{BLOG_CONTENT}}")[0].trim();
+      finalPrompt = blogContent + "\n\n---\n\nApply every rule and transformation example from your instructions above. Follow all WRITTEN → SPOKEN transformations exactly.";
     } else {
       finalSystem = systemPrompt;
       finalPrompt = blogContent;
