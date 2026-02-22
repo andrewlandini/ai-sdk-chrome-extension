@@ -16,7 +16,20 @@ import { VoiceSettings, type VoiceConfig } from "@/components/voice-settings";
 import { VersionsList } from "@/components/versions-list";
 import { WaveformPlayer } from "@/components/waveform-player";
 import { PromptEditorModal } from "@/components/prompt-editor-modal";
-import type { BlogAudio } from "@/lib/db";
+import type { BlogAudio, ChunkMapEntry } from "@/lib/db";
+
+/* ── Media query for single-player rendering ── */
+function useIsDesktop() {
+  const [isDesktop, setIsDesktop] = useState(true);
+  useEffect(() => {
+    const mq = window.matchMedia("(min-width: 768px)");
+    setIsDesktop(mq.matches);
+    const handler = (e: MediaQueryListEvent) => setIsDesktop(e.matches);
+    mq.addEventListener("change", handler);
+    return () => mq.removeEventListener("change", handler);
+  }, []);
+  return isDesktop;
+}
 
 /* ── Product name rotation ── */
 const PRODUCT_NAMES = [
@@ -117,6 +130,7 @@ export default function Page() {
 function HomePage() {
   const searchParams = useSearchParams();
   const router = useRouter();
+  const isDesktop = useIsDesktop();
   const { name: productName, fading: nameFading, advance: advanceName } = useProductName();
   const { data: credits, mutate: mutateCredits } = useSWR<CreditsData>("/api/credits", fetcher, {
     revalidateOnFocus: false,
@@ -165,6 +179,12 @@ function HomePage() {
   const [isVibePromptDirty, setIsVibePromptDirty] = useState(false);
   const [isSavingVibe, setIsSavingVibe] = useState(false);
   const [isStyleRunning, setIsStyleRunning] = useState(false);
+
+  // Playback-sync state
+  const [playbackTime, setPlaybackTime] = useState(0);
+  const [isAudioPlaying, setIsAudioPlaying] = useState(false);
+  const [activeChunkMap, setActiveChunkMap] = useState<ChunkMapEntry[] | null>(null);
+  const [isRegeneratingChunk, setIsRegeneratingChunk] = useState(false);
 
   // ── Restore session on mount ──
   useEffect(() => {
@@ -245,6 +265,7 @@ function HomePage() {
             if (entry) {
               setActiveEntry(entry);
               setAutoplay(true);
+              setActiveChunkMap(entry.chunk_map || null);
             }
           }
         } else if (job.status === "error") {
@@ -305,6 +326,7 @@ function HomePage() {
     setScriptTitle(title);
     setError(null);
     setActiveEntry(null);
+    setActiveChunkMap(null);
     setStyledScript("");
     setSelectedHistoryScript(null);
     setAutoplay(false);
@@ -461,6 +483,7 @@ function HomePage() {
       if (finalEntry) {
       setActiveEntry(finalEntry);
       setAutoplay(true);
+      setActiveChunkMap(finalEntry.chunk_map || null);
       mutateHistory();
       mutateVersions();
       mutateCredits();
@@ -494,6 +517,11 @@ function HomePage() {
   setActiveEntry(version);
   setAutoplay(true);
   setError(null);
+  // Load chunk map and styled script into Voice Over
+  setActiveChunkMap(version.chunk_map || null);
+  if (version.summary) {
+    setStyledScript(version.summary);
+  }
   }, []);
 
   const handlePlayFromList = useCallback((entry: BlogAudio) => {
@@ -505,6 +533,11 @@ function HomePage() {
   // Use cached_script (original content script) if available, not summary (which is the styled/audio script)
   const cachedScript = (entry as BlogAudio & { cached_script?: string | null })?.cached_script;
   setScript(cachedScript || entry.summary || "");
+  // Load chunk map and styled script into Voice Over
+  setActiveChunkMap(entry.chunk_map || null);
+  if (entry.summary) {
+    setStyledScript(entry.summary);
+  }
   router.replace(`?post=${encodeURIComponent(slugFromUrl(entry.url))}`, { scroll: false });
   }, [router]);
 
@@ -521,6 +554,39 @@ function HomePage() {
       console.error("Delete failed:", err);
     }
   }, [activeEntry, mutateHistory]);
+
+  // ── Chunk regeneration handler ──
+  const handleRegenerateChunk = useCallback(async (chunkIndex: number, newText: string) => {
+    if (!activeEntry?.id || isRegeneratingChunk) return;
+    setIsRegeneratingChunk(true);
+    setError(null);
+    try {
+      const res = await fetch("/api/generate-chunk", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          blogAudioId: activeEntry.id,
+          chunkIndex,
+          newText,
+          voiceId: voiceConfig.voiceId,
+          stability: voiceConfig.stability,
+        }),
+      });
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.error || "Chunk re-generation failed");
+      // Update active entry and chunk map with new data
+      setActiveEntry(data.entry);
+      setActiveChunkMap(data.chunkMap);
+      setStyledScript(data.entry.summary);
+      // Refresh versions list
+      mutateVersions();
+      mutateCredits();
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "Failed to re-generate chunk");
+    } finally {
+      setIsRegeneratingChunk(false);
+    }
+  }, [activeEntry, isRegeneratingChunk, voiceConfig.voiceId, voiceConfig.stability, mutateVersions, mutateCredits]);
 
   // ── Vibe preset handlers ──
   const handleSelectVibe = useCallback((preset: { id: number; label: string; default_prompt: string; user_prompt: string | null }) => {
@@ -856,18 +922,22 @@ function HomePage() {
             />
           </div>
 
-          {/* Player -- always visible */}
-          <div className="flex-shrink-0 border-t border-border">
-            <WaveformPlayer
-              key={activeEntry?.id ?? "idle"}
-              audioUrl={activeEntry?.audio_url}
-              title={activeEntry?.title || undefined}
-              summary={activeEntry?.summary || undefined}
-              url={activeEntry?.url}
-              autoplay={autoplay}
-            />
-          </div>
-        </aside>
+  {/* Player -- desktop only (mobile player rendered separately) */}
+  <div className="flex-shrink-0 border-t border-border">
+  {isDesktop && (
+    <WaveformPlayer
+      key={activeEntry?.id ?? "idle"}
+      audioUrl={activeEntry?.audio_url}
+      title={activeEntry?.title || undefined}
+      summary={activeEntry?.summary || undefined}
+      url={activeEntry?.url}
+      autoplay={autoplay}
+      onTimeUpdate={(t) => setPlaybackTime(t)}
+      onPlayStateChange={(p) => setIsAudioPlaying(p)}
+    />
+  )}
+  </div>
+  </aside>
 
         {/* Workspace: content | (voice over + voice settings + versions) */}
         <div className="flex-[3] min-w-0 flex flex-col xl:flex-row overflow-hidden">
@@ -1042,11 +1112,12 @@ function HomePage() {
                         {styleHistory.map((entry) => (
                           <button
                             key={entry.id}
-                            onClick={() => {
-                              setSelectedHistoryScript(entry.script);
-                              setStyledScript(entry.script);
-                              setHistoryOpen(false);
-                            }}
+  onClick={() => {
+  setSelectedHistoryScript(entry.script);
+  setStyledScript(entry.script);
+  setActiveChunkMap(null); // Clear chunk view so textarea shows
+  setHistoryOpen(false);
+  }}
                             className="w-full text-left px-3 py-2.5 hover:bg-surface-2 transition-colors border-b border-border last:border-b-0 group"
                           >
                             <div className="flex items-center justify-between gap-2 mb-1">
@@ -1163,11 +1234,15 @@ function HomePage() {
                   onUseStyledScript={setScript}
                   isGeneratingAudio={isGenerating}
                   onGenerateAudio={handleGenerateFromStyled}
-                  onStyledScriptChange={(s) => { setStyledScript(s); setIsStyleRunning(false); }}
+                  onStyledScriptChange={(s) => { setStyledScript(s); setIsStyleRunning(false); setActiveChunkMap(null); }}
                   onHistoryChange={setStyleHistory}
                   externalScript={selectedHistoryScript}
                   styleVibe={voiceConfig.styleVibe}
                   dimmed={contentFocused}
+                  chunkMap={activeChunkMap}
+                  currentPlaybackTime={playbackTime}
+                  isAudioPlaying={isAudioPlaying}
+                  onRegenerateChunk={handleRegenerateChunk}
                 />
               </div>
 
@@ -1216,19 +1291,21 @@ function HomePage() {
         onClose={() => setPromptEditorOpen(false)}
       />
 
-      {/* Mobile fixed-bottom player (hidden on md+ where desktop sidebar player exists) */}
-      {activeEntry?.audio_url && (
-        <div className="fixed bottom-0 left-0 right-0 z-50 md:hidden border-t border-border bg-background">
-          <WaveformPlayer
-            key={`mobile-${activeEntry.id}`}
-            audioUrl={activeEntry.audio_url}
-            title={activeEntry.title || undefined}
-            summary={activeEntry.summary || undefined}
-            url={activeEntry.url}
-            autoplay={autoplay}
-          />
-        </div>
-      )}
+  {/* Mobile fixed-bottom player (only rendered on mobile) */}
+  {!isDesktop && activeEntry?.audio_url && (
+  <div className="fixed bottom-0 left-0 right-0 z-50 border-t border-border bg-background">
+    <WaveformPlayer
+      key={`mobile-${activeEntry.id}`}
+      audioUrl={activeEntry.audio_url}
+      title={activeEntry.title || undefined}
+      summary={activeEntry.summary || undefined}
+      url={activeEntry.url}
+      autoplay={autoplay}
+      onTimeUpdate={(t) => setPlaybackTime(t)}
+      onPlayStateChange={(p) => setIsAudioPlaying(p)}
+    />
+  </div>
+  )}
     </div>
   );
 }

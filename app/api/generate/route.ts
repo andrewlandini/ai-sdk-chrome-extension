@@ -1,7 +1,7 @@
 import { experimental_generateSpeech as generateSpeech } from "ai";
 import { elevenlabs } from "@ai-sdk/elevenlabs";
 import { put, del } from "@vercel/blob";
-import { insertBlogAudio, getAudioIdByUrl, getGenerationCountByUrl, createGenerationJob, updateGenerationJob, upsertCachedCredits } from "@/lib/db";
+import { insertBlogAudio, getAudioIdByUrl, getGenerationCountByUrl, createGenerationJob, updateGenerationJob, upsertCachedCredits, type ChunkMapEntry } from "@/lib/db";
 
 export const maxDuration = 300;
 
@@ -25,64 +25,56 @@ const VOICE_MAP: Record<string, string> = {
 };
 
 /**
- * Split text into chunks, each under MAX_CHARS.
- * Strategy: try paragraph breaks (\n\n) first, then single newlines (\n),
- * then sentence boundaries (. ! ?) as a last resort.
+ * Split text into paragraph-level chunks. Each paragraph (\n\n separated)
+ * becomes its own chunk for the chunk_map, so users can edit per-paragraph.
+ * If a single paragraph exceeds MAX_CHARS, it gets sub-split on sentence
+ * boundaries, but each sub-split is still its own chunk.
  */
-function chunkText(text: string): string[] {
-  if (text.length <= MAX_CHARS) return [text];
-
-  const chunks: string[] = [];
-
-  // Try splitting on double newlines first
-  let segments = text.split(/\n\s*\n/).map((p) => p.trim()).filter(Boolean);
-
-  // If that produced segments that are ALL too big, re-split on single newlines
-  if (segments.some((s) => s.length > MAX_CHARS)) {
-    const refined: string[] = [];
-    for (const seg of segments) {
-      if (seg.length <= MAX_CHARS) {
-        refined.push(seg);
-      } else {
-        // Split on single newlines
-        const lines = seg.split(/\n/).map((l) => l.trim()).filter(Boolean);
-        refined.push(...lines);
-      }
-    }
-    segments = refined;
-  }
-
-  // If we still have segments too big, split on sentence boundaries
-  if (segments.some((s) => s.length > MAX_CHARS)) {
-    const refined: string[] = [];
-    for (const seg of segments) {
-      if (seg.length <= MAX_CHARS) {
-        refined.push(seg);
-      } else {
-        // Split on sentence-ending punctuation followed by a space
-        const sentences = seg.match(/[^.!?]*[.!?]+[\s]*/g) || [seg];
-        refined.push(...sentences.map((s) => s.trim()).filter(Boolean));
-      }
-    }
-    segments = refined;
-  }
-
-  let current = "";
-  for (const seg of segments) {
-    const separator = current.endsWith("\n") || !current ? "" : "\n\n";
-    const combined = current ? `${current}${separator}${seg}` : seg;
-
-    if (combined.length <= MAX_CHARS) {
-      current = combined;
+function chunkByParagraph(text: string): string[] {
+  const paragraphs = text.split(/\n\s*\n/).map((p) => p.trim()).filter(Boolean);
+  const result: string[] = [];
+  for (const para of paragraphs) {
+    if (para.length <= MAX_CHARS) {
+      result.push(para);
     } else {
-      if (current) chunks.push(current);
-      current = seg;
+      // Sub-split oversized paragraphs on sentence boundaries
+      const sentences = para.match(/[^.!?]*[.!?]+[\s]*/g) || [para];
+      let current = "";
+      for (const s of sentences) {
+        const trimmed = s.trim();
+        if (!trimmed) continue;
+        const combined = current ? `${current} ${trimmed}` : trimmed;
+        if (combined.length <= MAX_CHARS) {
+          current = combined;
+        } else {
+          if (current) result.push(current);
+          current = trimmed;
+        }
+      }
+      if (current) result.push(current);
     }
   }
+  return result.length > 0 ? result : [text];
+}
 
-  if (current) chunks.push(current);
-
-  return chunks;
+/**
+ * Estimate MP3 audio duration in milliseconds from a buffer.
+ * ElevenLabs outputs CBR MP3 at 128kbps typically. We parse the first frame
+ * to get the actual bitrate and sample rate, then calculate from buffer size.
+ */
+function estimateMp3DurationMs(buf: Buffer): number {
+  const frameStart = findFirstFrame(buf);
+  if (frameStart >= buf.length - 4) {
+    // Fallback: assume 128kbps CBR
+    return (buf.length * 8) / 128;
+  }
+  const header = buf.readUInt32BE(frameStart);
+  const bitrateIndex = (header >> 12) & 0x0f;
+  const bitrateTable = [0, 32, 40, 48, 56, 64, 80, 96, 112, 128, 160, 192, 224, 256, 320, 0];
+  const bitrate = bitrateTable[bitrateIndex] || 128;
+  // Duration = (fileSize * 8) / (bitrate * 1000) * 1000 ms
+  const dataSize = buf.length - frameStart;
+  return (dataSize * 8) / bitrate;
 }
 
 /**
@@ -167,7 +159,7 @@ export async function POST(request: Request) {
           : {};
 
         // Split into chunks for v3's character limit
-        const chunks = chunkText(summary);
+        const chunks = chunkByParagraph(summary);
         const totalChars = summary.length;
         const voiceName = VOICE_MAP[voiceId] || "Unknown";
 
@@ -180,6 +172,7 @@ export async function POST(request: Request) {
         });
 
         const audioBuffers: Buffer[] = [];
+        const chunkDurations: number[] = []; // ms per chunk
 
         for (let i = 0; i < chunks.length; i++) {
           const chunkChars = chunks[i].length;
@@ -198,7 +191,9 @@ export async function POST(request: Request) {
             voice: voiceId,
             ...providerOpts,
           });
-          audioBuffers.push(Buffer.from(audio.uint8Array));
+          const buf = Buffer.from(audio.uint8Array);
+          audioBuffers.push(buf);
+          chunkDurations.push(estimateMp3DurationMs(buf));
         }
 
         // Concatenate chunks
@@ -225,6 +220,27 @@ export async function POST(request: Request) {
           contentType: "audio/mpeg",
         });
 
+        // Upload individual chunk blobs and build chunk_map
+        const chunkMap: ChunkMapEntry[] = [];
+        let cumulativeTime = 0;
+        for (let i = 0; i < chunks.length; i++) {
+          const chunkFilename = `blog-audio/${slug}-gen-${genNum}-chunk-${String(i).padStart(3, "0")}.mp3`;
+          const chunkBlob = await put(chunkFilename, audioBuffers[i], {
+            access: "public",
+            contentType: "audio/mpeg",
+          });
+          const durationSec = chunkDurations[i] / 1000;
+          chunkMap.push({
+            index: i,
+            text: chunks[i],
+            startTime: cumulativeTime,
+            endTime: cumulativeTime + durationSec,
+            durationMs: chunkDurations[i],
+            blobUrl: chunkBlob.url,
+          });
+          cumulativeTime += durationSec;
+        }
+
         // Save to database
         send({ type: "status", step: "saving", message: "Saving to database..." });
 
@@ -242,6 +258,7 @@ export async function POST(request: Request) {
             model_id: MODEL,
             stability,
             label: versionLabel,
+            chunk_map: chunkMap,
           });
         } catch (dbErr) {
           // Clean up orphaned blob if DB insert fails

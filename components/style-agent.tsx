@@ -8,6 +8,7 @@ import {
   useImperativeHandle,
   forwardRef,
 } from "react";
+import type { ChunkMapEntry } from "@/lib/db";
 
 interface HistoryEntry {
   id: number;
@@ -29,6 +30,11 @@ interface StyleAgentProps {
   externalScript?: string | null;
   styleVibe?: string;
   dimmed?: boolean;
+  // Chunk-aware playback props
+  chunkMap?: ChunkMapEntry[] | null;
+  currentPlaybackTime?: number;
+  isAudioPlaying?: boolean;
+  onRegenerateChunk?: (chunkIndex: number, newText: string) => void;
 }
 
 export interface StyleAgentHandle {
@@ -50,6 +56,10 @@ export const StyleAgent = forwardRef<StyleAgentHandle, StyleAgentProps>(function
     externalScript,
     styleVibe = "",
     dimmed = false,
+    chunkMap,
+    currentPlaybackTime = 0,
+    isAudioPlaying = false,
+    onRegenerateChunk,
   },
   ref,
 ) {
@@ -58,14 +68,41 @@ export const StyleAgent = forwardRef<StyleAgentHandle, StyleAgentProps>(function
   const [isRunning, setIsRunning] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [history, setHistory] = useState<HistoryEntry[]>([]);
+  const [editedChunks, setEditedChunks] = useState<Record<number, string>>({});
   const nextId = useRef(1);
+  const chunkRefs = useRef<(HTMLTextAreaElement | null)[]>([]);
 
   const wordCount = styledScript.trim().split(/\s+/).filter(Boolean).length;
   const charCount = styledScript.length;
 
+  // Find which chunk is currently playing
+  const activeChunkIndex = chunkMap
+    ? chunkMap.findIndex(c => currentPlaybackTime >= c.startTime && currentPlaybackTime < c.endTime)
+    : -1;
+
+  // Auto-scroll to active chunk during playback
+  useEffect(() => {
+    if (isAudioPlaying && activeChunkIndex >= 0 && chunkRefs.current[activeChunkIndex]) {
+      chunkRefs.current[activeChunkIndex]?.scrollIntoView({
+        behavior: "smooth",
+        block: "nearest",
+      });
+    }
+  }, [activeChunkIndex, isAudioPlaying]);
+
+  // Initialize edited chunks from chunk map
+  useEffect(() => {
+    if (chunkMap) {
+      const initial: Record<number, string> = {};
+      chunkMap.forEach(c => { initial[c.index] = c.text; });
+      setEditedChunks(initial);
+    }
+  }, [chunkMap]);
+
   useEffect(() => {
     setStyledScript("");
     setError(null);
+    setEditedChunks({});
     if (!postUrl) {
       setHistory([]);
       return;
@@ -180,6 +217,93 @@ export const StyleAgent = forwardRef<StyleAgentHandle, StyleAgentProps>(function
     [handleRunAgent, styledScript, isRunning],
   );
 
+  const handleChunkEdit = (index: number, text: string) => {
+    setEditedChunks(prev => ({ ...prev, [index]: text }));
+    // Also update the full styledScript so the parent stays in sync
+    if (chunkMap) {
+      const fullText = chunkMap.map(c =>
+        c.index === index ? text : (editedChunks[c.index] ?? c.text)
+      ).join("\n\n");
+      setStyledScript(fullText);
+      onStyledScriptChange?.(fullText);
+    }
+  };
+
+  const isChunkDirty = (chunk: ChunkMapEntry) => {
+    const edited = editedChunks[chunk.index];
+    return edited !== undefined && edited !== chunk.text;
+  };
+
+  // Chunk-aware rendering
+  const renderChunks = () => {
+    if (!chunkMap || chunkMap.length === 0) return null;
+
+    return (
+      <div className="flex-1 min-h-0 overflow-y-auto">
+        {chunkMap.map((chunk, i) => {
+          const isActive = activeChunkIndex === i && isAudioPlaying;
+          const dirty = isChunkDirty(chunk);
+          const chunkText = editedChunks[chunk.index] ?? chunk.text;
+
+          return (
+            <div
+              key={chunk.index}
+              className={`relative border-b border-border transition-colors duration-200 ${
+                isActive
+                  ? "bg-accent/10 border-l-2 border-l-accent"
+                  : "border-l-2 border-l-transparent"
+              }`}
+            >
+              {/* Chunk header */}
+              <div className="flex items-center justify-between px-3 py-1.5 bg-surface-2/50">
+                <div className="flex items-center gap-2">
+                  <span className="text-[10px] font-mono text-muted-foreground tabular-nums">
+                    {i + 1}/{chunkMap.length}
+                  </span>
+                  <span className="text-[10px] text-muted-foreground tabular-nums font-mono">
+                    {Math.floor(chunk.startTime / 60)}:{String(Math.floor(chunk.startTime % 60)).padStart(2, "0")}
+                    {" - "}
+                    {Math.floor(chunk.endTime / 60)}:{String(Math.floor(chunk.endTime % 60)).padStart(2, "0")}
+                  </span>
+                  {isActive && (
+                    <span className="text-[9px] font-medium text-accent uppercase tracking-wider">
+                      Playing
+                    </span>
+                  )}
+                </div>
+                <div className="flex items-center gap-1.5">
+                  {dirty && (
+                    <span className="text-[9px] text-amber-400 font-medium">edited</span>
+                  )}
+                  {dirty && onRegenerateChunk && (
+                    <button
+                      onClick={() => onRegenerateChunk(chunk.index, editedChunks[chunk.index] ?? chunk.text)}
+                      className="text-[10px] text-accent hover:text-accent/80 font-medium transition-colors px-1.5 py-0.5 rounded hover:bg-accent/10"
+                    >
+                      Re-gen
+                    </button>
+                  )}
+                </div>
+              </div>
+
+              {/* Chunk textarea */}
+              <textarea
+                ref={el => { chunkRefs.current[i] = el; }}
+                value={chunkText}
+                onChange={(e) => handleChunkEdit(chunk.index, e.target.value)}
+                className={`w-full bg-transparent text-xs font-mono leading-relaxed text-foreground px-3 py-2 resize-none border-none focus:outline-none transition-opacity duration-300 ${
+                  dimmed && !isActive ? "opacity-30 hover:opacity-100 focus:opacity-100" : ""
+                }`}
+                rows={Math.max(2, chunkText.split("\n").length)}
+                aria-label={`Chunk ${i + 1} of styled script`}
+              />
+            </div>
+          );
+        })}
+      </div>
+    );
+  };
+
   return (
     <div className="flex flex-col h-full">
       {error && (
@@ -195,7 +319,10 @@ export const StyleAgent = forwardRef<StyleAgentHandle, StyleAgentProps>(function
         </div>
       )}
 
-      {styledScript ? (
+      {chunkMap && chunkMap.length > 0 ? (
+        // Chunk-aware view
+        renderChunks()
+      ) : styledScript ? (
         <textarea
           value={styledScript}
           onChange={(e) => {
@@ -229,9 +356,14 @@ export const StyleAgent = forwardRef<StyleAgentHandle, StyleAgentProps>(function
         </div>
       )}
 
-      {styledScript && (
-        <div className="flex-shrink-0 border-t border-border px-4 py-2 flex items-center justify-end">
-          <span className="text-[10px] text-muted font-mono tabular-nums flex-shrink-0">
+      {(styledScript || (chunkMap && chunkMap.length > 0)) && (
+        <div className="flex-shrink-0 border-t border-border px-4 py-2 flex items-center justify-between">
+          {chunkMap && chunkMap.length > 0 && (
+            <span className="text-[10px] text-muted-foreground font-mono tabular-nums">
+              {chunkMap.length} chunks
+            </span>
+          )}
+          <span className="text-[10px] text-muted font-mono tabular-nums flex-shrink-0 ml-auto">
             {wordCount}w / {charCount}c
           </span>
         </div>
