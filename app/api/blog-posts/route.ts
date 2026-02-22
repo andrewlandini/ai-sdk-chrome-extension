@@ -132,11 +132,25 @@ export async function POST(request: Request) {
 
           const html = await response.text();
 
+          // Inject {{PAGE_URL}} and {{PAGE_CONTENT}} placeholders if present
+          const pageContent = html.substring(0, 100000);
+          let finalSystem: string;
+          let finalPrompt: string;
+          if (fetchPrompt.includes("{{PAGE_URL}}") || fetchPrompt.includes("{{PAGE_CONTENT}}")) {
+            finalSystem = fetchPrompt
+              .replace("{{PAGE_URL}}", pageUrl)
+              .replace("{{PAGE_CONTENT}}", pageContent);
+            finalPrompt = "Extract all blog posts from the page content above.";
+          } else {
+            finalSystem = fetchPrompt;
+            finalPrompt = `Parse this page content from ${pageUrl}. Extract all blog posts:\n\n${pageContent}`;
+          }
+
           // Send the full page content to the AI for parsing
           const { text } = await generateText({
             model: fetchModel,
-            system: fetchPrompt,
-            prompt: `Parse this page content from ${pageUrl}. Extract all blog posts:\n\n${html.substring(0, 100000)}`,
+            system: finalSystem,
+            prompt: finalPrompt,
           });
 
           const cleaned = text

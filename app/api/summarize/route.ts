@@ -43,14 +43,28 @@ export async function POST(request: Request) {
       }
     }
 
+    // Build blog content payload
+    const blogContent = JSON.stringify({
+      text: scraped.text,
+      url: scraped.url,
+      title: scraped.title,
+    });
+
+    // Inject {{BLOG_CONTENT}} placeholder if present, otherwise pass as user prompt
+    let finalSystem: string;
+    let finalPrompt: string;
+    if (systemPrompt.includes("{{BLOG_CONTENT}}")) {
+      finalSystem = systemPrompt.replace("{{BLOG_CONTENT}}", blogContent);
+      finalPrompt = "Convert the blog content above into an audio script.";
+    } else {
+      finalSystem = systemPrompt;
+      finalPrompt = blogContent;
+    }
+
     const result = streamText({
       model: selectedModel,
-      system: systemPrompt,
-      prompt: JSON.stringify({
-        text: scraped.text,
-        url: scraped.url,
-        title: scraped.title,
-      }),
+      system: finalSystem,
+      prompt: finalPrompt,
     });
 
     // Stream as plain text with metadata in custom headers
