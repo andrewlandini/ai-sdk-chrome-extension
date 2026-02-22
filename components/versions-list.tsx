@@ -6,8 +6,11 @@ import { formatRelativeShort } from "@/lib/timezone";
 interface VersionsListProps {
   versions: BlogAudio[];
   activeId: number | null;
+  isPlaying?: boolean;
   onSelect: (version: BlogAudio) => void;
   onDelete: (version: BlogAudio) => void;
+  onEdit?: (version: BlogAudio) => void;
+  onTogglePlay?: (version: BlogAudio) => void;
 }
 
 const VISIBLE_ROWS = 5;
@@ -51,8 +54,11 @@ function getVibeLabel(summary: string | null): string {
 export function VersionsList({
   versions,
   activeId,
+  isPlaying = false,
   onSelect,
   onDelete,
+  onEdit,
+  onTogglePlay,
 }: VersionsListProps) {
   // Pad to always show VISIBLE_ROWS
   const emptyCount = Math.max(0, VISIBLE_ROWS - versions.length);
@@ -64,7 +70,7 @@ export function VersionsList({
         <span className="w-5 flex-shrink-0" />
         <span className="flex-1 min-w-0">Filename</span>
         <span className="w-16 flex-shrink-0 text-center">Voice</span>
-        <span className="w-14 flex-shrink-0" />
+        <span className="w-24 flex-shrink-0" />
       </div>
 
       {/* Data rows */}
@@ -104,10 +110,48 @@ export function VersionsList({
               </span>
 
               {/* Actions */}
-              <span className="w-14 flex-shrink-0 flex items-center justify-end gap-0.5">
+              <span className="w-24 flex-shrink-0 flex items-center justify-end gap-0.5">
+                {/* Play / Pause */}
+                <button
+                  onClick={(e) => {
+                    e.stopPropagation();
+                    if (onTogglePlay) onTogglePlay(v);
+                    else onSelect(v);
+                  }}
+                  className={`p-1 transition-all focus-ring rounded ${
+                    isActive ? "text-accent" : "opacity-0 group-hover:opacity-100 text-muted-foreground hover:text-foreground"
+                  }`}
+                  aria-label={isActive && isPlaying ? "Pause" : "Play"}
+                >
+                  {isActive && isPlaying ? (
+                    <svg width="10" height="10" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true">
+                      <rect x="6" y="4" width="4" height="16" rx="1" />
+                      <rect x="14" y="4" width="4" height="16" rx="1" />
+                    </svg>
+                  ) : (
+                    <svg width="10" height="10" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true">
+                      <polygon points="5,3 19,12 5,21" />
+                    </svg>
+                  )}
+                </button>
+                {/* Edit */}
+                <button
+                  onClick={(e) => {
+                    e.stopPropagation();
+                    if (onEdit) onEdit(v);
+                  }}
+                  className="opacity-0 group-hover:opacity-100 p-1 text-muted-foreground hover:text-foreground transition-all focus-ring rounded"
+                  aria-label="Edit version script"
+                >
+                  <svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" aria-hidden="true">
+                    <path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7" />
+                    <path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z" />
+                  </svg>
+                </button>
+                {/* Download */}
                 <a
                   href={v.audio_url}
-                  download={`${(v.title || "audio").toLowerCase().replace(/[^a-z0-9]+/g, "-").replace(/(^-|-$)/g, "")}--${voiceName.toLowerCase()}--${(v.label || `v${v.id}`).toLowerCase().replace(/[^a-z0-9]+/g, "-").replace(/(^-|-$)/g, "")}.mp3`}
+                  download={`${v.label || `v${v.id}`}.mp3`}
                   onClick={(e) => e.stopPropagation()}
                   className="opacity-0 group-hover:opacity-100 p-1 text-muted-foreground hover:text-foreground transition-all focus-ring rounded"
                   aria-label="Download version"
@@ -118,6 +162,7 @@ export function VersionsList({
                     <line x1="12" y1="15" x2="12" y2="3" />
                   </svg>
                 </a>
+                {/* Delete */}
                 <button
                   onClick={(e) => {
                     e.stopPropagation();
@@ -148,7 +193,7 @@ export function VersionsList({
             </span>
             <span className="flex-1 min-w-0 text-muted-foreground/20 font-mono">--</span>
             <span className="w-16 flex-shrink-0 text-center text-[10px] text-muted-foreground/20 font-mono">--</span>
-            <span className="w-14 flex-shrink-0" />
+            <span className="w-24 flex-shrink-0" />
           </div>
         ))}
       </div>

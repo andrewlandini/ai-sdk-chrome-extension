@@ -204,6 +204,9 @@ export async function POST(request: Request) {
         const audioBuffers: Buffer[] = [];
         const chunkDurations: number[] = []; // ms per chunk
 
+        // Append [short pause] to every chunk for natural breathing room between segments
+        const chunksWithPause = chunks.map(c => c.trimEnd().endsWith("[short pause]") ? c : `${c.trimEnd()} [short pause]`);
+
         for (let i = 0; i < chunks.length; i++) {
           const chunkChars = chunks[i].length;
           send({
@@ -217,7 +220,7 @@ export async function POST(request: Request) {
 
           const { audio } = await generateSpeech({
             model: elevenlabs.speech(MODEL),
-            text: chunks[i],
+            text: chunksWithPause[i],
             voice: voiceId,
             ...providerOpts,
           });
