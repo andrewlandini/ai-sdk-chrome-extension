@@ -1,7 +1,7 @@
 import { experimental_generateSpeech as generateSpeech } from "ai";
 import { elevenlabs } from "@ai-sdk/elevenlabs";
 import { put, del } from "@vercel/blob";
-import { insertBlogAudio, getAudioIdByUrl, getGenerationCountByUrl, createGenerationJob, updateGenerationJob, upsertCachedCredits } from "@/lib/db";
+import { insertBlogAudio, getAudioIdByUrl, getGenerationCountByUrl, createGenerationJob, updateGenerationJob, upsertCachedCredits, type ChunkMapEntry } from "@/lib/db";
 
 export const maxDuration = 300;
 
@@ -83,6 +83,26 @@ function chunkText(text: string): string[] {
   if (current) chunks.push(current);
 
   return chunks;
+}
+
+/**
+ * Estimate MP3 audio duration in milliseconds from a buffer.
+ * ElevenLabs outputs CBR MP3 at 128kbps typically. We parse the first frame
+ * to get the actual bitrate and sample rate, then calculate from buffer size.
+ */
+function estimateMp3DurationMs(buf: Buffer): number {
+  const frameStart = findFirstFrame(buf);
+  if (frameStart >= buf.length - 4) {
+    // Fallback: assume 128kbps CBR
+    return (buf.length * 8) / 128;
+  }
+  const header = buf.readUInt32BE(frameStart);
+  const bitrateIndex = (header >> 12) & 0x0f;
+  const bitrateTable = [0, 32, 40, 48, 56, 64, 80, 96, 112, 128, 160, 192, 224, 256, 320, 0];
+  const bitrate = bitrateTable[bitrateIndex] || 128;
+  // Duration = (fileSize * 8) / (bitrate * 1000) * 1000 ms
+  const dataSize = buf.length - frameStart;
+  return (dataSize * 8) / bitrate;
 }
 
 /**
@@ -180,6 +200,7 @@ export async function POST(request: Request) {
         });
 
         const audioBuffers: Buffer[] = [];
+        const chunkDurations: number[] = []; // ms per chunk
 
         for (let i = 0; i < chunks.length; i++) {
           const chunkChars = chunks[i].length;
@@ -198,7 +219,9 @@ export async function POST(request: Request) {
             voice: voiceId,
             ...providerOpts,
           });
-          audioBuffers.push(Buffer.from(audio.uint8Array));
+          const buf = Buffer.from(audio.uint8Array);
+          audioBuffers.push(buf);
+          chunkDurations.push(estimateMp3DurationMs(buf));
         }
 
         // Concatenate chunks
@@ -225,6 +248,27 @@ export async function POST(request: Request) {
           contentType: "audio/mpeg",
         });
 
+        // Upload individual chunk blobs and build chunk_map
+        const chunkMap: ChunkMapEntry[] = [];
+        let cumulativeTime = 0;
+        for (let i = 0; i < chunks.length; i++) {
+          const chunkFilename = `blog-audio/${slug}-gen-${genNum}-chunk-${String(i).padStart(3, "0")}.mp3`;
+          const chunkBlob = await put(chunkFilename, audioBuffers[i], {
+            access: "public",
+            contentType: "audio/mpeg",
+          });
+          const durationSec = chunkDurations[i] / 1000;
+          chunkMap.push({
+            index: i,
+            text: chunks[i],
+            startTime: cumulativeTime,
+            endTime: cumulativeTime + durationSec,
+            durationMs: chunkDurations[i],
+            blobUrl: chunkBlob.url,
+          });
+          cumulativeTime += durationSec;
+        }
+
         // Save to database
         send({ type: "status", step: "saving", message: "Saving to database..." });
 
@@ -242,6 +286,7 @@ export async function POST(request: Request) {
             model_id: MODEL,
             stability,
             label: versionLabel,
+            chunk_map: chunkMap,
           });
         } catch (dbErr) {
           // Clean up orphaned blob if DB insert fails

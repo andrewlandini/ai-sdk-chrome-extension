@@ -16,6 +16,15 @@ export const sql: SqlQuery = (strings: TemplateStringsArray, ...values: unknown[
 
 // ── Blog Audio ──
 
+export interface ChunkMapEntry {
+  index: number;
+  text: string;
+  startTime: number;   // seconds
+  endTime: number;      // seconds
+  durationMs: number;
+  blobUrl: string;
+}
+
 export interface BlogAudio {
   id: number;
   url: string;
@@ -27,6 +36,7 @@ export interface BlogAudio {
   stability: number | null;
   similarity_boost: number | null;
   label: string | null;
+  chunk_map: ChunkMapEntry[] | null;
   created_at: string;
 }
 
@@ -45,15 +55,48 @@ export async function insertBlogAudio(data: {
   stability?: number;
   similarity_boost?: number;
   label?: string;
+  chunk_map?: ChunkMapEntry[];
 }): Promise<BlogAudio> {
+  const chunkMapJson = data.chunk_map ? JSON.stringify(data.chunk_map) : null;
   const rows = await sql`
-    INSERT INTO blog_audio (url, title, summary, audio_url, voice_id, model_id, stability, similarity_boost, label)
+    INSERT INTO blog_audio (url, title, summary, audio_url, voice_id, model_id, stability, similarity_boost, label, chunk_map)
     VALUES (${data.url}, ${data.title}, ${data.summary}, ${data.audio_url},
       ${data.voice_id ?? null}, ${data.model_id ?? null},
-      ${data.stability ?? null}, ${data.similarity_boost ?? null}, ${data.label ?? null})
+      ${data.stability ?? null}, ${data.similarity_boost ?? null}, ${data.label ?? null}, ${chunkMapJson})
     RETURNING *
   `;
   return rows[0] as BlogAudio;
+}
+
+export async function updateBlogAudioChunkMap(id: number, chunkMap: ChunkMapEntry[], audioUrl: string, summary: string): Promise<BlogAudio> {
+  const rows = await sql`
+    UPDATE blog_audio SET chunk_map = ${JSON.stringify(chunkMap)}, audio_url = ${audioUrl}, summary = ${summary}
+    WHERE id = ${id} RETURNING *
+  `;
+  return rows[0] as BlogAudio;
+}
+
+export async function insertChunkVersion(data: {
+  blog_audio_id: number;
+  chunk_index: number;
+  text: string;
+  audio_blob_url: string;
+  duration_ms: number;
+}): Promise<{ id: number }> {
+  const rows = await sql`
+    INSERT INTO chunk_versions (blog_audio_id, chunk_index, text, audio_blob_url, duration_ms)
+    VALUES (${data.blog_audio_id}, ${data.chunk_index}, ${data.text}, ${data.audio_blob_url}, ${data.duration_ms})
+    RETURNING id
+  `;
+  return rows[0] as { id: number };
+}
+
+export async function getChunkVersions(blogAudioId: number, chunkIndex: number) {
+  const rows = await sql`
+    SELECT * FROM chunk_versions WHERE blog_audio_id = ${blogAudioId} AND chunk_index = ${chunkIndex}
+    ORDER BY created_at DESC LIMIT 20
+  `;
+  return rows;
 }
 
 export async function getAllBlogAudio(): Promise<BlogAudio[]> {

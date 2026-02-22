@@ -8,6 +8,8 @@ interface WaveformPlayerProps {
   summary?: string;
   url?: string;
   autoplay?: boolean;
+  onTimeUpdate?: (currentTime: number, duration: number) => void;
+  onPlayStateChange?: (isPlaying: boolean) => void;
 }
 
 const SKIP_SECONDS = 10;
@@ -75,6 +77,8 @@ export function WaveformPlayer({
   summary = "",
   url = "",
   autoplay = false,
+  onTimeUpdate,
+  onPlayStateChange,
 }: WaveformPlayerProps) {
   const idle = !audioUrl;
   const audioRef = useRef<HTMLAudioElement>(null);
@@ -142,10 +146,11 @@ export function WaveformPlayer({
       const audio = audioRef.current;
       if (!audio || audio.paused) return;
       setCurrentTime(audio.currentTime);
+      onTimeUpdate?.(audio.currentTime, audio.duration || 0);
       rafRef.current = requestAnimationFrame(tick);
     };
     rafRef.current = requestAnimationFrame(tick);
-  }, []);
+  }, [onTimeUpdate]);
 
   const stopAnimation = useCallback(() => {
     if (rafRef.current) {
@@ -164,9 +169,9 @@ export function WaveformPlayer({
   useEffect(() => {
     const audio = audioRef.current;
     if (!audio) return;
-    const onPlay = () => { setIsPlaying(true); startAnimation(); };
-    const onPause = () => { setIsPlaying(false); stopAnimation(); };
-    const onEnded = () => { setIsPlaying(false); stopAnimation(); };
+    const onPlay = () => { setIsPlaying(true); onPlayStateChange?.(true); startAnimation(); };
+    const onPause = () => { setIsPlaying(false); onPlayStateChange?.(false); stopAnimation(); };
+    const onEnded = () => { setIsPlaying(false); onPlayStateChange?.(false); stopAnimation(); };
     const onMeta = () => {
       if (audio.duration && isFinite(audio.duration)) {
         setDuration(audio.duration);
@@ -221,6 +226,7 @@ export function WaveformPlayer({
     if (!audio) return;
     audio.currentTime = Math.max(0, Math.min(audio.duration, audio.currentTime + seconds));
     setCurrentTime(audio.currentTime);
+    onTimeUpdate?.(audio.currentTime, audio.duration || 0);
   };
 
   const handleWaveformClick = (e: React.MouseEvent<HTMLDivElement>) => {
@@ -230,6 +236,7 @@ export function WaveformPlayer({
     const rect = e.currentTarget.getBoundingClientRect();
     audio.currentTime = ((e.clientX - rect.left) / rect.width) * audio.duration;
     setCurrentTime(audio.currentTime);
+    onTimeUpdate?.(audio.currentTime, audio.duration);
   };
 
   const progressPercent = duration > 0 ? (currentTime / duration) * 100 : 0;
