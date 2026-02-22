@@ -158,6 +158,7 @@ function HomePage() {
   const [editedPrompt, setEditedPrompt] = useState("");
   const [isVibePromptDirty, setIsVibePromptDirty] = useState(false);
   const [isSavingVibe, setIsSavingVibe] = useState(false);
+  const [isStyleRunning, setIsStyleRunning] = useState(false);
 
   // ── Restore session on mount ──
   useEffect(() => {
@@ -1110,11 +1111,14 @@ function HomePage() {
               {/* Style Script button */}
               <div className="flex-shrink-0 px-3 py-2 border-b border-border flex justify-center">
                 <button
-                  onClick={() => styleAgentRef.current?.runAgent()}
-                  disabled={styleAgentRef.current?.isRunning || !script.trim()}
+                  onClick={() => {
+                    setIsStyleRunning(true);
+                    styleAgentRef.current?.runAgent();
+                  }}
+                  disabled={isStyleRunning || !script.trim()}
                   className="flex items-center justify-center gap-2 h-8 rounded-md bg-accent text-primary-foreground px-5 text-xs font-medium transition-colors hover:bg-accent-hover disabled:opacity-40 disabled:cursor-not-allowed focus-ring"
                 >
-                  {styleAgentRef.current?.isRunning ? (
+                  {isStyleRunning ? (
                     <>
                       <svg className="animate-spin" width="12" height="12" viewBox="0 0 24 24" fill="none" aria-hidden="true">
                         <circle cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="2" strokeOpacity="0.2" />
@@ -1137,7 +1141,7 @@ function HomePage() {
                   onUseStyledScript={setScript}
                   isGeneratingAudio={isGenerating}
                   onGenerateAudio={handleGenerateFromStyled}
-                  onStyledScriptChange={setStyledScript}
+                  onStyledScriptChange={(s) => { setStyledScript(s); setIsStyleRunning(false); }}
                   onHistoryChange={setStyleHistory}
                   externalScript={selectedHistoryScript}
                   styleVibe={voiceConfig.styleVibe}
