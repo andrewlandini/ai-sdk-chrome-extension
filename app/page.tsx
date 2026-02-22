@@ -575,7 +575,7 @@ function HomePage() {
         {/* Mobile hamburger */}
         <button
           onClick={() => setSidebarOpen(true)}
-          className="md:hidden flex items-center justify-center w-8 h-8 rounded-md text-muted hover:text-foreground transition-colors focus-ring flex-shrink-0"
+          className="md:hidden flex items-center justify-center w-11 h-11 -ml-1.5 rounded-md text-muted hover:text-foreground transition-colors focus-ring flex-shrink-0"
           aria-label="Open blog posts"
         >
           <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" aria-hidden="true">
@@ -663,7 +663,7 @@ function HomePage() {
                 <AddPostButton mutateHistory={mutateHistory} />
                 <button
                   onClick={() => setSidebarOpen(false)}
-                  className="p-1 text-muted hover:text-foreground transition-colors focus-ring rounded"
+                  className="flex items-center justify-center w-11 h-11 text-muted hover:text-foreground transition-colors focus-ring rounded"
                   aria-label="Close sidebar"
                 >
                   <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" aria-hidden="true">
@@ -704,7 +704,7 @@ function HomePage() {
       )}
 
       {/* ── Mobile tab bar ── */}
-      <div className="flex xl:hidden border-b border-border flex-shrink-0 bg-background">
+      <div className="flex md:hidden border-b border-border flex-shrink-0 bg-background">
         {([
           { id: "content" as const, label: "Content" },
           { id: "voiceover" as const, label: "Voice Over" },
@@ -713,7 +713,7 @@ function HomePage() {
           <button
             key={tab.id}
             onClick={() => setActiveTab(tab.id)}
-            className={`flex-1 py-2.5 text-xs font-medium text-center transition-colors ${
+            className={`flex-1 py-3 text-xs font-medium text-center transition-colors ${
               activeTab === tab.id
                 ? "text-foreground border-b-2 border-accent"
                 : "text-muted hover:text-foreground"
@@ -725,7 +725,7 @@ function HomePage() {
       </div>
 
       {/* ── Main layout: sidebar + workspace ── */}
-      <div className={`flex-1 flex overflow-hidden ${activeEntry?.audio_url ? "md:pb-0 pb-[100px]" : ""}`}>
+      <div className={`flex-1 flex overflow-hidden ${activeEntry?.audio_url ? "md:pb-0 pb-[180px]" : ""}`}>
 
         {/* Fixed posts sidebar -- desktop */}
         <aside className="hidden md:flex md:flex-1 min-w-0 border-r border-border bg-surface-1 flex-col overflow-hidden">
@@ -1033,7 +1033,7 @@ function HomePage() {
             </div>
 
             {/* Voice Settings panel -- full height */}
-            <aside className={`w-full xl:flex-1 min-w-0 border-t xl:border-t-0 xl:border-l border-border flex-col overflow-hidden bg-surface-1 ${activeTab === "settings" ? "flex" : "hidden xl:flex"}`}>
+            <aside className={`w-full xl:flex-1 min-w-0 border-t xl:border-t-0 xl:border-l border-border flex-col overflow-hidden bg-surface-1 ${activeTab === "settings" ? "flex" : "hidden md:flex"}`}>
               <div className="flex items-center justify-between px-3 py-2 border-b border-border flex-shrink-0">
                 <div className="flex items-center gap-2">
                   <span className="text-sm font-semibold tracking-tight">Voice Settings</span>
