@@ -1355,30 +1355,6 @@ function HomePage() {
                 </div>
               </div>
 
-              {/* Style Script button */}
-              <div className="flex-shrink-0 px-3 py-2 border-b border-border flex justify-center">
-                <button
-                  onClick={() => {
-                    setIsStyleRunning(true);
-                    styleAgentRef.current?.runAgent();
-                  }}
-                  disabled={isStyleRunning || !script.trim()}
-                  className="flex items-center justify-center gap-2 h-8 rounded-md bg-accent text-primary-foreground px-5 text-xs font-medium transition-colors hover:bg-accent-hover disabled:opacity-40 disabled:cursor-not-allowed focus-ring"
-                >
-                  {isStyleRunning ? (
-                    <>
-                      <svg className="animate-spin" width="12" height="12" viewBox="0 0 24 24" fill="none" aria-hidden="true">
-                        <circle cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="2" strokeOpacity="0.2" />
-                        <path d="M12 2a10 10 0 0 1 10 10" stroke="currentColor" strokeWidth="2" strokeLinecap="round" />
-                      </svg>
-                      <span>Styling...</span>
-                    </>
-                  ) : (
-                    <span>Style Script</span>
-                  )}
-                </button>
-              </div>
-
               {/* Style agent output */}
               <div className="flex-1 min-h-0 flex flex-col overflow-hidden">
                 <StyleAgent

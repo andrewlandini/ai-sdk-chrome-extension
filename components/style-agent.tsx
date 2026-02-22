@@ -413,6 +413,15 @@ export const StyleAgent = forwardRef<StyleAgentHandle, StyleAgentProps>(function
               ? "Analyzing script and applying performance direction..."
               : "Click Style Script to generate a styled version with Audio Tags."}
           </p>
+          {!isRunning && (
+            <button
+              onClick={() => handleRunAgent()}
+              disabled={!sourceScript.trim()}
+              className="flex items-center justify-center gap-2 h-9 rounded-lg bg-accent text-primary-foreground px-5 text-xs font-semibold transition-colors hover:bg-accent-hover disabled:opacity-40 disabled:cursor-not-allowed focus-ring"
+            >
+              Style Script
+            </button>
+          )}
         </div>
       )}
 
