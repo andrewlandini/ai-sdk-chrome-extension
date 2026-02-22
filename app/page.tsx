@@ -1140,36 +1140,50 @@ function HomePage() {
                       </span>
                     </div>
                     <div className="flex-1 min-h-0 overflow-y-auto">
-                      {!script && !isSummarizing && !loadingScripts && (
-                        <div className="flex flex-col items-center justify-center h-full px-8 py-8 gap-3">
-                          <button
-                            onClick={handleGenerateScript}
-                            className="flex items-center justify-center gap-2 h-9 rounded-lg bg-accent text-primary-foreground px-5 text-xs font-semibold transition-colors hover:bg-accent-hover focus-ring"
-                          >
-                            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" aria-hidden="true">
-                              <path d="M5 12h14M12 5l7 7-7 7" />
-                            </svg>
-                            Generate Script
-                          </button>
-                        </div>
-                      )}
-
-                      {!script && (isSummarizing || loadingScripts) && (
-                        <div className="flex flex-col items-center justify-center h-full px-8 py-8 gap-3">
-                          <p className="text-xs text-muted">
-                            {loadingScripts && scriptProgress.currentTitle
-                              ? `Generating script for "${scriptProgress.currentTitle}"...`
-                              : "Generating script from blog post..."}
+                      {!script && (
+                        <div className="flex-1 flex flex-col items-center justify-center h-full px-8 py-12 gap-5">
+                          <div className="w-14 h-14 rounded-full border border-muted-foreground/20 flex items-center justify-center">
+                            {(isSummarizing || loadingScripts) ? (
+                              <svg className="animate-spin text-muted-foreground" width="28" height="28" viewBox="0 0 24 24" fill="none" aria-hidden="true">
+                                <circle cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="2" strokeOpacity="0.2" />
+                                <path d="M12 2a10 10 0 0 1 10 10" stroke="currentColor" strokeWidth="2" strokeLinecap="round" />
+                              </svg>
+                            ) : (
+                              <svg width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" className="text-muted-foreground" aria-hidden="true">
+                                <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8Z" />
+                                <path d="M14 2v6h6" />
+                                <path d="M16 13H8M16 17H8M10 9H8" />
+                              </svg>
+                            )}
+                          </div>
+                          <p className="text-sm text-muted-foreground text-center max-w-[280px]">
+                            {(isSummarizing || loadingScripts)
+                              ? loadingScripts && scriptProgress.currentTitle
+                                ? `Generating script for "${scriptProgress.currentTitle}"...`
+                                : "Generating script from blog post..."
+                              : "Click Generate Script to convert the blog post into a spoken-word script."}
                           </p>
-                          <button
-                            onClick={handleStopGenerating}
-                            className="flex items-center gap-1.5 text-[10px] text-red-400 hover:text-red-300 transition-colors focus-ring rounded px-2 py-1 border border-red-500/20 hover:border-red-500/40"
-                          >
-                            <svg width="9" height="9" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true">
-                              <rect x="4" y="4" width="16" height="16" rx="2" />
-                            </svg>
-                            <span>Stop</span>
-                          </button>
+                          {(isSummarizing || loadingScripts) ? (
+                            <button
+                              onClick={handleStopGenerating}
+                              className="flex items-center gap-1.5 text-[10px] text-red-400 hover:text-red-300 transition-colors focus-ring rounded px-2 py-1 border border-red-500/20 hover:border-red-500/40"
+                            >
+                              <svg width="9" height="9" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true">
+                                <rect x="4" y="4" width="16" height="16" rx="2" />
+                              </svg>
+                              <span>Stop</span>
+                            </button>
+                          ) : (
+                            <button
+                              onClick={handleGenerateScript}
+                              className="flex items-center justify-center gap-2 h-9 rounded-lg bg-accent text-primary-foreground px-5 text-xs font-semibold transition-colors hover:bg-accent-hover focus-ring"
+                            >
+                              <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" aria-hidden="true">
+                                <path d="M5 12h14M12 5l7 7-7 7" />
+                              </svg>
+                              Generate Script
+                            </button>
+                          )}
                         </div>
                       )}
 
