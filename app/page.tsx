@@ -1082,16 +1082,25 @@ function HomePage() {
                           {rawContent}
                         </div>
                       ) : (
-                        <div className="flex flex-col items-center justify-center h-full px-8 py-8 gap-3">
-                          {fetchingRawContent ? (
-                            <>
-                              <svg className="animate-spin text-accent" width="16" height="16" viewBox="0 0 24 24" fill="none" aria-hidden="true">
+                        <div className="flex-1 flex flex-col items-center justify-center h-full px-8 py-12 gap-5">
+                          <div className="w-14 h-14 rounded-full border border-muted-foreground/20 flex items-center justify-center">
+                            {fetchingRawContent ? (
+                              <svg className="animate-spin text-muted-foreground" width="28" height="28" viewBox="0 0 24 24" fill="none" aria-hidden="true">
                                 <circle cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="2" strokeOpacity="0.2" />
                                 <path d="M12 2a10 10 0 0 1 10 10" stroke="currentColor" strokeWidth="2" strokeLinecap="round" />
                               </svg>
-                              <p className="text-xs text-muted">Fetching blog text...</p>
-                            </>
-                          ) : (
+                            ) : (
+                              <svg width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" className="text-muted-foreground" aria-hidden="true">
+                                <path d="M4 19.5v-15A2.5 2.5 0 0 1 6.5 2H20v20H6.5a2.5 2.5 0 0 1 0-5H20" />
+                              </svg>
+                            )}
+                          </div>
+                          <p className="text-sm text-muted-foreground text-center max-w-[280px]">
+                            {fetchingRawContent
+                              ? "Fetching blog text..."
+                              : "Click Fetch Blog Text to retrieve the original article content."}
+                          </p>
+                          {!fetchingRawContent && (
                             <button
                               onClick={() => handleFetchRawContent()}
                               className="flex items-center justify-center gap-2 h-9 rounded-lg bg-accent text-primary-foreground px-5 text-xs font-semibold transition-colors hover:bg-accent-hover focus-ring"
