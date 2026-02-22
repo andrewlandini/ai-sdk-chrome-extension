@@ -286,15 +286,27 @@ export const StyleAgent = forwardRef<StyleAgentHandle, StyleAgentProps>(function
                 </div>
               </div>
 
-              {/* Chunk textarea */}
+              {/* Chunk textarea - auto-sizes to content */}
               <textarea
-                ref={el => { chunkRefs.current[i] = el; }}
+                ref={el => {
+                  chunkRefs.current[i] = el;
+                  // Auto-size on mount and content change
+                  if (el) {
+                    el.style.height = "0";
+                    el.style.height = el.scrollHeight + "px";
+                  }
+                }}
                 value={chunkText}
-                onChange={(e) => handleChunkEdit(chunk.index, e.target.value)}
-                className={`w-full bg-transparent text-xs font-mono leading-relaxed text-foreground px-3 py-2 resize-none border-none focus:outline-none transition-opacity duration-300 ${
+                onChange={(e) => {
+                  handleChunkEdit(chunk.index, e.target.value);
+                  // Auto-resize on input
+                  e.target.style.height = "0";
+                  e.target.style.height = e.target.scrollHeight + "px";
+                }}
+                className={`w-full bg-transparent text-xs font-mono leading-relaxed text-foreground px-3 py-2 resize-none border-none focus:outline-none transition-opacity duration-300 overflow-hidden ${
                   dimmed && !isActive ? "opacity-30 hover:opacity-100 focus:opacity-100" : ""
                 }`}
-                rows={Math.max(2, chunkText.split("\n").length)}
+                rows={1}
                 aria-label={`Chunk ${i + 1} of styled script`}
               />
             </div>
