@@ -1057,7 +1057,7 @@ function HomePage() {
               <div className="grid grid-cols-3 md:grid-cols-4 gap-1.5 px-3 py-2 border-b border-border flex-shrink-0">
                 {vibePresets.map((preset) => {
                   const isActive = selectedVibeId === preset.id;
-                  const isDanger = preset.label === "definitely dont use this one";
+                  const isDanger = preset.label === "Chaos mode";
                   return (
                     <button
                       key={preset.id}
@@ -1150,7 +1150,7 @@ function HomePage() {
                 <button
                   onClick={() => { if (styledScript.trim()) handleGenerateFromStyled(styledScript); }}
                   disabled={isGenerating || !styledScript.trim()}
-                  className="flex items-center justify-center gap-2 h-8 rounded-md border border-accent text-accent px-5 text-xs font-medium transition-colors hover:bg-accent/10 disabled:opacity-40 disabled:cursor-not-allowed focus-ring"
+                  className="flex items-center justify-center gap-2 h-8 rounded-md bg-foreground text-background px-5 text-xs font-medium transition-colors hover:bg-foreground/90 disabled:opacity-40 disabled:cursor-not-allowed focus-ring"
                 >
                   {isGenerating ? (
                     <>
@@ -1158,7 +1158,7 @@ function HomePage() {
                         <circle cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="2" strokeOpacity="0.2" />
                         <path d="M12 2a10 10 0 0 1 10 10" stroke="currentColor" strokeWidth="2" strokeLinecap="round" />
                       </svg>
-                      <span>Generating...</span>
+                      <span>{generateStatus || "Generating..."}</span>
                     </>
                   ) : (
                     <span>Generate Audio</span>
