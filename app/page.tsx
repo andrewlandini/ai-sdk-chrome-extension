@@ -153,6 +153,7 @@ function HomePage() {
 
   // Generator state
   const [rawContent, setRawContent] = useState("");
+  const [fetchingRawContent, setFetchingRawContent] = useState(false);
   const [script, setScript] = useState("");
   const [scriptTitle, setScriptTitle] = useState("");
   const [scriptUrl, setScriptUrl] = useState("");
@@ -188,7 +189,7 @@ function HomePage() {
   const [activeChunkMap, setActiveChunkMap] = useState<ChunkMapEntry[] | null>(null);
   const [isRegeneratingChunk, setIsRegeneratingChunk] = useState(false);
 
-  // ── Restore session on mount ──
+  // ─�� Restore session on mount ──
   useEffect(() => {
     if (restoredRef.current) return;
     restoredRef.current = true;
@@ -680,6 +681,25 @@ function HomePage() {
     summarizeAbortRef.current?.abort();
   }, []);
 
+  const handleFetchRawContent = useCallback(async (url?: string) => {
+    const targetUrl = url || scriptUrl;
+    if (!targetUrl) return;
+    setFetchingRawContent(true);
+    try {
+      const res = await fetch("/api/raw-content", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ url: targetUrl }),
+      });
+      const data = await res.json();
+      if (data.rawContent) setRawContent(data.rawContent);
+    } catch (err) {
+      console.error("Failed to fetch raw content:", err);
+    } finally {
+      setFetchingRawContent(false);
+    }
+  }, [scriptUrl]);
+
   const handleLoadScripts = useCallback(async () => {
     // Get all cached posts without scripts
     const res = await fetch("/api/history");
@@ -726,6 +746,13 @@ function HomePage() {
         });
 
         setScript(result.summary);
+
+        // Fetch raw content that was saved during scraping
+        fetch(`/api/raw-content?url=${encodeURIComponent(url)}`)
+          .then(r => r.json())
+          .then(d => { if (d.rawContent) setRawContent(d.rawContent); })
+          .catch(() => {});
+
         mutateHistory();
       } catch (err) {
         if (err instanceof DOMException && err.name === "AbortError") break;
@@ -1069,8 +1096,28 @@ function HomePage() {
                           {rawContent}
                         </div>
                       ) : (
-                        <div className="flex-1 flex items-center justify-center h-full py-8">
-                          <p className="text-xs text-muted">Raw content will appear after generating a script</p>
+                        <div className="flex-1 flex flex-col items-center justify-center h-full py-8 gap-3">
+                          {fetchingRawContent ? (
+                            <>
+                              <svg className="animate-spin text-accent" width="16" height="16" viewBox="0 0 24 24" fill="none" aria-hidden="true">
+                                <circle cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="2" strokeOpacity="0.2" />
+                                <path d="M12 2a10 10 0 0 1 10 10" stroke="currentColor" strokeWidth="2" strokeLinecap="round" />
+                              </svg>
+                              <p className="text-xs text-muted">Fetching blog text...</p>
+                            </>
+                          ) : (
+                            <button
+                              onClick={() => handleFetchRawContent()}
+                              className="flex items-center gap-1.5 h-7 rounded-md bg-surface-2 hover:bg-surface-2/80 text-foreground px-3 text-[11px] font-medium transition-colors focus-ring"
+                            >
+                              <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" aria-hidden="true">
+                                <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4" />
+                                <polyline points="7 10 12 15 17 10" />
+                                <line x1="12" y1="15" x2="12" y2="3" />
+                              </svg>
+                              Fetch Blog Text
+                            </button>
+                          )}
                         </div>
                       )}
                     </div>
