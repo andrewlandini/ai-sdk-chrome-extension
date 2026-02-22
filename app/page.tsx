@@ -1096,7 +1096,7 @@ function HomePage() {
                           {rawContent}
                         </div>
                       ) : (
-                        <div className="flex-1 flex flex-col items-center justify-center h-full py-8 gap-3">
+                        <div className="flex flex-col items-center justify-center h-full px-8 py-8 gap-3">
                           {fetchingRawContent ? (
                             <>
                               <svg className="animate-spin text-accent" width="16" height="16" viewBox="0 0 24 24" fill="none" aria-hidden="true">
@@ -1108,9 +1108,9 @@ function HomePage() {
                           ) : (
                             <button
                               onClick={() => handleFetchRawContent()}
-                              className="flex items-center gap-1.5 h-7 rounded-md bg-surface-2 hover:bg-surface-2/80 text-foreground px-3 text-[11px] font-medium transition-colors focus-ring"
+                              className="flex items-center justify-center gap-2 h-9 rounded-lg bg-accent text-primary-foreground px-5 text-xs font-semibold transition-colors hover:bg-accent-hover focus-ring"
                             >
-                              <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" aria-hidden="true">
+                              <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" aria-hidden="true">
                                 <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4" />
                                 <polyline points="7 10 12 15 17 10" />
                                 <line x1="12" y1="15" x2="12" y2="3" />
