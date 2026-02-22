@@ -1274,6 +1274,10 @@ function HomePage() {
                   currentPlaybackTime={playbackTime}
                   isAudioPlaying={isAudioPlaying}
                   onRegenerateChunk={handleRegenerateChunk}
+                  onSeekToTime={(t) => {
+                    const audio = document.querySelector("audio");
+                    if (audio) { audio.currentTime = t; audio.play(); }
+                  }}
                 />
               </div>
 
