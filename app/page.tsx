@@ -18,6 +18,19 @@ import { WaveformPlayer } from "@/components/waveform-player";
 import { PromptEditorModal } from "@/components/prompt-editor-modal";
 import type { BlogAudio, ChunkMapEntry } from "@/lib/db";
 
+/* ── Media query for single-player rendering ── */
+function useIsDesktop() {
+  const [isDesktop, setIsDesktop] = useState(true);
+  useEffect(() => {
+    const mq = window.matchMedia("(min-width: 768px)");
+    setIsDesktop(mq.matches);
+    const handler = (e: MediaQueryListEvent) => setIsDesktop(e.matches);
+    mq.addEventListener("change", handler);
+    return () => mq.removeEventListener("change", handler);
+  }, []);
+  return isDesktop;
+}
+
 /* ── Product name rotation ── */
 const PRODUCT_NAMES = [
   "Vercast","VerVox","EdgeEcho","ShipSpeak","v0Vox","ElevenForge","BlogBard",
@@ -117,6 +130,7 @@ export default function Page() {
 function HomePage() {
   const searchParams = useSearchParams();
   const router = useRouter();
+  const isDesktop = useIsDesktop();
   const { name: productName, fading: nameFading, advance: advanceName } = useProductName();
   const { data: credits, mutate: mutateCredits } = useSWR<CreditsData>("/api/credits", fetcher, {
     revalidateOnFocus: false,
@@ -910,20 +924,22 @@ function HomePage() {
             />
           </div>
 
-          {/* Player -- always visible */}
-          <div className="flex-shrink-0 border-t border-border">
-            <WaveformPlayer
-              key={activeEntry?.id ?? "idle"}
-              audioUrl={activeEntry?.audio_url}
-              title={activeEntry?.title || undefined}
-              summary={activeEntry?.summary || undefined}
-              url={activeEntry?.url}
-              autoplay={autoplay}
-              onTimeUpdate={(t) => setPlaybackTime(t)}
-              onPlayStateChange={(p) => setIsAudioPlaying(p)}
-            />
-          </div>
-        </aside>
+  {/* Player -- desktop only (mobile player rendered separately) */}
+  <div className="flex-shrink-0 border-t border-border">
+  {isDesktop && (
+    <WaveformPlayer
+      key={activeEntry?.id ?? "idle"}
+      audioUrl={activeEntry?.audio_url}
+      title={activeEntry?.title || undefined}
+      summary={activeEntry?.summary || undefined}
+      url={activeEntry?.url}
+      autoplay={autoplay}
+      onTimeUpdate={(t) => setPlaybackTime(t)}
+      onPlayStateChange={(p) => setIsAudioPlaying(p)}
+    />
+  )}
+  </div>
+  </aside>
 
         {/* Workspace: content | (voice over + voice settings + versions) */}
         <div className="flex-[3] min-w-0 flex flex-col xl:flex-row overflow-hidden">
@@ -1276,21 +1292,21 @@ function HomePage() {
         onClose={() => setPromptEditorOpen(false)}
       />
 
-      {/* Mobile fixed-bottom player (hidden on md+ where desktop sidebar player exists) */}
-      {activeEntry?.audio_url && (
-        <div className="fixed bottom-0 left-0 right-0 z-50 md:hidden border-t border-border bg-background">
-          <WaveformPlayer
-            key={`mobile-${activeEntry.id}`}
-            audioUrl={activeEntry.audio_url}
-            title={activeEntry.title || undefined}
-            summary={activeEntry.summary || undefined}
-            url={activeEntry.url}
-            autoplay={autoplay}
-            onTimeUpdate={(t) => setPlaybackTime(t)}
-            onPlayStateChange={(p) => setIsAudioPlaying(p)}
-          />
-        </div>
-      )}
+  {/* Mobile fixed-bottom player (only rendered on mobile) */}
+  {!isDesktop && activeEntry?.audio_url && (
+  <div className="fixed bottom-0 left-0 right-0 z-50 border-t border-border bg-background">
+    <WaveformPlayer
+      key={`mobile-${activeEntry.id}`}
+      audioUrl={activeEntry.audio_url}
+      title={activeEntry.title || undefined}
+      summary={activeEntry.summary || undefined}
+      url={activeEntry.url}
+      autoplay={autoplay}
+      onTimeUpdate={(t) => setPlaybackTime(t)}
+      onPlayStateChange={(p) => setIsAudioPlaying(p)}
+    />
+  </div>
+  )}
     </div>
   );
 }
