@@ -148,6 +148,7 @@ function HomePage() {
   const [showReloadAllConfirm, setShowReloadAllConfirm] = useState(false);
   const longPressTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const longPressFiredRef = useRef(false);
+  const [previewPost, setPreviewPost] = useState<{ url: string; title: string; content: string | null; loading: boolean } | null>(null);
 
   // Active selection
   const [activeEntry, setActiveEntry] = useState<BlogAudio | null>(null);
@@ -361,6 +362,27 @@ function HomePage() {
   }, [scriptUrl]);
 
   // ── Handlers ──
+
+  const handlePreviewPost = useCallback(async (url: string, title: string) => {
+    // Check if already cached as rawContent for current post
+    const entry = entries.find((e) => e.url === url) as (BlogAudio & { raw_content?: string | null }) | undefined;
+    if (entry?.raw_content) {
+      setPreviewPost({ url, title, content: entry.raw_content, loading: false });
+      return;
+    }
+    setPreviewPost({ url, title, content: null, loading: true });
+    try {
+      const res = await fetch("/api/raw-content", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ url }),
+      });
+      const data = await res.json();
+      setPreviewPost({ url, title, content: data.rawContent || "No content found.", loading: false });
+    } catch {
+      setPreviewPost({ url, title, content: "Failed to fetch content.", loading: false });
+    }
+  }, [entries]);
 
   // Helper: stream summarize API and progressively build script text
   const streamSummarize = useCallback(async (
@@ -1077,6 +1099,7 @@ function HomePage() {
                 onSelect={handleSelectPost}
                 onPlay={handlePlayFromList}
                 onDelete={handleDeleteEntry}
+                onPreview={handlePreviewPost}
               />
             </div>
 
@@ -1155,6 +1178,7 @@ function HomePage() {
               onSelect={handleSelectPost}
               onPlay={handlePlayFromList}
               onDelete={handleDeleteEntry}
+              onPreview={handlePreviewPost}
             />
           </div>
 
@@ -1240,7 +1264,7 @@ function HomePage() {
                   <div className="flex-1 min-h-0 flex flex-col border-b border-border bg-background">
                     <div className="flex items-center justify-between px-3 py-1.5 border-b border-border bg-surface-2/30 flex-shrink-0">
                       <div className="flex items-center gap-2">
-                        <span className="text-[10px] font-medium text-accent uppercase tracking-wider">Original Blog Text</span>
+                        <span className="text-[10px] font-medium text-accent uppercase tracking-wider">Verbatim Script</span>
                       </div>
                       <div className="flex items-center gap-2">
                         <span className="text-[10px] text-muted font-mono tabular-nums">
@@ -1748,6 +1772,44 @@ function HomePage() {
               >
                 Reload All
               </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Original Blog Text preview modal */}
+      {previewPost && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60" onClick={() => setPreviewPost(null)}>
+          <div className="bg-surface-1 border border-border rounded-lg shadow-xl max-w-2xl w-full mx-4 max-h-[80vh] flex flex-col" onClick={(e) => e.stopPropagation()}>
+            <div className="flex items-center justify-between px-4 py-3 border-b border-border flex-shrink-0">
+              <div className="flex-1 min-w-0">
+                <h3 className="text-sm font-semibold text-foreground truncate">{previewPost.title}</h3>
+                <p className="text-[10px] text-muted font-mono truncate mt-0.5">{previewPost.url}</p>
+              </div>
+              <button
+                onClick={() => setPreviewPost(null)}
+                className="ml-3 text-muted hover:text-foreground transition-colors focus-ring rounded p-1"
+                aria-label="Close preview"
+              >
+                <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" aria-hidden="true">
+                  <path d="M18 6L6 18M6 6l12 12" />
+                </svg>
+              </button>
+            </div>
+            <div className="flex-1 overflow-y-auto p-4">
+              {previewPost.loading ? (
+                <div className="flex items-center justify-center py-12 gap-2">
+                  <svg className="animate-spin text-accent" width="16" height="16" viewBox="0 0 24 24" fill="none" aria-hidden="true">
+                    <circle cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="2" strokeOpacity="0.2" />
+                    <path d="M12 2a10 10 0 0 1 10 10" stroke="currentColor" strokeWidth="2" strokeLinecap="round" />
+                  </svg>
+                  <span className="text-xs text-muted">Fetching original blog text...</span>
+                </div>
+              ) : (
+                <div className="text-xs font-mono leading-relaxed text-foreground whitespace-pre-wrap select-text">
+                  {previewPost.content}
+                </div>
+              )}
             </div>
           </div>
         </div>
