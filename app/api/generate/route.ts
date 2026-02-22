@@ -41,11 +41,13 @@ async function segmentWithAI(text: string): Promise<string[]> {
       system: `You are a script segmentation expert. Your job is to split a voice-over script into logical audio segments for text-to-speech generation.
 
 Rules:
-- Each segment must be a COMPLETE thought or section. Never split mid-sentence or separate a header from its list.
-- If a line introduces a list (e.g. "Key components include:"), keep the list items WITH the intro as ONE segment.
+- Each segment MUST contain multiple sentences (at least 2-3). A segment must NEVER be a single sentence on its own.
+- Each segment must be a COMPLETE thought or section. Never split mid-sentence or separate a header from its list/body.
+- If a line introduces a list (e.g. "Key components include:"), keep ALL list items WITH the intro as ONE segment.
+- If a paragraph is short (1-2 sentences), merge it with the next related paragraph into one segment.
 - Voice direction tags like [confident], [calm], [pause], etc. are part of the text -- keep them in place.
-- Aim for 3-10 segments depending on script length. Short scripts (under 500 chars) can be 1-2 segments.
-- Each segment must be under ${MAX_CHARS} characters. If a logical section is longer, split at a natural sentence boundary.
+- Aim for 3-8 segments depending on script length. Fewer, longer segments are better than many tiny ones.
+- Each segment must be under ${MAX_CHARS} characters. If a logical section is longer, split at a natural paragraph or topic boundary -- never mid-sentence.
 - Preserve the EXACT text -- do not rephrase, reorder, add, or remove any words or tags.
 - The concatenation of all segments must exactly equal the original text (with whitespace trimming allowed between segments).`,
       prompt: text,
@@ -63,15 +65,17 @@ Rules:
   }
 }
 
-/** Simple fallback: split on paragraph breaks, merge short fragments */
+/** Simple fallback: split on paragraph breaks, merge short fragments so no segment is a single sentence */
 function fallbackChunk(text: string): string[] {
   const paragraphs = text.split(/\n\s*\n/).map(p => p.trim()).filter(Boolean);
   if (paragraphs.length <= 1) return [text.trim()];
-  // Merge very short paragraphs (under 80 chars) with the next one
   const result: string[] = [];
   let current = "";
   for (const para of paragraphs) {
-    if (current && current.length < 80) {
+    // Count sentences (rough: split on . ! ? followed by space or end)
+    const sentenceCount = (current.match(/[.!?](?:\s|$)/g) || []).length;
+    // Merge if current chunk is short or only has 1 sentence
+    if (current && (current.length < 200 || sentenceCount < 2)) {
       current = current + " " + para;
     } else {
       if (current) result.push(current);
