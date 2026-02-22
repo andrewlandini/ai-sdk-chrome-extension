@@ -1,6 +1,7 @@
-import { experimental_generateSpeech as generateSpeech } from "ai";
+import { experimental_generateSpeech as generateSpeech, generateObject } from "ai";
 import { elevenlabs } from "@ai-sdk/elevenlabs";
 import { put, del } from "@vercel/blob";
+import { z } from "zod";
 import { insertBlogAudio, getAudioIdByUrl, getGenerationCountByUrl, createGenerationJob, updateGenerationJob, upsertCachedCredits, type ChunkMapEntry } from "@/lib/db";
 
 export const maxDuration = 300;
@@ -25,36 +26,60 @@ const VOICE_MAP: Record<string, string> = {
 };
 
 /**
- * Split text into paragraph-level chunks. Each paragraph (\n\n separated)
- * becomes its own chunk for the chunk_map, so users can edit per-paragraph.
- * If a single paragraph exceeds MAX_CHARS, it gets sub-split on sentence
- * boundaries, but each sub-split is still its own chunk.
+ * Use an AI model to intelligently segment a styled script into logical
+ * audio chunks. Each chunk should be a semantically complete section --
+ * a full thought, list with its intro, or cohesive paragraph.
+ * Falls back to simple splitting if the AI call fails.
  */
-function chunkByParagraph(text: string): string[] {
-  const paragraphs = text.split(/\n\s*\n/).map((p) => p.trim()).filter(Boolean);
+async function segmentWithAI(text: string): Promise<string[]> {
+  try {
+    const { object } = await generateObject({
+      model: "openai/gpt-4o-mini" as any,
+      schema: z.object({
+        segments: z.array(z.string()).describe("Array of script segments, each a semantically complete section"),
+      }),
+      system: `You are a script segmentation expert. Your job is to split a voice-over script into logical audio segments for text-to-speech generation.
+
+Rules:
+- Each segment must be a COMPLETE thought or section. Never split mid-sentence or separate a header from its list.
+- If a line introduces a list (e.g. "Key components include:"), keep the list items WITH the intro as ONE segment.
+- Voice direction tags like [confident], [calm], [pause], etc. are part of the text -- keep them in place.
+- Aim for 3-10 segments depending on script length. Short scripts (under 500 chars) can be 1-2 segments.
+- Each segment must be under ${MAX_CHARS} characters. If a logical section is longer, split at a natural sentence boundary.
+- Preserve the EXACT text -- do not rephrase, reorder, add, or remove any words or tags.
+- The concatenation of all segments must exactly equal the original text (with whitespace trimming allowed between segments).`,
+      prompt: text,
+    });
+    // Validate: segments should cover the full text
+    if (object.segments && object.segments.length > 0) {
+      // Filter empty segments
+      const segments = object.segments.map(s => s.trim()).filter(Boolean);
+      if (segments.length > 0) return segments;
+    }
+    return fallbackChunk(text);
+  } catch (err) {
+    console.error("AI segmentation failed, using fallback:", err);
+    return fallbackChunk(text);
+  }
+}
+
+/** Simple fallback: split on paragraph breaks, merge short fragments */
+function fallbackChunk(text: string): string[] {
+  const paragraphs = text.split(/\n\s*\n/).map(p => p.trim()).filter(Boolean);
+  if (paragraphs.length <= 1) return [text.trim()];
+  // Merge very short paragraphs (under 80 chars) with the next one
   const result: string[] = [];
+  let current = "";
   for (const para of paragraphs) {
-    if (para.length <= MAX_CHARS) {
-      result.push(para);
+    if (current && current.length < 80) {
+      current = current + " " + para;
     } else {
-      // Sub-split oversized paragraphs on sentence boundaries
-      const sentences = para.match(/[^.!?]*[.!?]+[\s]*/g) || [para];
-      let current = "";
-      for (const s of sentences) {
-        const trimmed = s.trim();
-        if (!trimmed) continue;
-        const combined = current ? `${current} ${trimmed}` : trimmed;
-        if (combined.length <= MAX_CHARS) {
-          current = combined;
-        } else {
-          if (current) result.push(current);
-          current = trimmed;
-        }
-      }
       if (current) result.push(current);
+      current = para;
     }
   }
-  return result.length > 0 ? result : [text];
+  if (current) result.push(current);
+  return result.length > 0 ? result : [text.trim()];
 }
 
 /**
@@ -158,8 +183,9 @@ export async function POST(request: Request) {
           ? { providerOptions: { elevenlabs: { voiceSettings } } }
           : {};
 
-        // Split into chunks for v3's character limit
-        const chunks = chunkByParagraph(summary);
+        // Intelligently segment the script using AI
+        send({ type: "status", step: "segmenting", message: "Analyzing script for optimal audio segments..." });
+        const chunks = await segmentWithAI(summary);
         const totalChars = summary.length;
         const voiceName = VOICE_MAP[voiceId] || "Unknown";
 
