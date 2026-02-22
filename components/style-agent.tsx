@@ -264,9 +264,8 @@ export const StyleAgent = forwardRef<StyleAgentHandle, StyleAgentProps>(function
                     <button
                       onClick={() => {
                         if (isActive && isAudioPlaying) {
-                          // Pause
-                          const audio = document.querySelector("audio");
-                          if (audio) audio.pause();
+                          // Pause -- seek to same time triggers pause in parent
+                          onSeekToTime(-1);
                         } else {
                           // Seek to this chunk's start and play
                           onSeekToTime(chunk.startTime);

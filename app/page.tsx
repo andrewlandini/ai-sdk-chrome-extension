@@ -14,7 +14,7 @@ import { ScriptEditor } from "@/components/script-editor";
 import { StyleAgent, type StyleHistoryEntry, type StyleAgentHandle } from "@/components/style-agent";
 import { VoiceSettings, type VoiceConfig } from "@/components/voice-settings";
 import { VersionsList } from "@/components/versions-list";
-import { WaveformPlayer } from "@/components/waveform-player";
+import { WaveformPlayer, type WaveformPlayerHandle } from "@/components/waveform-player";
 import { PromptEditorModal } from "@/components/prompt-editor-modal";
 import type { BlogAudio, ChunkMapEntry } from "@/lib/db";
 
@@ -139,6 +139,7 @@ function HomePage() {
   const creditsPercent = credits?.characterCount != null && credits?.characterLimit
     ? Math.round((credits.characterCount / credits.characterLimit) * 100)
     : 0;
+  const playerRef = useRef<WaveformPlayerHandle>(null);
   const [promptEditorOpen, setPromptEditorOpen] = useState(false);
   const [contentFocused, setContentFocused] = useState(false);
   const [sidebarOpen, setSidebarOpen] = useState(false);
@@ -875,9 +876,7 @@ function HomePage() {
                 }}
                 onTogglePlay={(v) => {
                   if (v.id === activeEntry?.id) {
-                    // Toggle play/pause on the current audio
-                    const audio = document.querySelector("audio");
-                    if (audio) { audio.paused ? audio.play() : audio.pause(); }
+                    playerRef.current?.togglePlayPause();
                   } else {
                     handleSelectVersion(v);
                   }
@@ -962,8 +961,7 @@ function HomePage() {
               }}
               onTogglePlay={(v) => {
                 if (v.id === activeEntry?.id) {
-                  const audio = document.querySelector("audio");
-                  if (audio) { audio.paused ? audio.play() : audio.pause(); }
+                  playerRef.current?.togglePlayPause();
                 } else {
                   handleSelectVersion(v);
                 }
@@ -974,15 +972,16 @@ function HomePage() {
   {/* Player -- desktop only (mobile player rendered separately) */}
   <div className="flex-shrink-0 border-t border-border">
   {isDesktop && (
-    <WaveformPlayer
-      key={activeEntry?.id ?? "idle"}
-      audioUrl={activeEntry?.audio_url}
-      title={activeEntry?.title || undefined}
-      summary={activeEntry?.summary || undefined}
-      url={activeEntry?.url}
-      autoplay={autoplay}
-      onTimeUpdate={(t) => setPlaybackTime(t)}
-      onPlayStateChange={(p) => setIsAudioPlaying(p)}
+<WaveformPlayer
+  ref={playerRef}
+  key={activeEntry?.id ?? "idle"}
+  audioUrl={activeEntry?.audio_url}
+  title={activeEntry?.title || undefined}
+  summary={activeEntry?.summary || undefined}
+  url={activeEntry?.url}
+  autoplay={autoplay}
+  onTimeUpdate={(t) => setPlaybackTime(t)}
+  onPlayStateChange={(p) => setIsAudioPlaying(p)}
     />
   )}
   </div>
@@ -1318,10 +1317,16 @@ function HomePage() {
                   currentPlaybackTime={playbackTime}
                   isAudioPlaying={isAudioPlaying}
                   onRegenerateChunk={handleRegenerateChunk}
-                  onSeekToTime={(t) => {
-                    const audio = document.querySelector("audio");
-                    if (audio) { audio.currentTime = t; audio.play(); }
-                  }}
+  onSeekToTime={(t) => {
+    if (playerRef.current) {
+      if (t < 0) {
+        playerRef.current.pause();
+      } else {
+        playerRef.current.seekTo(t);
+        playerRef.current.play();
+      }
+    }
+  }}
                 />
               </div>
 
@@ -1373,15 +1378,16 @@ function HomePage() {
   {/* Mobile fixed-bottom player (only rendered on mobile) */}
   {!isDesktop && activeEntry?.audio_url && (
   <div className="fixed bottom-0 left-0 right-0 z-50 border-t border-border bg-background">
-    <WaveformPlayer
-      key={`mobile-${activeEntry.id}`}
-      audioUrl={activeEntry.audio_url}
-      title={activeEntry.title || undefined}
-      summary={activeEntry.summary || undefined}
-      url={activeEntry.url}
-      autoplay={autoplay}
-      onTimeUpdate={(t) => setPlaybackTime(t)}
-      onPlayStateChange={(p) => setIsAudioPlaying(p)}
+<WaveformPlayer
+  ref={playerRef}
+  key={`mobile-${activeEntry.id}`}
+  audioUrl={activeEntry.audio_url}
+  title={activeEntry.title || undefined}
+  summary={activeEntry.summary || undefined}
+  url={activeEntry.url}
+  autoplay={autoplay}
+  onTimeUpdate={(t) => setPlaybackTime(t)}
+  onPlayStateChange={(p) => setIsAudioPlaying(p)}
     />
   </div>
   )}

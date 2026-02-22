@@ -1,6 +1,13 @@
 "use client";
 
-import { useRef, useEffect, useState, useCallback } from "react";
+import { useRef, useEffect, useState, useCallback, useImperativeHandle, forwardRef } from "react";
+
+export interface WaveformPlayerHandle {
+  seekTo: (time: number) => void;
+  play: () => void;
+  pause: () => void;
+  togglePlayPause: () => void;
+}
 
 interface WaveformPlayerProps {
   audioUrl?: string;
@@ -71,7 +78,7 @@ function generatePlaceholderPeaks(count: number): number[] {
 }
 
 
-export function WaveformPlayer({
+export const WaveformPlayer = forwardRef<WaveformPlayerHandle, WaveformPlayerProps>(function WaveformPlayer({
   audioUrl = "",
   title = "Untitled",
   summary = "",
@@ -79,7 +86,7 @@ export function WaveformPlayer({
   autoplay = false,
   onTimeUpdate,
   onPlayStateChange,
-}: WaveformPlayerProps) {
+}, ref) {
   const idle = !audioUrl;
   const audioRef = useRef<HTMLAudioElement>(null);
   const waveformRef = useRef<HTMLDivElement>(null);
@@ -92,6 +99,28 @@ export function WaveformPlayer({
   const [peaks, setPeaks] = useState<number[]>([]);
   const [barCount, setBarCount] = useState(120);
   const [isLoaded, setIsLoaded] = useState(false);
+
+  useImperativeHandle(ref, () => ({
+    seekTo(time: number) {
+      const audio = audioRef.current;
+      if (!audio) return;
+      audio.currentTime = Math.max(0, Math.min(audio.duration || Infinity, time));
+      setCurrentTime(audio.currentTime);
+      onTimeUpdate?.(audio.currentTime, audio.duration || 0);
+    },
+    play() {
+      audioRef.current?.play().catch(() => {});
+    },
+    pause() {
+      audioRef.current?.pause();
+    },
+    togglePlayPause() {
+      const audio = audioRef.current;
+      if (!audio) return;
+      if (audio.paused) audio.play().catch(() => {});
+      else audio.pause();
+    },
+  }), [onTimeUpdate]);
 
   useEffect(() => {
     const el = waveformRef.current;
@@ -392,4 +421,4 @@ export function WaveformPlayer({
       </div>
     </section>
   );
-}
+});
