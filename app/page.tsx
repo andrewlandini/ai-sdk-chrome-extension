@@ -525,11 +525,8 @@ function HomePage() {
   // ── Vibe preset handlers ──
   const handleSelectVibe = useCallback((preset: { id: number; label: string; default_prompt: string; user_prompt: string | null }) => {
     if (selectedVibeId === preset.id) {
-      // Deselect
-      setSelectedVibeId(null);
-      setEditedPrompt("");
-      setIsVibePromptDirty(false);
-      setVoiceConfig(prev => ({ ...prev, styleVibe: "" }));
+      // Already selected – no-op (always keep one selected)
+      return;
     } else {
       const prompt = preset.user_prompt ?? preset.default_prompt;
       setSelectedVibeId(preset.id);
@@ -580,6 +577,19 @@ function HomePage() {
       setIsSavingVibe(false);
     }
   }, [selectedVibeId, vibePresets, mutateVibePresets]);
+
+  // Auto-select "Confident" on first load
+  useEffect(() => {
+    if (vibePresets.length > 0 && selectedVibeId === null) {
+      const confident = vibePresets.find(p => p.label === "Confident");
+      if (confident) {
+        const prompt = confident.user_prompt ?? confident.default_prompt;
+        setSelectedVibeId(confident.id);
+        setEditedPrompt(prompt);
+        setVoiceConfig(prev => ({ ...prev, styleVibe: prompt }));
+      }
+    }
+  }, [vibePresets, selectedVibeId]);
 
   const handleStopGenerating = useCallback(() => {
     summarizeAbortRef.current?.abort();
@@ -1085,33 +1095,30 @@ function HomePage() {
                 })}
               </div>
 
-              {/* Editable prompt – always visible */}
-              <div className="flex-shrink-0 border-b border-border px-3 py-2 flex flex-col gap-2">
+              {/* Editable prompt – always visible, takes ~half the column */}
+              <div className="flex-1 min-h-0 border-b border-border px-3 py-2 flex flex-col gap-2">
                 <textarea
                   value={editedPrompt}
                   onChange={(e) => handleVibePromptChange(e.target.value)}
-                  rows={3}
-                  className="w-full bg-surface-2 text-sm text-foreground rounded-md border border-border px-3 py-2 resize-none focus:outline-none focus:border-accent transition-colors"
+                  className="w-full flex-1 min-h-0 bg-surface-2 text-sm text-foreground rounded-md border border-border px-3 py-2 resize-none focus:outline-none focus:border-accent transition-colors"
                   placeholder={selectedVibeId ? "Describe the voice style..." : "Select a style above or type a custom prompt..."}
                 />
-                {selectedVibeId && (
-                  <div className="flex items-center justify-end gap-2">
+                <div className="flex items-center justify-end gap-2 flex-shrink-0">
                     <button
                       onClick={handleResetVibePrompt}
-                      disabled={isSavingVibe}
+                      disabled={isSavingVibe || !selectedVibeId}
                       className="h-7 px-3 rounded text-xs font-medium text-muted-foreground border border-border hover:text-foreground hover:border-foreground/30 transition-colors focus-ring disabled:opacity-40"
                     >
                       Reset
                     </button>
                     <button
                       onClick={handleSaveVibePrompt}
-                      disabled={!isVibePromptDirty || isSavingVibe}
+                      disabled={!isVibePromptDirty || isSavingVibe || !selectedVibeId}
                       className="h-7 px-3 rounded text-xs font-medium bg-accent text-primary-foreground hover:bg-accent-hover transition-colors focus-ring disabled:opacity-40 disabled:cursor-not-allowed"
                     >
                       {isSavingVibe ? "Saving..." : "Save"}
                     </button>
-                  </div>
-                )}
+                </div>
               </div>
 
               {/* Style Script button */}
