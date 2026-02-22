@@ -1048,7 +1048,7 @@ function HomePage() {
                   <div className="flex-1 min-h-0 flex flex-col border-b border-border">
                     <div className="flex items-center justify-between px-3 py-1.5 border-b border-border bg-surface-2/30 flex-shrink-0">
                       <div className="flex items-center gap-2">
-                        <span className="text-[10px] font-medium text-muted uppercase tracking-wider">Original Blog Text</span>
+                        <span className="text-[10px] font-medium text-accent uppercase tracking-wider">Original Blog Text</span>
                       </div>
                       <div className="flex items-center gap-2">
                         <span className="text-[10px] text-muted font-mono tabular-nums">
@@ -1111,7 +1111,7 @@ function HomePage() {
                   <div className="flex-1 min-h-0 flex flex-col">
                     <div className="flex items-center justify-between px-3 py-1.5 border-b border-border bg-surface-2/30 flex-shrink-0">
                       <div className="flex items-center gap-2">
-                        <span className="text-[10px] font-medium text-muted uppercase tracking-wider">Generated Script</span>
+                        <span className="text-[10px] font-medium text-accent uppercase tracking-wider">Generated Script</span>
                         {(isSummarizing || loadingScripts) && (
                           <svg className="animate-spin text-accent" width="10" height="10" viewBox="0 0 24 24" fill="none" aria-hidden="true">
                             <circle cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="2" strokeOpacity="0.2" />
