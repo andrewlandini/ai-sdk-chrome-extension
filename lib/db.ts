@@ -324,6 +324,35 @@ export async function cleanupOldJobs(): Promise<void> {
   `;
 }
 
+// ── Style Vibe Presets ──
+
+export interface StyleVibePreset {
+  id: number;
+  label: string;
+  default_prompt: string;
+  user_prompt: string | null;
+  created_at: string;
+}
+
+export async function getStyleVibePresets(): Promise<StyleVibePreset[]> {
+  const rows = await sql`SELECT * FROM style_vibe_presets ORDER BY id ASC`;
+  return rows as StyleVibePreset[];
+}
+
+export async function updateStyleVibePreset(id: number, userPrompt: string): Promise<StyleVibePreset> {
+  const rows = await sql`
+    UPDATE style_vibe_presets SET user_prompt = ${userPrompt} WHERE id = ${id} RETURNING *
+  `;
+  return rows[0] as StyleVibePreset;
+}
+
+export async function resetStyleVibePreset(id: number): Promise<StyleVibePreset> {
+  const rows = await sql`
+    UPDATE style_vibe_presets SET user_prompt = NULL WHERE id = ${id} RETURNING *
+  `;
+  return rows[0] as StyleVibePreset;
+}
+
 // ── Credits Cache ──
 
 export interface CachedCredits {

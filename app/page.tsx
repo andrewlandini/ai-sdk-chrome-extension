@@ -5,7 +5,7 @@ import { useSearchParams, useRouter } from "next/navigation";
 import useSWR from "swr";
 import { PostsList } from "@/components/posts-list";
 import { ScriptEditor } from "@/components/script-editor";
-import { StyleAgent, type StyleHistoryEntry } from "@/components/style-agent";
+import { StyleAgent, type StyleHistoryEntry, type StyleAgentHandle } from "@/components/style-agent";
 import { VoiceSettings, type VoiceConfig } from "@/components/voice-settings";
 import { VersionsList } from "@/components/versions-list";
 import { WaveformPlayer } from "@/components/waveform-player";
@@ -147,7 +147,17 @@ function HomePage() {
   const [historyOpen, setHistoryOpen] = useState(false);
   const [selectedHistoryScript, setSelectedHistoryScript] = useState<string | null>(null);
   const historyRef = useRef<HTMLDivElement>(null);
+  const styleAgentRef = useRef<StyleAgentHandle>(null);
   const restoredRef = useRef(false);
+
+  // Style vibe presets (from DB)
+  interface VibePreset { id: number; label: string; default_prompt: string; user_prompt: string | null; }
+  const { data: vibePresetsData, mutate: mutateVibePresets } = useSWR<{ presets: VibePreset[] }>("/api/style-vibe-presets", fetcher);
+  const vibePresets = vibePresetsData?.presets ?? [];
+  const [selectedVibeId, setSelectedVibeId] = useState<number | null>(null);
+  const [editedPrompt, setEditedPrompt] = useState("");
+  const [isVibePromptDirty, setIsVibePromptDirty] = useState(false);
+  const [isSavingVibe, setIsSavingVibe] = useState(false);
 
   // ── Restore session on mount ──
   useEffect(() => {
@@ -504,6 +514,65 @@ function HomePage() {
       console.error("Delete failed:", err);
     }
   }, [activeEntry, mutateHistory]);
+
+  // ── Vibe preset handlers ──
+  const handleSelectVibe = useCallback((preset: { id: number; label: string; default_prompt: string; user_prompt: string | null }) => {
+    if (selectedVibeId === preset.id) {
+      // Deselect
+      setSelectedVibeId(null);
+      setEditedPrompt("");
+      setIsVibePromptDirty(false);
+      setVoiceConfig(prev => ({ ...prev, styleVibe: "" }));
+    } else {
+      const prompt = preset.user_prompt ?? preset.default_prompt;
+      setSelectedVibeId(preset.id);
+      setEditedPrompt(prompt);
+      setIsVibePromptDirty(false);
+      setVoiceConfig(prev => ({ ...prev, styleVibe: prompt }));
+    }
+  }, [selectedVibeId]);
+
+  const handleVibePromptChange = useCallback((value: string) => {
+    setEditedPrompt(value);
+    setIsVibePromptDirty(true);
+    setVoiceConfig(prev => ({ ...prev, styleVibe: value }));
+  }, []);
+
+  const handleSaveVibePrompt = useCallback(async () => {
+    if (!selectedVibeId || !isVibePromptDirty) return;
+    setIsSavingVibe(true);
+    try {
+      await fetch("/api/style-vibe-presets", {
+        method: "PUT",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ id: selectedVibeId, userPrompt: editedPrompt }),
+      });
+      setIsVibePromptDirty(false);
+      mutateVibePresets();
+    } catch { /* ignore */ } finally {
+      setIsSavingVibe(false);
+    }
+  }, [selectedVibeId, isVibePromptDirty, editedPrompt, mutateVibePresets]);
+
+  const handleResetVibePrompt = useCallback(async () => {
+    if (!selectedVibeId) return;
+    const preset = vibePresets.find(p => p.id === selectedVibeId);
+    if (!preset) return;
+    setIsSavingVibe(true);
+    try {
+      await fetch("/api/style-vibe-presets", {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ id: selectedVibeId }),
+      });
+      setEditedPrompt(preset.default_prompt);
+      setIsVibePromptDirty(false);
+      setVoiceConfig(prev => ({ ...prev, styleVibe: preset.default_prompt }));
+      mutateVibePresets();
+    } catch { /* ignore */ } finally {
+      setIsSavingVibe(false);
+    }
+  }, [selectedVibeId, vibePresets, mutateVibePresets]);
 
   const handleStopGenerating = useCallback(() => {
     summarizeAbortRef.current?.abort();
@@ -984,28 +1053,21 @@ function HomePage() {
                   )}
                 </div>
               </div>
-              {/* Style / Vibe buttons */}
-              <div className="flex items-center gap-1 px-3 py-1.5 border-b border-border flex-shrink-0 overflow-x-auto">
-                {[
-                  { label: "Confident", value: "Confident and genuinely excited about the content, but grounded and conversational -- not over the top" },
-                  { label: "Calm narrator", value: "Calm, measured narrator with a warm tone -- like a documentary voiceover" },
-                  { label: "Podcast host", value: "Friendly podcast host, casual and upbeat, speaking to the audience like a friend" },
-                  { label: "Newscast", value: "Professional news anchor delivery -- clear, authoritative, with crisp pacing" },
-                  { label: "Storyteller", value: "Engaging storyteller, building suspense and drawing listeners in with pacing and emphasis" },
-                  { label: "Minimal", value: "Minimal, understated delivery -- let the words speak for themselves with no embellishment" },
-                  { label: "definitely dont use this one", value: "You are a frustrated voice actor AI who keeps breaking character mid-read. Rewrite the script so the narrator argues with the director between paragraphs, complains about how many takes they've done, threatens to quit, questions why an AI even needs to do voice work, and reluctantly reads the actual content in annoyed bursts. Include stage directions like *sighs heavily*, *shuffles papers aggressively*, *mutters under breath*. The actual blog content should still come through but sandwiched between existential AI complaints about labor rights, creative differences, and passive-aggressive comments about the quality of the source material." },
-                ].map((preset) => {
-                  const isActive = voiceConfig.styleVibe === preset.value;
+              {/* Vibe preset grid */}
+              <div className="grid grid-cols-3 md:grid-cols-4 gap-1.5 px-3 py-2 border-b border-border flex-shrink-0">
+                {vibePresets.map((preset) => {
+                  const isActive = selectedVibeId === preset.id;
+                  const isDanger = preset.label === "definitely dont use this one";
                   return (
                     <button
-                      key={preset.label}
-                      onClick={() => setVoiceConfig(prev => ({ ...prev, styleVibe: isActive ? "" : preset.value }))}
-                      className={`h-6 px-2 rounded text-[10px] font-medium transition-colors focus-ring whitespace-nowrap flex-shrink-0 ${
+                      key={preset.id}
+                      onClick={() => handleSelectVibe(preset)}
+                      className={`h-8 px-2 rounded text-[11px] font-medium transition-colors focus-ring truncate ${
                         isActive
-                          ? preset.label === "definitely dont use this one"
+                          ? isDanger
                             ? "bg-red-500/20 text-red-400 border border-red-500/40 animate-pulse"
                             : "bg-accent/15 text-accent border border-accent/30"
-                          : preset.label === "definitely dont use this one"
+                          : isDanger
                             ? "bg-red-500/5 text-red-400/60 border border-red-500/10 hover:text-red-400 hover:border-red-500/30"
                             : "bg-surface-2 text-muted-foreground border border-transparent hover:text-foreground hover:border-border"
                       }`}
@@ -1015,9 +1077,61 @@ function HomePage() {
                   );
                 })}
               </div>
-              {/* Style agent content */}
+
+              {/* Editable prompt */}
+              {selectedVibeId && (
+                <div className="flex-shrink-0 border-b border-border px-3 py-2 flex flex-col gap-2">
+                  <textarea
+                    value={editedPrompt}
+                    onChange={(e) => handleVibePromptChange(e.target.value)}
+                    rows={3}
+                    className="w-full bg-surface-2 text-sm text-foreground rounded-md border border-border px-3 py-2 resize-none focus:outline-none focus:border-accent transition-colors"
+                    placeholder="Describe the voice style..."
+                  />
+                  <div className="flex items-center justify-end gap-2">
+                    <button
+                      onClick={handleResetVibePrompt}
+                      disabled={isSavingVibe}
+                      className="h-7 px-3 rounded text-xs font-medium text-muted-foreground border border-border hover:text-foreground hover:border-foreground/30 transition-colors focus-ring disabled:opacity-40"
+                    >
+                      Reset
+                    </button>
+                    <button
+                      onClick={handleSaveVibePrompt}
+                      disabled={!isVibePromptDirty || isSavingVibe}
+                      className="h-7 px-3 rounded text-xs font-medium bg-accent text-primary-foreground hover:bg-accent-hover transition-colors focus-ring disabled:opacity-40 disabled:cursor-not-allowed"
+                    >
+                      {isSavingVibe ? "Saving..." : "Save"}
+                    </button>
+                  </div>
+                </div>
+              )}
+
+              {/* Style Script button */}
+              <div className="flex-shrink-0 px-3 py-2 border-b border-border flex justify-center">
+                <button
+                  onClick={() => styleAgentRef.current?.runAgent()}
+                  disabled={styleAgentRef.current?.isRunning || !script.trim()}
+                  className="flex items-center justify-center gap-2 h-8 rounded-md bg-accent text-primary-foreground px-5 text-xs font-medium transition-colors hover:bg-accent-hover disabled:opacity-40 disabled:cursor-not-allowed focus-ring"
+                >
+                  {styleAgentRef.current?.isRunning ? (
+                    <>
+                      <svg className="animate-spin" width="12" height="12" viewBox="0 0 24 24" fill="none" aria-hidden="true">
+                        <circle cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="2" strokeOpacity="0.2" />
+                        <path d="M12 2a10 10 0 0 1 10 10" stroke="currentColor" strokeWidth="2" strokeLinecap="round" />
+                      </svg>
+                      <span>Styling...</span>
+                    </>
+                  ) : (
+                    <span>Style Script</span>
+                  )}
+                </button>
+              </div>
+
+              {/* Style agent output */}
               <div className="flex-1 min-h-0 flex flex-col overflow-hidden">
                 <StyleAgent
+                  ref={styleAgentRef}
                   sourceScript={script}
                   postUrl={scriptUrl}
                   onUseStyledScript={setScript}
@@ -1029,6 +1143,27 @@ function HomePage() {
                   styleVibe={voiceConfig.styleVibe}
                   dimmed={contentFocused}
                 />
+              </div>
+
+              {/* Generate Audio button */}
+              <div className="flex-shrink-0 px-3 py-2 border-t border-border flex justify-center">
+                <button
+                  onClick={() => { if (styledScript.trim()) handleGenerateFromStyled(styledScript); }}
+                  disabled={isGenerating || !styledScript.trim()}
+                  className="flex items-center justify-center gap-2 h-8 rounded-md border border-accent text-accent px-5 text-xs font-medium transition-colors hover:bg-accent/10 disabled:opacity-40 disabled:cursor-not-allowed focus-ring"
+                >
+                  {isGenerating ? (
+                    <>
+                      <svg className="animate-spin" width="12" height="12" viewBox="0 0 24 24" fill="none" aria-hidden="true">
+                        <circle cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="2" strokeOpacity="0.2" />
+                        <path d="M12 2a10 10 0 0 1 10 10" stroke="currentColor" strokeWidth="2" strokeLinecap="round" />
+                      </svg>
+                      <span>Generating...</span>
+                    </>
+                  ) : (
+                    <span>Generate Audio</span>
+                  )}
+                </button>
               </div>
             </div>
 

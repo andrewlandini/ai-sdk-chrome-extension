@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useCallback, useRef, useEffect } from "react";
+import { useState, useCallback, useRef, useEffect, useImperativeHandle, forwardRef } from "react";
 
 interface HistoryEntry {
   id: number;
@@ -24,9 +24,15 @@ interface StyleAgentProps {
   dimmed?: boolean;
 }
 
+export interface StyleAgentHandle {
+  runAgent: () => void;
+  getStyledScript: () => string;
+  isRunning: boolean;
+}
+
 export type { HistoryEntry as StyleHistoryEntry };
 
-export function StyleAgent({
+export const StyleAgent = forwardRef<StyleAgentHandle, StyleAgentProps>(function StyleAgent({
   sourceScript,
   postUrl,
   isGeneratingAudio,
@@ -36,7 +42,7 @@ export function StyleAgent({
   externalScript,
   styleVibe = "",
   dimmed = false,
-}: StyleAgentProps) {
+}, ref) {
   const styleInstructions = styleVibe;
   const [styledScript, setStyledScript] = useState("");
   const [isRunning, setIsRunning] = useState(false);
@@ -148,52 +154,15 @@ export function StyleAgent({
     onStyledScriptChange?.(entry.script);
   }, [onStyledScriptChange]);
 
+  // Expose imperative handle for parent to trigger run and read state
+  useImperativeHandle(ref, () => ({
+    runAgent: handleRunAgent,
+    getStyledScript: () => styledScript,
+    isRunning,
+  }), [handleRunAgent, styledScript, isRunning]);
+
   return (
     <div className="flex flex-col h-full">
-      {/* Run bar */}
-      <div className="flex-shrink-0 border-b border-border px-4 py-2 flex items-center justify-between gap-3">
-        <p className="text-[11px] text-muted truncate">
-          {styleInstructions
-            ? <span>Vibe: <span className="text-muted-foreground">{styleInstructions}</span></span>
-            : "Adds Audio Tags to the script."}
-        </p>
-        <div className="flex items-center gap-2 flex-shrink-0">
-          <button
-            onClick={handleRunAgent}
-            disabled={isRunning || !sourceScript.trim()}
-            className="flex items-center justify-center gap-2 h-7 rounded-md bg-accent text-primary-foreground px-3 text-xs font-medium transition-colors hover:bg-accent-hover disabled:opacity-40 disabled:cursor-not-allowed focus-ring flex-shrink-0"
-          >
-            {isRunning ? (
-              <>
-                <svg className="animate-spin" width="12" height="12" viewBox="0 0 24 24" fill="none" aria-hidden="true">
-                  <circle cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="2" strokeOpacity="0.2" />
-                  <path d="M12 2a10 10 0 0 1 10 10" stroke="currentColor" strokeWidth="2" strokeLinecap="round" />
-                </svg>
-                <span>Styling...</span>
-              </>
-            ) : (
-              <span>Style Script</span>
-            )}
-          </button>
-          <button
-            onClick={() => { if (styledScript.trim()) onGenerateAudio(styledScript); }}
-            disabled={isGeneratingAudio || !styledScript.trim()}
-            className="flex items-center justify-center gap-2 h-7 rounded-md border border-accent text-accent px-3 text-xs font-medium transition-colors hover:bg-accent/10 disabled:opacity-40 disabled:cursor-not-allowed focus-ring flex-shrink-0"
-          >
-            {isGeneratingAudio ? (
-              <>
-                <svg className="animate-spin" width="12" height="12" viewBox="0 0 24 24" fill="none" aria-hidden="true">
-                  <circle cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="2" strokeOpacity="0.2" />
-                  <path d="M12 2a10 10 0 0 1 10 10" stroke="currentColor" strokeWidth="2" strokeLinecap="round" />
-                </svg>
-                <span>Generating...</span>
-              </>
-            ) : (
-              <span>Generate Audio</span>
-            )}
-          </button>
-        </div>
-      </div>
 
       {/* Error */}
       {error && (
@@ -248,4 +217,4 @@ export function StyleAgent({
       )}
     </div>
   );
-}
+});
