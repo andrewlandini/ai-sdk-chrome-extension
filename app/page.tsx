@@ -145,6 +145,9 @@ function HomePage() {
   const [activeTab, setActiveTab] = useState<"content" | "voiceover" | "settings">("content");
   const [loadingScripts, setLoadingScripts] = useState(false);
   const [scriptProgress, setScriptProgress] = useState<{ done: number; total: number; currentTitle?: string }>({ done: 0, total: 0 });
+  const [showReloadAllConfirm, setShowReloadAllConfirm] = useState(false);
+  const longPressTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const longPressFiredRef = useRef(false);
 
   // Active selection
   const [activeEntry, setActiveEntry] = useState<BlogAudio | null>(null);
@@ -765,6 +768,69 @@ function HomePage() {
     mutateHistory();
   }, [mutateHistory, streamSummarize]);
 
+  const handleReloadAllScripts = useCallback(async () => {
+    setShowReloadAllConfirm(false);
+    const res = await fetch("/api/history");
+    const data = await res.json();
+    const allEntries: (BlogAudio & { cached_script?: string | null })[] = data.entries ?? [];
+
+    // Get ALL unique URLs (including ones with existing scripts)
+    const uniqueUrls = new Map<string, string>();
+    for (const entry of allEntries) {
+      if (!uniqueUrls.has(entry.url)) {
+        uniqueUrls.set(entry.url, entry.title || "Untitled");
+      }
+    }
+
+    const urlList = Array.from(uniqueUrls.entries());
+    if (urlList.length === 0) return;
+
+    const abortController = new AbortController();
+    summarizeAbortRef.current = abortController;
+    setLoadingScripts(true);
+    setScriptProgress({ done: 0, total: urlList.length });
+
+    for (let i = 0; i < urlList.length; i++) {
+      if (abortController.signal.aborted) break;
+      const [url, title] = urlList[i];
+      setScriptProgress({ done: i, total: urlList.length, currentTitle: title });
+
+      setScriptUrl(url);
+      setScriptTitle(title);
+      setScript("");
+
+      try {
+        const result = await streamSummarize(url, {
+          signal: abortController.signal,
+          onDelta: (text) => setScript(text),
+        });
+
+        await fetch("/api/save-script", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ url, script: result.summary }),
+        });
+
+        setScript(result.summary);
+
+        fetch(`/api/raw-content?url=${encodeURIComponent(url)}`)
+          .then(r => r.json())
+          .then(d => { if (d.rawContent) setRawContent(d.rawContent); })
+          .catch(() => {});
+
+        mutateHistory();
+      } catch (err) {
+        if (err instanceof DOMException && err.name === "AbortError") break;
+        console.error(`Failed to reload script for ${url}:`, err);
+      }
+      setScriptProgress({ done: i + 1, total: urlList.length });
+    }
+
+    summarizeAbortRef.current = null;
+    setLoadingScripts(false);
+    mutateHistory();
+  }, [mutateHistory, streamSummarize]);
+
   return (
     <div className="h-screen flex flex-col overflow-hidden min-w-[320px]">
       {/* ── Top bar ── */}
@@ -796,7 +862,16 @@ function HomePage() {
         <div className="flex-1" />
 
         <button
-          onClick={handleLoadScripts}
+          onClick={() => { if (!longPressFiredRef.current) handleLoadScripts(); }}
+          onPointerDown={() => {
+            longPressFiredRef.current = false;
+            longPressTimerRef.current = setTimeout(() => {
+              longPressFiredRef.current = true;
+              setShowReloadAllConfirm(true);
+            }, 600);
+          }}
+          onPointerUp={() => { if (longPressTimerRef.current) { clearTimeout(longPressTimerRef.current); longPressTimerRef.current = null; } }}
+          onPointerLeave={() => { if (longPressTimerRef.current) { clearTimeout(longPressTimerRef.current); longPressTimerRef.current = null; } }}
           disabled={loadingScripts}
           className="flex items-center gap-1.5 text-xs text-muted hover:text-foreground transition-colors focus-ring rounded px-2 py-1.5 flex-shrink-0 disabled:opacity-40 disabled:pointer-events-none"
         >
@@ -1446,6 +1521,32 @@ function HomePage() {
         open={promptEditorOpen}
         onClose={() => setPromptEditorOpen(false)}
       />
+
+      {/* Reload All Scripts Confirmation */}
+      {showReloadAllConfirm && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60" onClick={() => setShowReloadAllConfirm(false)}>
+          <div className="bg-surface border border-border rounded-lg shadow-xl max-w-sm w-full mx-4 p-5" onClick={(e) => e.stopPropagation()}>
+            <h3 className="text-sm font-semibold text-foreground mb-2">Reload All Scripts</h3>
+            <p className="text-xs text-muted-foreground mb-4 leading-relaxed">
+              This will regenerate scripts for <span className="text-foreground font-medium">every</span> blog post, including ones that already have scripts. Posts are processed one at a time. This may take a while.
+            </p>
+            <div className="flex items-center justify-end gap-2">
+              <button
+                onClick={() => setShowReloadAllConfirm(false)}
+                className="h-8 px-3 text-xs text-muted-foreground hover:text-foreground rounded-md border border-border hover:border-muted-foreground/40 transition-colors focus-ring"
+              >
+                Cancel
+              </button>
+              <button
+                onClick={handleReloadAllScripts}
+                className="h-8 px-4 text-xs font-semibold rounded-md bg-accent text-primary-foreground hover:bg-accent-hover transition-colors focus-ring"
+              >
+                Reload All
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
 
   {/* Mobile fixed-bottom player (only rendered on mobile) */}
   {!isDesktop && activeEntry?.audio_url && (
