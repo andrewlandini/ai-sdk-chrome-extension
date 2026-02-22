@@ -1141,7 +1141,7 @@ function HomePage() {
 
           {/* Content column -- full height, verbatim blog script */}
           <div
-            className={`flex-1 min-w-0 flex-col overflow-hidden border-r border-border ${activeTab === "content" ? "flex" : "hidden md:flex"}`}
+            className={`flex-1 min-w-0 flex-col overflow-hidden border-r border-border bg-background ${activeTab === "content" ? "flex" : "hidden md:flex"}`}
             onMouseEnter={() => setContentFocused(true)}
             onMouseLeave={() => setContentFocused(false)}
             onFocus={() => setContentFocused(true)}
@@ -1180,7 +1180,7 @@ function HomePage() {
               {scriptUrl && (
                 <>
                   {/* Top half: Raw blog content (read-only) */}
-                  <div className="flex-1 min-h-0 flex flex-col border-b border-border">
+                  <div className="flex-1 min-h-0 flex flex-col border-b border-border bg-background">
                     <div className="flex items-center justify-between px-3 py-1.5 border-b border-border bg-surface-2/30 flex-shrink-0">
                       <div className="flex items-center gap-2">
                         <span className="text-[10px] font-medium text-accent uppercase tracking-wider">Original Blog Text</span>
@@ -1298,7 +1298,7 @@ function HomePage() {
                   </div>
 
                   {/* Bottom half: Script Generator output (editable) */}
-                  <div className="flex-1 min-h-0 flex flex-col">
+                  <div className="flex-1 min-h-0 flex flex-col bg-background">
                     <div className="flex items-center justify-between px-3 py-1.5 border-b border-border bg-surface-2/30 flex-shrink-0">
                       <div className="flex items-center gap-2">
                         <span className="text-[10px] font-medium text-accent uppercase tracking-wider">Generated Script</span>
@@ -1451,7 +1451,7 @@ function HomePage() {
           <div className={`flex-[2] min-w-0 flex-col xl:flex-row overflow-hidden ${activeTab !== "content" ? "flex" : "hidden md:flex"}`}>
 
             {/* Voice Over column + Versions below */}
-            <div className={`flex-1 min-w-0 flex-col overflow-hidden ${activeTab === "voiceover" ? "flex" : "hidden md:flex"}`}>
+            <div className={`flex-1 min-w-0 flex-col overflow-hidden bg-background ${activeTab === "voiceover" ? "flex" : "hidden md:flex"}`}>
               {/* Voice Over header */}
               <div className="flex items-center justify-between px-3 h-10 border-b border-border flex-shrink-0">
                 <div className="flex items-center gap-2">
