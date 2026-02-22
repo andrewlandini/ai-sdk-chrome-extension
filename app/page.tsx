@@ -1061,7 +1061,7 @@ function HomePage() {
                               {entry.script.slice(0, 120)}...
                             </p>
                             <p className="text-[10px] text-muted mt-1">
-                              {entry.timestamp.toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" })}
+                              {entry.timestamp.toLocaleTimeString("en-US", { timeZone: "America/Los_Angeles", hour: "2-digit", minute: "2-digit" })}
                             </p>
                           </button>
                         ))}

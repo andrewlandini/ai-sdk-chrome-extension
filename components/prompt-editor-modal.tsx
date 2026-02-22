@@ -2,6 +2,7 @@
 
 import { useState, useEffect, useCallback } from "react";
 import useSWR from "swr";
+import { formatDateTime } from "@/lib/timezone";
 
 const fetcher = (url: string) => fetch(url).then((r) => r.json());
 
@@ -309,7 +310,7 @@ export function PromptEditorModal({ open, onClose }: PromptEditorModalProps) {
                           >
                             <div className="flex items-center justify-between mb-1">
                               <span className="text-[10px] text-muted-foreground">
-                                {new Date(entry.changed_at).toLocaleString()}
+                                {formatDateTime(entry.changed_at)}
                               </span>
                               <span className="text-[10px] text-accent opacity-0 group-hover:opacity-100 transition-opacity">
                                 Restore

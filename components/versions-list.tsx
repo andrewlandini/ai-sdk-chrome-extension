@@ -1,6 +1,7 @@
 "use client";
 
 import type { BlogAudio } from "@/lib/db";
+import { formatRelativeShort } from "@/lib/timezone";
 
 interface VersionsListProps {
   versions: BlogAudio[];
@@ -10,18 +11,6 @@ interface VersionsListProps {
 }
 
 const VISIBLE_ROWS = 5;
-
-function formatRelative(dateStr: string): string {
-  const diff = Date.now() - new Date(dateStr).getTime();
-  const mins = Math.floor(diff / 60000);
-  if (mins < 1) return "now";
-  if (mins < 60) return `${mins}m`;
-  const hours = Math.floor(mins / 60);
-  if (hours < 24) return `${hours}h`;
-  const days = Math.floor(hours / 24);
-  if (days < 30) return `${days}d`;
-  return new Date(dateStr).toLocaleDateString("en-US", { month: "short", day: "numeric" });
-}
 
 const VOICE_NAMES: Record<string, string> = {
   TX3LPaxmHKxFdv7VOQHJ: "Liam",
@@ -129,7 +118,7 @@ export function VersionsList({
 
               {/* Age */}
               <span className="w-10 flex-shrink-0 text-right text-[10px] text-muted-foreground font-mono tabular-nums hidden sm:block">
-                {formatRelative(v.created_at)}
+                {formatRelativeShort(v.created_at)}
               </span>
 
               {/* Actions */}
