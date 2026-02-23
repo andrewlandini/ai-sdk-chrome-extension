@@ -37,6 +37,7 @@ export async function GET() {
         audio_url: "",
         voice_id: null,
         model_id: null,
+        tts_provider: null,
         stability: null,
         similarity_boost: null,
         label: null,

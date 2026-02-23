@@ -141,6 +141,7 @@ export function VoiceSettings({ config, onChange, isGenerating = false, generate
         body: JSON.stringify({
           name: presetName.trim(),
           voice_id: config.voiceId,
+          tts_provider: config.ttsProvider,
           stability: config.stability,
         }),
       });
@@ -156,6 +157,7 @@ export function VoiceSettings({ config, onChange, isGenerating = false, generate
     onChange({
       ...config,
       voiceId: preset.voice_id,
+      ttsProvider: (preset.tts_provider as TtsProvider) || "elevenlabs",
       stability: preset.stability,
     });
   };

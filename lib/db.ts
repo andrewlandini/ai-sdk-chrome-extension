@@ -33,6 +33,7 @@ export interface BlogAudio {
   audio_url: string;
   voice_id: string | null;
   model_id: string | null;
+  tts_provider: string | null;
   stability: number | null;
   similarity_boost: number | null;
   label: string | null;
@@ -52,6 +53,7 @@ export async function insertBlogAudio(data: {
   audio_url: string;
   voice_id?: string;
   model_id?: string;
+  tts_provider?: string;
   stability?: number;
   similarity_boost?: number;
   label?: string;
@@ -59,9 +61,9 @@ export async function insertBlogAudio(data: {
 }): Promise<BlogAudio> {
   const chunkMapJson = data.chunk_map ? JSON.stringify(data.chunk_map) : null;
   const rows = await sql`
-    INSERT INTO blog_audio (url, title, summary, audio_url, voice_id, model_id, stability, similarity_boost, label, chunk_map)
+    INSERT INTO blog_audio (url, title, summary, audio_url, voice_id, model_id, tts_provider, stability, similarity_boost, label, chunk_map)
     VALUES (${data.url}, ${data.title}, ${data.summary}, ${data.audio_url},
-      ${data.voice_id ?? null}, ${data.model_id ?? null},
+      ${data.voice_id ?? null}, ${data.model_id ?? null}, ${data.tts_provider ?? 'elevenlabs'},
       ${data.stability ?? null}, ${data.similarity_boost ?? null}, ${data.label ?? null}, ${chunkMapJson})
     RETURNING *
   `;
@@ -114,24 +116,26 @@ export interface VoicePreset {
   id: number;
   name: string;
   voice_id: string;
+  tts_provider: string;
   stability: number;
   created_at: string;
 }
 
 export async function getAllPresets(): Promise<VoicePreset[]> {
-  const rows = await sql`SELECT id, name, voice_id, stability, created_at FROM voice_presets ORDER BY created_at DESC`;
+  const rows = await sql`SELECT id, name, voice_id, tts_provider, stability, created_at FROM voice_presets ORDER BY created_at DESC`;
   return rows as VoicePreset[];
 }
 
 export async function insertPreset(data: {
   name: string;
   voice_id: string;
+  tts_provider?: string;
   stability: number;
 }): Promise<VoicePreset> {
   const rows = await sql`
-    INSERT INTO voice_presets (name, voice_id, model_id, stability, similarity_boost)
-    VALUES (${data.name}, ${data.voice_id}, ${"eleven_v3"}, ${data.stability}, ${0})
-    RETURNING id, name, voice_id, stability, created_at
+    INSERT INTO voice_presets (name, voice_id, model_id, tts_provider, stability, similarity_boost)
+    VALUES (${data.name}, ${data.voice_id}, ${"eleven_v3"}, ${data.tts_provider ?? "elevenlabs"}, ${data.stability}, ${0})
+    RETURNING id, name, voice_id, tts_provider, stability, created_at
   `;
   return rows[0] as VoicePreset;
 }

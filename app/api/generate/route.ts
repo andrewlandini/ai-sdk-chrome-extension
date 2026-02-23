@@ -397,6 +397,7 @@ export async function POST(request: Request) {
             audio_url: blob.url,
             voice_id: voiceId,
             model_id: ttsProvider === "inworld" ? (inworldModel || INWORLD_MODEL) : MODEL,
+            tts_provider: ttsProvider,
             stability,
             label: versionLabel,
             chunk_map: chunkMap,
