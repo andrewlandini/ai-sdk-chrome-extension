@@ -21,6 +21,7 @@ interface VoicePreset {
   id: number;
   name: string;
   voice_id: string;
+  tts_provider: string;
   stability: number;
 }
 
