@@ -11,6 +11,10 @@ export interface VoiceConfig {
   label: string;
   styleVibe: string;
   ttsProvider: TtsProvider;
+  // InWorld-specific settings
+  inworldModel?: string;
+  inworldTemperature?: number;
+  inworldSpeakingRate?: number;
 }
 
 interface VoicePreset {
@@ -34,6 +38,13 @@ const VOICE_IDS = [
   "yr43K8H5LoTp6S1QFSGg", // Matt
   "eXpIbVcVbLo8ZJQDlDnl", // Siren
   "IoYPiP0wwoQzmraBbiju", // Patrick
+];
+
+const INWORLD_MODELS = [
+  { id: "inworld-tts-1.5-max", name: "TTS 1.5 Max", desc: "Flagship — best quality + speed" },
+  { id: "inworld-tts-1.5-mini", name: "TTS 1.5 Mini", desc: "Ultra-fast, most cost-efficient" },
+  { id: "inworld-tts-1-max", name: "TTS 1.0 Max", desc: "Previous gen — powerful" },
+  { id: "inworld-tts-1", name: "TTS 1.0", desc: "Previous gen — fastest" },
 ];
 
 const fetcher = (url: string) => fetch(url).then((r) => r.json());
@@ -72,7 +83,7 @@ export function VoiceSettings({ config, onChange, isGenerating = false, generate
   const voiceMeta = voicePreviewData?.voiceMeta ?? {};
 
   const { data: inworldVoicesData } = useSWR<{
-    voices: { voiceId: string; name: string; gender: string; desc: string }[];
+    voices: { voiceId: string; name: string; gender: string; desc: string; tags?: string[] }[];
   }>("/api/inworld-voices", fetcher);
   const inworldVoices = inworldVoicesData?.voices ?? [];
 
@@ -398,6 +409,89 @@ export function VoiceSettings({ config, onChange, isGenerating = false, generate
           <span>Robust</span>
         </div>
       </fieldset>
+      )}
+
+      {/* InWorld settings */}
+      {config.ttsProvider === "inworld" && (
+        <>
+          {/* Model */}
+          <fieldset className="flex flex-col gap-1.5">
+            <legend className="text-xs text-muted font-medium">Model</legend>
+            <div className="flex flex-col gap-0.5">
+              {INWORLD_MODELS.map((m) => {
+                const isSelected = (config.inworldModel || "inworld-tts-1.5-max") === m.id;
+                return (
+                  <button
+                    key={m.id}
+                    onClick={() => update({ inworldModel: m.id })}
+                    aria-pressed={isSelected}
+                    className={`flex items-center gap-2 px-3 py-1.5 rounded-md text-left transition-colors border ${
+                      isSelected
+                        ? "bg-accent/15 border-accent/30"
+                        : "border-transparent hover:bg-surface-2"
+                    }`}
+                  >
+                    <div className="flex flex-col min-w-0">
+                      <span className={`text-xs font-medium leading-tight ${isSelected ? "text-accent" : "text-foreground"}`}>{m.name}</span>
+                      <span className="text-[10px] text-muted-foreground leading-tight">{m.desc}</span>
+                    </div>
+                  </button>
+                );
+              })}
+            </div>
+          </fieldset>
+
+          {/* Temperature */}
+          <fieldset className="flex flex-col gap-1.5">
+            <div className="flex items-center justify-between">
+              <legend className="text-xs text-muted font-medium">Temperature</legend>
+              <output className="text-xs text-foreground font-mono tabular-nums">
+                {(config.inworldTemperature ?? 1.1).toFixed(1)}
+              </output>
+            </div>
+            <div className="px-2">
+              <input
+                type="range"
+                min="0.1"
+                max="2.0"
+                step="0.1"
+                value={config.inworldTemperature ?? 1.1}
+                onChange={(e) => update({ inworldTemperature: parseFloat(e.target.value) })}
+                className="w-full focus-ring rounded"
+              />
+            </div>
+            <div className="flex justify-between text-[9px] text-muted-foreground -mt-0.5 px-2">
+              <span>Deterministic</span>
+              <span>Expressive</span>
+            </div>
+          </fieldset>
+
+          {/* Speaking Rate */}
+          <fieldset className="flex flex-col gap-1.5">
+            <div className="flex items-center justify-between">
+              <legend className="text-xs text-muted font-medium">Speaking Rate</legend>
+              <output className="text-xs text-foreground font-mono tabular-nums">
+                {(config.inworldSpeakingRate ?? 1.0).toFixed(1)}x
+              </output>
+            </div>
+            <div className="px-2">
+              <input
+                type="range"
+                min="0.5"
+                max="1.5"
+                step="0.1"
+                value={config.inworldSpeakingRate ?? 1.0}
+                onChange={(e) => update({ inworldSpeakingRate: parseFloat(e.target.value) })}
+                className="w-full focus-ring rounded"
+              />
+            </div>
+            <div className="flex justify-between text-[9px] text-muted-foreground -mt-0.5 px-2">
+              <span>0.5x Slow</span>
+              <span>1.0x Normal</span>
+              <span>1.5x Fast</span>
+            </div>
+          </fieldset>
+        </>
       )}
 
       {/* Generation progress */}

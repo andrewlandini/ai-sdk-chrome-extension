@@ -134,9 +134,35 @@ function concatMp3Buffers(buffers: Buffer[]): Buffer {
  * Max input: 2,000 characters per request.
  * Response: JSON with base64-encoded audioContent (MP3 by default).
  */
-async function inworldSynthesize(text: string, voiceId: string): Promise<Buffer> {
+interface InworldOptions {
+  modelId?: string;
+  temperature?: number;
+  speakingRate?: number;
+}
+
+async function inworldSynthesize(text: string, voiceId: string, opts: InworldOptions = {}): Promise<Buffer> {
   const credential = process.env.INWORLD_RUNTIME_BASE64_CREDENTIAL;
   if (!credential) throw new Error("INWORLD_RUNTIME_BASE64_CREDENTIAL is not configured");
+
+  const body: Record<string, unknown> = {
+    text,
+    voiceId,
+    modelId: opts.modelId || INWORLD_MODEL,
+    applyTextNormalization: "ON",
+  };
+
+  // Temperature: 0 < value <= 2, default 1.1
+  if (opts.temperature !== undefined && opts.temperature > 0) {
+    body.temperature = opts.temperature;
+  }
+
+  // Speaking rate via audioConfig: 0.5-1.5, default 1.0
+  if (opts.speakingRate !== undefined && opts.speakingRate !== 1.0) {
+    body.audioConfig = {
+      audioEncoding: "MP3",
+      speakingRate: opts.speakingRate,
+    };
+  }
 
   const res = await fetch("https://api.inworld.ai/tts/v1/voice", {
     method: "POST",
@@ -144,11 +170,7 @@ async function inworldSynthesize(text: string, voiceId: string): Promise<Buffer>
       "Content-Type": "application/json",
       Authorization: `Basic ${credential}`,
     },
-    body: JSON.stringify({
-      text,
-      voiceId,
-      modelId: INWORLD_MODEL,
-    }),
+    body: JSON.stringify(body),
   });
 
   if (!res.ok) {
@@ -169,6 +191,9 @@ export async function POST(request: Request) {
     voiceId = "PIGsltMj3gFMR34aFDI3",
     stability,
     ttsProvider = "elevenlabs",
+    inworldModel,
+    inworldTemperature,
+    inworldSpeakingRate,
   } = body;
 
   if (!url || !summary) {
@@ -245,7 +270,11 @@ export async function POST(request: Request) {
 
           let buf: Buffer;
           if (ttsProvider === "inworld") {
-            buf = await inworldSynthesize(chunksWithPause[i], voiceId);
+            buf = await inworldSynthesize(chunksWithPause[i], voiceId, {
+              modelId: inworldModel,
+              temperature: inworldTemperature,
+              speakingRate: inworldSpeakingRate,
+            });
           } else {
             const { audio } = await generateSpeech({
               model: elevenlabs.speech(MODEL),
@@ -325,7 +354,7 @@ export async function POST(request: Request) {
             summary,
             audio_url: blob.url,
             voice_id: voiceId,
-            model_id: ttsProvider === "inworld" ? "inworld" : MODEL,
+            model_id: ttsProvider === "inworld" ? (inworldModel || INWORLD_MODEL) : MODEL,
             stability,
             label: versionLabel,
             chunk_map: chunkMap,

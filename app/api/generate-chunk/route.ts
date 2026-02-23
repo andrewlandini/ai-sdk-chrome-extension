@@ -14,9 +14,33 @@ const INWORLD_MODEL = "inworld-tts-1.5-max";
  * Max input: 2,000 characters per request.
  * Response: JSON with base64-encoded audioContent.
  */
-async function inworldSynthesize(text: string, voiceId: string): Promise<Buffer> {
+interface InworldOptions {
+  modelId?: string;
+  temperature?: number;
+  speakingRate?: number;
+}
+
+async function inworldSynthesize(text: string, voiceId: string, opts: InworldOptions = {}): Promise<Buffer> {
   const credential = process.env.INWORLD_RUNTIME_BASE64_CREDENTIAL;
   if (!credential) throw new Error("INWORLD_RUNTIME_BASE64_CREDENTIAL is not configured");
+
+  const body: Record<string, unknown> = {
+    text,
+    voiceId,
+    modelId: opts.modelId || INWORLD_MODEL,
+    applyTextNormalization: "ON",
+  };
+
+  if (opts.temperature !== undefined && opts.temperature > 0) {
+    body.temperature = opts.temperature;
+  }
+
+  if (opts.speakingRate !== undefined && opts.speakingRate !== 1.0) {
+    body.audioConfig = {
+      audioEncoding: "MP3",
+      speakingRate: opts.speakingRate,
+    };
+  }
 
   const res = await fetch("https://api.inworld.ai/tts/v1/voice", {
     method: "POST",
@@ -24,11 +48,7 @@ async function inworldSynthesize(text: string, voiceId: string): Promise<Buffer>
       "Content-Type": "application/json",
       Authorization: `Basic ${credential}`,
     },
-    body: JSON.stringify({
-      text,
-      voiceId,
-      modelId: INWORLD_MODEL,
-    }),
+    body: JSON.stringify(body),
   });
 
   if (!res.ok) {
@@ -92,7 +112,7 @@ function concatMp3Buffers(buffers: Buffer[]): Buffer {
  */
 export async function POST(request: Request) {
   try {
-    const { blogAudioId, chunkIndex, newText, voiceId, stability, ttsProvider = "elevenlabs" } = await request.json();
+    const { blogAudioId, chunkIndex, newText, voiceId, stability, ttsProvider = "elevenlabs", inworldModel, inworldTemperature, inworldSpeakingRate } = await request.json();
 
     if (!blogAudioId || chunkIndex === undefined || !newText?.trim()) {
       return Response.json({ error: "blogAudioId, chunkIndex, and newText are required" }, { status: 400 });
@@ -119,7 +139,11 @@ export async function POST(request: Request) {
     let newBuf: Buffer;
 
     if (ttsProvider === "inworld") {
-      newBuf = await inworldSynthesize(newText, useVoice);
+      newBuf = await inworldSynthesize(newText, useVoice, {
+        modelId: inworldModel,
+        temperature: inworldTemperature,
+        speakingRate: inworldSpeakingRate,
+      });
     } else {
       const providerOpts = stability !== undefined
         ? { providerOptions: { elevenlabs: { voiceSettings: { stability } } } }
