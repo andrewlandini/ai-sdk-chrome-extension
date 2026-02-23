@@ -96,6 +96,7 @@ const DEFAULT_VOICE_CONFIG: VoiceConfig = {
   stability: 0,
   label: "",
   styleVibe: "Confident and genuinely excited about the content, but grounded and conversational -- not over the top",
+  ttsProvider: "elevenlabs",
 };
 
 function slugFromUrl(url: string): string {
@@ -588,8 +589,10 @@ function HomePage() {
         url: scriptUrl,
         title: scriptTitle,
         summary: styledScript,
-        voiceId: voiceConfig.voiceId,
-        stability: voiceConfig.stability,
+  voiceId: voiceConfig.voiceId,
+  stability: voiceConfig.stability,
+  ttsProvider: voiceConfig.ttsProvider,
+        ttsProvider: voiceConfig.ttsProvider,
       };
       const response = await fetch("/api/generate", {
         method: "POST",
@@ -734,6 +737,7 @@ function HomePage() {
           newText,
           voiceId: voiceConfig.voiceId,
           stability: voiceConfig.stability,
+          ttsProvider: voiceConfig.ttsProvider,
         }),
       });
       const data = await res.json();

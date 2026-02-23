@@ -3,11 +3,14 @@
 import { useState, useRef, useCallback } from "react";
 import useSWR from "swr";
 
+export type TtsProvider = "elevenlabs" | "inworld";
+
 export interface VoiceConfig {
   voiceId: string;
   stability: number;
   label: string;
   styleVibe: string;
+  ttsProvider: TtsProvider;
 }
 
 interface VoicePreset {
@@ -67,6 +70,12 @@ export function VoiceSettings({ config, onChange, isGenerating = false, generate
   }>("/api/voices", fetcher);
   const previewUrls = voicePreviewData?.voices ?? {};
   const voiceMeta = voicePreviewData?.voiceMeta ?? {};
+
+  const { data: inworldVoicesData } = useSWR<{
+    voices: { voiceId: string; name: string; gender: string; desc: string }[];
+  }>("/api/inworld-voices", fetcher);
+  const inworldVoices = inworldVoicesData?.voices ?? [];
+
   const audioRef = useRef<HTMLAudioElement | null>(null);
   const [playingVoiceId, setPlayingVoiceId] = useState<string | null>(null);
 
@@ -138,10 +147,32 @@ export function VoiceSettings({ config, onChange, isGenerating = false, generate
   return (
     <section className="flex flex-col gap-5" aria-labelledby="voice-heading">
 
-
-
-
-
+      {/* TTS Provider toggle */}
+      <fieldset className="flex flex-col gap-1.5">
+        <legend className="text-xs text-muted font-medium">TTS Provider</legend>
+        <div className="flex bg-surface-2 rounded-md p-0.5 gap-0.5">
+          <button
+            onClick={() => update({ ttsProvider: "elevenlabs", voiceId: VOICE_IDS[0] })}
+            className={`flex-1 text-xs font-medium py-1.5 rounded transition-colors focus-ring ${
+              config.ttsProvider === "elevenlabs"
+                ? "bg-background text-foreground shadow-sm"
+                : "text-muted hover:text-foreground"
+            }`}
+          >
+            ElevenLabs
+          </button>
+          <button
+            onClick={() => update({ ttsProvider: "inworld", voiceId: inworldVoices[0]?.voiceId || "alex" })}
+            className={`flex-1 text-xs font-medium py-1.5 rounded transition-colors focus-ring ${
+              config.ttsProvider === "inworld"
+                ? "bg-background text-foreground shadow-sm"
+                : "text-muted hover:text-foreground"
+            }`}
+          >
+            InWorld AI
+          </button>
+        </div>
+      </fieldset>
 
       {/* Presets */}
       <fieldset className="flex flex-col gap-2">
@@ -243,72 +274,107 @@ export function VoiceSettings({ config, onChange, isGenerating = false, generate
       <fieldset className="flex flex-col gap-2">
         <legend className="text-xs text-muted font-medium">Voice</legend>
         <div className="flex flex-col gap-0.5">
-          {VOICE_IDS.map((vid) => {
-            const meta = voiceMeta[vid];
-            const vName = meta?.name ?? vid.slice(0, 8);
-            const vDesc = meta?.desc ?? "";
-            const vAccent = meta?.accent ?? "";
-            const vGender = meta?.gender ?? "";
-            const isSelected = config.voiceId === vid;
-            const isPlaying = playingVoiceId === vid;
-            const hasPreview = !!previewUrls[vid];
-            const tag = [vGender, vAccent].filter(Boolean).join(" / ");
+          {config.ttsProvider === "elevenlabs" ? (
+            // ElevenLabs voices
+            VOICE_IDS.map((vid) => {
+              const meta = voiceMeta[vid];
+              const vName = meta?.name ?? vid.slice(0, 8);
+              const vDesc = meta?.desc ?? "";
+              const vAccent = meta?.accent ?? "";
+              const vGender = meta?.gender ?? "";
+              const isSelected = config.voiceId === vid;
+              const isPlaying = playingVoiceId === vid;
+              const hasPreview = !!previewUrls[vid];
+              const tag = [vGender, vAccent].filter(Boolean).join(" / ");
 
-            return (
-              <div
-                key={vid}
-                className={`group flex items-center min-h-[36px] rounded-md transition-colors border ${
-                  isSelected
-                    ? "bg-accent/15 border-accent/30"
-                    : "border-transparent hover:bg-surface-2"
-                }`}
-              >
-                {/* Preview button */}
-                <button
-                  onClick={(e) => {
-                    e.stopPropagation();
-                    if (hasPreview) handlePreview(vid);
-                  }}
-                  aria-label={isPlaying ? `Stop ${vName} preview` : `Preview ${vName}`}
-                  disabled={!hasPreview}
-                  className={`flex items-center justify-center w-8 h-full flex-shrink-0 rounded-l-md transition-colors focus-ring ${
-                    !hasPreview
-                      ? "text-muted-foreground/20 cursor-default"
-                      : isPlaying
-                        ? "text-accent"
-                        : "text-muted-foreground hover:text-foreground"
+              return (
+                <div
+                  key={vid}
+                  className={`group flex items-center min-h-[36px] rounded-md transition-colors border ${
+                    isSelected
+                      ? "bg-accent/15 border-accent/30"
+                      : "border-transparent hover:bg-surface-2"
                   }`}
                 >
-                  {isPlaying ? (
-                    <svg width="11" height="11" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true">
-                      <rect x="6" y="4" width="4" height="16" rx="1" />
-                      <rect x="14" y="4" width="4" height="16" rx="1" />
-                    </svg>
-                  ) : (
-                    <svg width="11" height="11" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true">
-                      <polygon points="5 3 19 12 5 21 5 3" />
-                    </svg>
-                  )}
-                </button>
-                {/* Voice select button */}
-                <button
-                  onClick={() => update({ voiceId: vid })}
-                  aria-pressed={isSelected}
-                  className="flex-1 min-w-0 flex items-center gap-2 pr-3 py-1.5 text-left focus-ring rounded-r-md h-full"
-                >
-                  <div className="flex flex-col min-w-0">
-                    <span className={`text-xs font-medium leading-tight ${isSelected ? "text-accent" : "text-foreground"}`}>{vName}</span>
-                    {vDesc && <span className="text-[10px] text-muted-foreground leading-tight truncate">{vDesc}</span>}
+                  {/* Preview button */}
+                  <button
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      if (hasPreview) handlePreview(vid);
+                    }}
+                    aria-label={isPlaying ? `Stop ${vName} preview` : `Preview ${vName}`}
+                    disabled={!hasPreview}
+                    className={`flex items-center justify-center w-8 h-full flex-shrink-0 rounded-l-md transition-colors focus-ring ${
+                      !hasPreview
+                        ? "text-muted-foreground/20 cursor-default"
+                        : isPlaying
+                          ? "text-accent"
+                          : "text-muted-foreground hover:text-foreground"
+                    }`}
+                  >
+                    {isPlaying ? (
+                      <svg width="11" height="11" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true">
+                        <rect x="6" y="4" width="4" height="16" rx="1" />
+                        <rect x="14" y="4" width="4" height="16" rx="1" />
+                      </svg>
+                    ) : (
+                      <svg width="11" height="11" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true">
+                        <polygon points="5 3 19 12 5 21 5 3" />
+                      </svg>
+                    )}
+                  </button>
+                  {/* Voice select button */}
+                  <button
+                    onClick={() => update({ voiceId: vid })}
+                    aria-pressed={isSelected}
+                    className="flex-1 min-w-0 flex items-center gap-2 pr-3 py-1.5 text-left focus-ring rounded-r-md h-full"
+                  >
+                    <div className="flex flex-col min-w-0">
+                      <span className={`text-xs font-medium leading-tight ${isSelected ? "text-accent" : "text-foreground"}`}>{vName}</span>
+                      {vDesc && <span className="text-[10px] text-muted-foreground leading-tight truncate">{vDesc}</span>}
+                    </div>
+                    {tag && <span className="text-[9px] text-muted-foreground/60 flex-shrink-0 ml-auto">{tag}</span>}
+                  </button>
+                </div>
+              );
+            })
+          ) : (
+            // InWorld AI voices
+            inworldVoices.length === 0 ? (
+              <p className="text-[11px] text-muted py-2">Loading InWorld voices...</p>
+            ) : (
+              inworldVoices.map((v) => {
+                const isSelected = config.voiceId === v.voiceId;
+                return (
+                  <div
+                    key={v.voiceId}
+                    className={`group flex items-center min-h-[36px] rounded-md transition-colors border ${
+                      isSelected
+                        ? "bg-accent/15 border-accent/30"
+                        : "border-transparent hover:bg-surface-2"
+                    }`}
+                  >
+                    <button
+                      onClick={() => update({ voiceId: v.voiceId })}
+                      aria-pressed={isSelected}
+                      className="flex-1 min-w-0 flex items-center gap-2 px-3 py-1.5 text-left focus-ring rounded-md h-full"
+                    >
+                      <div className="flex flex-col min-w-0">
+                        <span className={`text-xs font-medium leading-tight ${isSelected ? "text-accent" : "text-foreground"}`}>{v.name}</span>
+                        {v.desc && <span className="text-[10px] text-muted-foreground leading-tight truncate">{v.desc}</span>}
+                      </div>
+                      {v.gender && <span className="text-[9px] text-muted-foreground/60 flex-shrink-0 ml-auto">{v.gender}</span>}
+                    </button>
                   </div>
-                  {tag && <span className="text-[9px] text-muted-foreground/60 flex-shrink-0 ml-auto">{tag}</span>}
-                </button>
-              </div>
-            );
-          })}
+                );
+              })
+            )
+          )}
         </div>
       </fieldset>
 
-      {/* Stability */}
+      {/* Stability (ElevenLabs only) */}
+      {config.ttsProvider === "elevenlabs" && (
       <fieldset className="flex flex-col gap-1.5 pt-3 pb-2">
         <div className="flex items-center justify-between">
           <legend className="text-xs text-muted font-medium">Stability</legend>
@@ -332,6 +398,7 @@ export function VoiceSettings({ config, onChange, isGenerating = false, generate
           <span>Robust</span>
         </div>
       </fieldset>
+      )}
 
       {/* Generation progress */}
       {isGenerating && (

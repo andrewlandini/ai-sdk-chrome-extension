@@ -8,6 +8,35 @@ export const maxDuration = 120;
 const MODEL = "eleven_v3";
 
 /**
+ * Synthesize speech via InWorld AI TTS API.
+ */
+async function inworldSynthesize(text: string, voiceId: string): Promise<Buffer> {
+  const credential = process.env.INWORLD_RUNTIME_BASE64_CREDENTIAL;
+  if (!credential) throw new Error("INWORLD_RUNTIME_BASE64_CREDENTIAL is not configured");
+
+  const res = await fetch("https://api.inworld.ai/tts/v1/synthesize", {
+    method: "POST",
+    headers: {
+      "Content-Type": "application/json",
+      Authorization: `Basic ${credential}`,
+    },
+    body: JSON.stringify({
+      text,
+      voiceId,
+      outputFormat: "mp3",
+    }),
+  });
+
+  if (!res.ok) {
+    const errText = await res.text().catch(() => "Unknown error");
+    throw new Error(`InWorld TTS API error (${res.status}): ${errText}`);
+  }
+
+  const arrayBuf = await res.arrayBuffer();
+  return Buffer.from(arrayBuf);
+}
+
+/**
  * Estimate MP3 audio duration in ms from a buffer.
  */
 function estimateMp3DurationMs(buf: Buffer): number {
@@ -59,7 +88,7 @@ function concatMp3Buffers(buffers: Buffer[]): Buffer {
  */
 export async function POST(request: Request) {
   try {
-    const { blogAudioId, chunkIndex, newText, voiceId, stability } = await request.json();
+    const { blogAudioId, chunkIndex, newText, voiceId, stability, ttsProvider = "elevenlabs" } = await request.json();
 
     if (!blogAudioId || chunkIndex === undefined || !newText?.trim()) {
       return Response.json({ error: "blogAudioId, chunkIndex, and newText are required" }, { status: 400 });
@@ -83,17 +112,23 @@ export async function POST(request: Request) {
 
     // Generate new audio for the chunk
     const useVoice = voiceId || entry.voice_id || "PIGsltMj3gFMR34aFDI3";
-    const providerOpts = stability !== undefined
-      ? { providerOptions: { elevenlabs: { voiceSettings: { stability } } } }
-      : {};
+    let newBuf: Buffer;
 
-    const { audio } = await generateSpeech({
-      model: elevenlabs.speech(MODEL),
-      text: newText,
-      voice: useVoice,
-      ...providerOpts,
-    });
-    const newBuf = Buffer.from(audio.uint8Array);
+    if (ttsProvider === "inworld") {
+      newBuf = await inworldSynthesize(newText, useVoice);
+    } else {
+      const providerOpts = stability !== undefined
+        ? { providerOptions: { elevenlabs: { voiceSettings: { stability } } } }
+        : {};
+
+      const { audio } = await generateSpeech({
+        model: elevenlabs.speech(MODEL),
+        text: newText,
+        voice: useVoice,
+        ...providerOpts,
+      });
+      newBuf = Buffer.from(audio.uint8Array);
+    }
     const newDurationMs = estimateMp3DurationMs(newBuf);
 
     // Upload new chunk blob
