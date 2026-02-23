@@ -6,15 +6,19 @@ import { sql, insertChunkVersion, updateBlogAudioChunkMap, type ChunkMapEntry } 
 export const maxDuration = 120;
 
 const MODEL = "eleven_v3";
+const INWORLD_MODEL = "inworld-tts-1.5-max";
 
 /**
  * Synthesize speech via InWorld AI TTS API.
+ * Endpoint: POST https://api.inworld.ai/tts/v1/voice
+ * Max input: 2,000 characters per request.
+ * Response: JSON with base64-encoded audioContent.
  */
 async function inworldSynthesize(text: string, voiceId: string): Promise<Buffer> {
   const credential = process.env.INWORLD_RUNTIME_BASE64_CREDENTIAL;
   if (!credential) throw new Error("INWORLD_RUNTIME_BASE64_CREDENTIAL is not configured");
 
-  const res = await fetch("https://api.inworld.ai/tts/v1/synthesize", {
+  const res = await fetch("https://api.inworld.ai/tts/v1/voice", {
     method: "POST",
     headers: {
       "Content-Type": "application/json",
@@ -23,7 +27,7 @@ async function inworldSynthesize(text: string, voiceId: string): Promise<Buffer>
     body: JSON.stringify({
       text,
       voiceId,
-      outputFormat: "mp3",
+      modelId: INWORLD_MODEL,
     }),
   });
 
@@ -32,8 +36,8 @@ async function inworldSynthesize(text: string, voiceId: string): Promise<Buffer>
     throw new Error(`InWorld TTS API error (${res.status}): ${errText}`);
   }
 
-  const arrayBuf = await res.arrayBuffer();
-  return Buffer.from(arrayBuf);
+  const data = await res.json();
+  return Buffer.from(data.audioContent, "base64");
 }
 
 /**

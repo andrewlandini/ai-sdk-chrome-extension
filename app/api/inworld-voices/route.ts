@@ -2,9 +2,9 @@ export const dynamic = "force-dynamic";
 
 // Hardcoded InWorld voices (their API has these 3 built-in voices)
 const INWORLD_VOICES = [
-  { voiceId: "alex", name: "Alex", gender: "male", desc: "Natural male voice" },
-  { voiceId: "ashley", name: "Ashley", gender: "female", desc: "Natural female voice" },
-  { voiceId: "dennis", name: "Dennis", gender: "male", desc: "Natural male voice" },
+  { voiceId: "Alex", name: "Alex", gender: "male", desc: "Natural male voice" },
+  { voiceId: "Ashley", name: "Ashley", gender: "female", desc: "Natural female voice" },
+  { voiceId: "Dennis", name: "Dennis", gender: "male", desc: "Natural male voice" },
 ];
 
 export async function GET() {

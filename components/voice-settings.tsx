@@ -162,7 +162,7 @@ export function VoiceSettings({ config, onChange, isGenerating = false, generate
             ElevenLabs
           </button>
           <button
-            onClick={() => update({ ttsProvider: "inworld", voiceId: inworldVoices[0]?.voiceId || "alex" })}
+            onClick={() => update({ ttsProvider: "inworld", voiceId: inworldVoices[0]?.voiceId || "Alex" })}
             className={`flex-1 text-xs font-medium py-1.5 rounded transition-colors focus-ring ${
               config.ttsProvider === "inworld"
                 ? "bg-background text-foreground shadow-sm"
