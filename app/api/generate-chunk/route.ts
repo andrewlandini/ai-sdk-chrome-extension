@@ -6,25 +6,49 @@ import { sql, insertChunkVersion, updateBlogAudioChunkMap, type ChunkMapEntry } 
 export const maxDuration = 120;
 
 const MODEL = "eleven_v3";
+const INWORLD_MODEL = "inworld-tts-1.5-max";
 
 /**
  * Synthesize speech via InWorld AI TTS API.
+ * Endpoint: POST https://api.inworld.ai/tts/v1/voice
+ * Max input: 2,000 characters per request.
+ * Response: JSON with base64-encoded audioContent.
  */
-async function inworldSynthesize(text: string, voiceId: string): Promise<Buffer> {
+interface InworldOptions {
+  modelId?: string;
+  temperature?: number;
+  speakingRate?: number;
+}
+
+async function inworldSynthesize(text: string, voiceId: string, opts: InworldOptions = {}): Promise<Buffer> {
   const credential = process.env.INWORLD_RUNTIME_BASE64_CREDENTIAL;
   if (!credential) throw new Error("INWORLD_RUNTIME_BASE64_CREDENTIAL is not configured");
 
-  const res = await fetch("https://api.inworld.ai/tts/v1/synthesize", {
+  const body: Record<string, unknown> = {
+    text,
+    voiceId,
+    modelId: opts.modelId || INWORLD_MODEL,
+    applyTextNormalization: "ON",
+  };
+
+  if (opts.temperature !== undefined && opts.temperature > 0) {
+    body.temperature = opts.temperature;
+  }
+
+  if (opts.speakingRate !== undefined && opts.speakingRate !== 1.0) {
+    body.audioConfig = {
+      audioEncoding: "MP3",
+      speakingRate: opts.speakingRate,
+    };
+  }
+
+  const res = await fetch("https://api.inworld.ai/tts/v1/voice", {
     method: "POST",
     headers: {
       "Content-Type": "application/json",
       Authorization: `Basic ${credential}`,
     },
-    body: JSON.stringify({
-      text,
-      voiceId,
-      outputFormat: "mp3",
-    }),
+    body: JSON.stringify(body),
   });
 
   if (!res.ok) {
@@ -32,8 +56,8 @@ async function inworldSynthesize(text: string, voiceId: string): Promise<Buffer>
     throw new Error(`InWorld TTS API error (${res.status}): ${errText}`);
   }
 
-  const arrayBuf = await res.arrayBuffer();
-  return Buffer.from(arrayBuf);
+  const data = await res.json();
+  return Buffer.from(data.audioContent, "base64");
 }
 
 /**
@@ -88,7 +112,7 @@ function concatMp3Buffers(buffers: Buffer[]): Buffer {
  */
 export async function POST(request: Request) {
   try {
-    const { blogAudioId, chunkIndex, newText, voiceId, stability, ttsProvider = "elevenlabs" } = await request.json();
+    const { blogAudioId, chunkIndex, newText, voiceId, stability, ttsProvider = "elevenlabs", inworldModel, inworldTemperature, inworldSpeakingRate } = await request.json();
 
     if (!blogAudioId || chunkIndex === undefined || !newText?.trim()) {
       return Response.json({ error: "blogAudioId, chunkIndex, and newText are required" }, { status: 400 });
@@ -115,7 +139,11 @@ export async function POST(request: Request) {
     let newBuf: Buffer;
 
     if (ttsProvider === "inworld") {
-      newBuf = await inworldSynthesize(newText, useVoice);
+      newBuf = await inworldSynthesize(newText, useVoice, {
+        modelId: inworldModel,
+        temperature: inworldTemperature,
+        speakingRate: inworldSpeakingRate,
+      });
     } else {
       const providerOpts = stability !== undefined
         ? { providerOptions: { elevenlabs: { voiceSettings: { stability } } } }

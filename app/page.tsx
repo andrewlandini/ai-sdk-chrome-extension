@@ -97,6 +97,9 @@ const DEFAULT_VOICE_CONFIG: VoiceConfig = {
   label: "",
   styleVibe: "Confident and genuinely excited about the content, but grounded and conversational -- not over the top",
   ttsProvider: "elevenlabs",
+  inworldModel: "inworld-tts-1.5-max",
+  inworldTemperature: 1.1,
+  inworldSpeakingRate: 1.0,
 };
 
 function slugFromUrl(url: string): string {
@@ -592,6 +595,9 @@ function HomePage() {
         voiceId: voiceConfig.voiceId,
         stability: voiceConfig.stability,
         ttsProvider: voiceConfig.ttsProvider,
+        inworldModel: voiceConfig.inworldModel,
+        inworldTemperature: voiceConfig.inworldTemperature,
+        inworldSpeakingRate: voiceConfig.inworldSpeakingRate,
       };
       const response = await fetch("/api/generate", {
         method: "POST",
@@ -737,6 +743,9 @@ function HomePage() {
           voiceId: voiceConfig.voiceId,
           stability: voiceConfig.stability,
           ttsProvider: voiceConfig.ttsProvider,
+          inworldModel: voiceConfig.inworldModel,
+          inworldTemperature: voiceConfig.inworldTemperature,
+          inworldSpeakingRate: voiceConfig.inworldSpeakingRate,
         }),
       });
       const data = await res.json();
@@ -1535,10 +1544,10 @@ function HomePage() {
             {/* Voice Over column + Versions below */}
             <div className={`flex-1 min-w-0 flex-col overflow-hidden bg-background ${activeTab === "voiceover" ? "flex" : "hidden md:flex"}`}>
 
-              {/* ElevenLabs Script subheader */}
+              {/* TTS Script subheader */}
               <div className="flex items-center justify-between px-3 py-1.5 border-b border-border bg-surface-2/30 flex-shrink-0">
                 <div className="flex items-center gap-2">
-                  <span className="text-[10px] font-medium text-accent uppercase tracking-wider">ElevenLabs Script</span>
+                  <span className="text-[10px] font-medium text-accent uppercase tracking-wider">{voiceConfig.ttsProvider === "inworld" ? "InWorld AI" : "ElevenLabs"} Script</span>
                   {isStyleRunning && (
                     <svg className="animate-spin text-accent" width="10" height="10" viewBox="0 0 24 24" fill="none" aria-hidden="true">
                       <circle cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="2" strokeOpacity="0.2" />
@@ -1692,6 +1701,7 @@ function HomePage() {
                   onHistoryChange={setStyleHistory}
                   externalScript={selectedHistoryScript}
                   styleVibe={voiceConfig.styleVibe}
+                  ttsProvider={voiceConfig.ttsProvider}
                   dimmed={contentFocused}
                   chunkMap={activeChunkMap}
                   currentPlaybackTime={playbackTime}

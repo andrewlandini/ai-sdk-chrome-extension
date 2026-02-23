@@ -1,10 +1,10 @@
 export const dynamic = "force-dynamic";
 
-// Hardcoded InWorld voices (their API has these 3 built-in voices)
+// Fallback InWorld voices (used when API is unavailable)
 const INWORLD_VOICES = [
-  { voiceId: "alex", name: "Alex", gender: "male", desc: "Natural male voice" },
-  { voiceId: "ashley", name: "Ashley", gender: "female", desc: "Natural female voice" },
-  { voiceId: "dennis", name: "Dennis", gender: "male", desc: "Natural male voice" },
+  { voiceId: "Alex", name: "Alex", gender: "male", desc: "Energetic and expressive mid-range male voice", tags: ["male", "energetic", "expressive"] },
+  { voiceId: "Ashley", name: "Ashley", gender: "female", desc: "A warm, natural female voice", tags: ["female", "warm", "natural"] },
+  { voiceId: "Dennis", name: "Dennis", gender: "male", desc: "Smooth, calm and friendly middle-aged male", tags: ["male", "calm", "friendly"] },
 ];
 
 export async function GET() {
@@ -20,9 +20,10 @@ export async function GET() {
         if (data.voices && Array.isArray(data.voices)) {
           const voices = data.voices.map((v: any) => ({
             voiceId: v.voiceId || v.voice_id || v.id,
-            name: v.name || v.voiceId || "Unknown",
-            gender: v.gender || "",
+            name: v.displayName || v.name || v.voiceId || "Unknown",
+            gender: (v.tags || []).find((t: string) => ["male", "female", "non-binary"].includes(t)) || "",
             desc: v.description || "",
+            tags: v.tags || [],
           }));
           return Response.json({ voices });
         }

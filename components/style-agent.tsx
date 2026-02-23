@@ -29,6 +29,7 @@ interface StyleAgentProps {
   onHistoryChange?: (history: HistoryEntry[]) => void;
   externalScript?: string | null;
   styleVibe?: string;
+  ttsProvider?: "elevenlabs" | "inworld";
   dimmed?: boolean;
   // Chunk-aware playback props
   chunkMap?: ChunkMapEntry[] | null;
@@ -56,6 +57,7 @@ export const StyleAgent = forwardRef<StyleAgentHandle, StyleAgentProps>(function
     onHistoryChange,
     externalScript,
     styleVibe = "",
+    ttsProvider = "elevenlabs",
     dimmed = false,
     chunkMap,
     currentPlaybackTime = 0,
@@ -163,7 +165,7 @@ export const StyleAgent = forwardRef<StyleAgentHandle, StyleAgentProps>(function
       const res = await fetch("/api/style-agent", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ script: sourceScript, styleInstructions }),
+        body: JSON.stringify({ script: sourceScript, styleInstructions, ttsProvider }),
       });
       const data = await res.json();
       if (!res.ok) throw new Error(data.error || "Style agent failed");
@@ -207,7 +209,7 @@ export const StyleAgent = forwardRef<StyleAgentHandle, StyleAgentProps>(function
     } finally {
       setIsRunning(false);
     }
-  }, [sourceScript, styleInstructions, postUrl, onStyledScriptChange]);
+  }, [sourceScript, styleInstructions, postUrl, onStyledScriptChange, ttsProvider]);
 
   useImperativeHandle(
     ref,

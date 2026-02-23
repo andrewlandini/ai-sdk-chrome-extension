@@ -7,7 +7,9 @@ import { insertBlogAudio, getAudioIdByUrl, getGenerationCountByUrl, createGenera
 export const maxDuration = 300;
 
 const MODEL = "eleven_v3";
-const MAX_CHARS = 4000;
+const MAX_CHARS_ELEVENLABS = 4000;
+const MAX_CHARS_INWORLD = 2000;
+const INWORLD_MODEL = "inworld-tts-1.5-max";
 
 // Voice map is no longer hardcoded; names are resolved dynamically via /api/voices
 
@@ -17,8 +19,20 @@ const MAX_CHARS = 4000;
  * a full thought, list with its intro, or cohesive paragraph.
  * Falls back to simple splitting if the AI call fails.
  */
-async function segmentWithAI(text: string): Promise<string[]> {
+async function segmentWithAI(text: string, maxChars = MAX_CHARS_ELEVENLABS): Promise<string[]> {
+  // For shorter texts that fit in a single chunk, skip segmentation
+  if (text.length <= maxChars) return [text.trim()];
+
   try {
+    const isSmallLimit = maxChars <= MAX_CHARS_INWORLD;
+    const segmentGuidance = isSmallLimit
+      ? `- CRITICAL: Pack each segment as close to ${maxChars} characters as possible. Fewer, larger segments are essential -- voice consistency degrades with more chunks.
+- Merge short paragraphs aggressively. Only split when adding another paragraph would exceed ${maxChars} chars.
+- Split ONLY at paragraph boundaries (\n\n). Never split mid-paragraph or mid-sentence.
+- The goal is the MINIMUM number of segments needed to stay under the ${maxChars}-char limit per segment.`
+      : `- Aim for 3-8 segments depending on script length. Fewer, longer segments are better than many tiny ones.
+- Each segment must be under ${maxChars} characters. If a logical section is longer, split at a natural paragraph or topic boundary -- never mid-sentence.`;
+
     const { object } = await generateObject({
       model: "openai/gpt-4o-mini" as any,
       schema: z.object({
@@ -32,44 +46,74 @@ Rules:
 - If a line introduces a list (e.g. "Key components include:"), keep ALL list items WITH the intro as ONE segment.
 - If a paragraph is short (1-2 sentences), merge it with the next related paragraph into one segment.
 - Voice direction tags like [confident], [calm], [pause], etc. are part of the text -- keep them in place.
-- Aim for 3-8 segments depending on script length. Fewer, longer segments are better than many tiny ones.
-- Each segment must be under ${MAX_CHARS} characters. If a logical section is longer, split at a natural paragraph or topic boundary -- never mid-sentence.
+${segmentGuidance}
 - Preserve the EXACT text -- do not rephrase, reorder, add, or remove any words or tags.
 - The concatenation of all segments must exactly equal the original text (with whitespace trimming allowed between segments).`,
       prompt: text,
     });
-    // Validate: segments should cover the full text
     if (object.segments && object.segments.length > 0) {
-      // Filter empty segments
       const segments = object.segments.map(s => s.trim()).filter(Boolean);
       if (segments.length > 0) return segments;
     }
-    return fallbackChunk(text);
+    return fallbackChunk(text, maxChars);
   } catch (err) {
     console.error("AI segmentation failed, using fallback:", err);
-    return fallbackChunk(text);
+    return fallbackChunk(text, maxChars);
   }
 }
 
-/** Simple fallback: split on paragraph breaks, merge short fragments so no segment is a single sentence */
-function fallbackChunk(text: string): string[] {
+/**
+ * Paragraph-boundary fallback: greedily pack paragraphs into chunks
+ * up to maxChars, splitting only at \n\n boundaries for voice consistency.
+ */
+function fallbackChunk(text: string, maxChars = MAX_CHARS_ELEVENLABS): string[] {
   const paragraphs = text.split(/\n\s*\n/).map(p => p.trim()).filter(Boolean);
-  if (paragraphs.length <= 1) return [text.trim()];
+  if (paragraphs.length <= 1) {
+    // Single paragraph but too long: split at sentence boundaries
+    if (text.length > maxChars) return splitAtSentences(text, maxChars);
+    return [text.trim()];
+  }
+
   const result: string[] = [];
   let current = "";
+
   for (const para of paragraphs) {
-    // Count sentences (rough: split on . ! ? followed by space or end)
-    const sentenceCount = (current.match(/[.!?](?:\s|$)/g) || []).length;
-    // Merge if current chunk is short or only has 1 sentence
-    if (current && (current.length < 200 || sentenceCount < 2)) {
-      current = current + " " + para;
+    const candidate = current ? current + "\n\n" + para : para;
+    if (candidate.length <= maxChars) {
+      current = candidate;
     } else {
+      // Current chunk is full, push it and start new
       if (current) result.push(current);
-      current = para;
+      // If single paragraph exceeds limit, split at sentences
+      if (para.length > maxChars) {
+        const subChunks = splitAtSentences(para, maxChars);
+        result.push(...subChunks.slice(0, -1));
+        current = subChunks[subChunks.length - 1];
+      } else {
+        current = para;
+      }
     }
   }
   if (current) result.push(current);
   return result.length > 0 ? result : [text.trim()];
+}
+
+/** Split text at sentence boundaries (.!?) to fit within maxChars */
+function splitAtSentences(text: string, maxChars: number): string[] {
+  const sentences = text.match(/[^.!?]+[.!?]+[\s]*/g) || [text];
+  const result: string[] = [];
+  let current = "";
+  for (const sentence of sentences) {
+    const candidate = current + sentence;
+    if (candidate.length <= maxChars) {
+      current = candidate;
+    } else {
+      if (current) result.push(current.trim());
+      current = sentence;
+    }
+  }
+  if (current) result.push(current.trim());
+  return result;
 }
 
 /**
@@ -128,23 +172,47 @@ function concatMp3Buffers(buffers: Buffer[]): Buffer {
 
 /**
  * Synthesize speech via InWorld AI TTS API.
- * Returns an MP3 buffer.
+ * Endpoint: POST https://api.inworld.ai/tts/v1/voice
+ * Max input: 2,000 characters per request.
+ * Response: JSON with base64-encoded audioContent (MP3 by default).
  */
-async function inworldSynthesize(text: string, voiceId: string): Promise<Buffer> {
+interface InworldOptions {
+  modelId?: string;
+  temperature?: number;
+  speakingRate?: number;
+}
+
+async function inworldSynthesize(text: string, voiceId: string, opts: InworldOptions = {}): Promise<Buffer> {
   const credential = process.env.INWORLD_RUNTIME_BASE64_CREDENTIAL;
   if (!credential) throw new Error("INWORLD_RUNTIME_BASE64_CREDENTIAL is not configured");
 
-  const res = await fetch("https://api.inworld.ai/tts/v1/synthesize", {
+  const body: Record<string, unknown> = {
+    text,
+    voiceId,
+    modelId: opts.modelId || INWORLD_MODEL,
+    applyTextNormalization: "ON",
+  };
+
+  // Temperature: 0 < value <= 2, default 1.1
+  if (opts.temperature !== undefined && opts.temperature > 0) {
+    body.temperature = opts.temperature;
+  }
+
+  // Speaking rate via audioConfig: 0.5-1.5, default 1.0
+  if (opts.speakingRate !== undefined && opts.speakingRate !== 1.0) {
+    body.audioConfig = {
+      audioEncoding: "MP3",
+      speakingRate: opts.speakingRate,
+    };
+  }
+
+  const res = await fetch("https://api.inworld.ai/tts/v1/voice", {
     method: "POST",
     headers: {
       "Content-Type": "application/json",
       Authorization: `Basic ${credential}`,
     },
-    body: JSON.stringify({
-      text,
-      voiceId,
-      outputFormat: "mp3",
-    }),
+    body: JSON.stringify(body),
   });
 
   if (!res.ok) {
@@ -152,8 +220,8 @@ async function inworldSynthesize(text: string, voiceId: string): Promise<Buffer>
     throw new Error(`InWorld TTS API error (${res.status}): ${errText}`);
   }
 
-  const arrayBuf = await res.arrayBuffer();
-  return Buffer.from(arrayBuf);
+  const data = await res.json();
+  return Buffer.from(data.audioContent, "base64");
 }
 
 export async function POST(request: Request) {
@@ -165,6 +233,9 @@ export async function POST(request: Request) {
     voiceId = "PIGsltMj3gFMR34aFDI3",
     stability,
     ttsProvider = "elevenlabs",
+    inworldModel,
+    inworldTemperature,
+    inworldSpeakingRate,
   } = body;
 
   if (!url || !summary) {
@@ -205,8 +276,10 @@ export async function POST(request: Request) {
           : {};
 
         // Intelligently segment the script using AI
+        // InWorld AI has a 2,000 char limit per request; ElevenLabs allows 4,000
+        const maxChars = ttsProvider === "inworld" ? MAX_CHARS_INWORLD : MAX_CHARS_ELEVENLABS;
         send({ type: "status", step: "segmenting", message: "Analyzing script for optimal audio segments..." });
-        const chunks = await segmentWithAI(summary);
+        const chunks = await segmentWithAI(summary, maxChars);
         const totalChars = summary.length;
         const voiceName = voiceId.slice(0, 8);
 
@@ -239,7 +312,11 @@ export async function POST(request: Request) {
 
           let buf: Buffer;
           if (ttsProvider === "inworld") {
-            buf = await inworldSynthesize(chunksWithPause[i], voiceId);
+            buf = await inworldSynthesize(chunksWithPause[i], voiceId, {
+              modelId: inworldModel,
+              temperature: inworldTemperature,
+              speakingRate: inworldSpeakingRate,
+            });
           } else {
             const { audio } = await generateSpeech({
               model: elevenlabs.speech(MODEL),
@@ -319,7 +396,8 @@ export async function POST(request: Request) {
             summary,
             audio_url: blob.url,
             voice_id: voiceId,
-            model_id: ttsProvider === "inworld" ? "inworld" : MODEL,
+            model_id: ttsProvider === "inworld" ? (inworldModel || INWORLD_MODEL) : MODEL,
+            tts_provider: ttsProvider,
             stability,
             label: versionLabel,
             chunk_map: chunkMap,

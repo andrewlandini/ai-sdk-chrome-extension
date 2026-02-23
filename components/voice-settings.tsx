@@ -11,6 +11,10 @@ export interface VoiceConfig {
   label: string;
   styleVibe: string;
   ttsProvider: TtsProvider;
+  // InWorld-specific settings
+  inworldModel?: string;
+  inworldTemperature?: number;
+  inworldSpeakingRate?: number;
 }
 
 interface VoicePreset {
@@ -34,6 +38,13 @@ const VOICE_IDS = [
   "yr43K8H5LoTp6S1QFSGg", // Matt
   "eXpIbVcVbLo8ZJQDlDnl", // Siren
   "IoYPiP0wwoQzmraBbiju", // Patrick
+];
+
+const INWORLD_MODELS = [
+  { id: "inworld-tts-1.5-max", name: "TTS 1.5 Max", desc: "Flagship — best quality + speed" },
+  { id: "inworld-tts-1.5-mini", name: "TTS 1.5 Mini", desc: "Ultra-fast, most cost-efficient" },
+  { id: "inworld-tts-1-max", name: "TTS 1.0 Max", desc: "Previous gen — powerful" },
+  { id: "inworld-tts-1", name: "TTS 1.0", desc: "Previous gen — fastest" },
 ];
 
 const fetcher = (url: string) => fetch(url).then((r) => r.json());
@@ -72,17 +83,18 @@ export function VoiceSettings({ config, onChange, isGenerating = false, generate
   const voiceMeta = voicePreviewData?.voiceMeta ?? {};
 
   const { data: inworldVoicesData } = useSWR<{
-    voices: { voiceId: string; name: string; gender: string; desc: string }[];
+    voices: { voiceId: string; name: string; gender: string; desc: string; tags?: string[] }[];
   }>("/api/inworld-voices", fetcher);
   const inworldVoices = inworldVoicesData?.voices ?? [];
 
   const audioRef = useRef<HTMLAudioElement | null>(null);
   const [playingVoiceId, setPlayingVoiceId] = useState<string | null>(null);
+  const [voiceSearch, setVoiceSearch] = useState("");
 
-  const handlePreview = useCallback((voiceId: string) => {
-    const url = previewUrls[voiceId];
-    if (!url) return;
+  const [loadingPreviewId, setLoadingPreviewId] = useState<string | null>(null);
 
+  const handlePreview = useCallback((voiceId: string, provider?: TtsProvider) => {
+    // If already playing this voice, stop it
     if (playingVoiceId === voiceId && audioRef.current) {
       audioRef.current.pause();
       audioRef.current.currentTime = 0;
@@ -90,20 +102,34 @@ export function VoiceSettings({ config, onChange, isGenerating = false, generate
       return;
     }
 
+    // Stop any current playback
     if (audioRef.current) {
       audioRef.current.pause();
       audioRef.current.currentTime = 0;
+    }
+
+    // Determine the preview URL
+    const activeProvider = provider || config.ttsProvider;
+    let url: string;
+    if (activeProvider === "inworld") {
+      url = `/api/inworld-preview?voiceId=${encodeURIComponent(voiceId)}`;
+    } else {
+      url = previewUrls[voiceId];
+      if (!url) return;
     }
 
     const audio = new Audio(url);
     audio.crossOrigin = "anonymous";
     audioRef.current = audio;
     setPlayingVoiceId(voiceId);
+    setLoadingPreviewId(voiceId);
 
-    audio.play().catch(() => setPlayingVoiceId(null));
+    audio.play()
+      .then(() => setLoadingPreviewId(null))
+      .catch(() => { setPlayingVoiceId(null); setLoadingPreviewId(null); });
     audio.addEventListener("ended", () => setPlayingVoiceId(null), { once: true });
-    audio.addEventListener("error", () => setPlayingVoiceId(null), { once: true });
-  }, [previewUrls, playingVoiceId]);
+    audio.addEventListener("error", () => { setPlayingVoiceId(null); setLoadingPreviewId(null); }, { once: true });
+  }, [previewUrls, playingVoiceId, config.ttsProvider]);
 
   const handleSavePreset = async () => {
     if (!presetName.trim()) return;
@@ -115,6 +141,7 @@ export function VoiceSettings({ config, onChange, isGenerating = false, generate
         body: JSON.stringify({
           name: presetName.trim(),
           voice_id: config.voiceId,
+          tts_provider: config.ttsProvider,
           stability: config.stability,
         }),
       });
@@ -130,6 +157,7 @@ export function VoiceSettings({ config, onChange, isGenerating = false, generate
     onChange({
       ...config,
       voiceId: preset.voice_id,
+      ttsProvider: (preset.tts_provider as TtsProvider) || "elevenlabs",
       stability: preset.stability,
     });
   };
@@ -162,7 +190,7 @@ export function VoiceSettings({ config, onChange, isGenerating = false, generate
             ElevenLabs
           </button>
           <button
-            onClick={() => update({ ttsProvider: "inworld", voiceId: inworldVoices[0]?.voiceId || "alex" })}
+            onClick={() => update({ ttsProvider: "inworld", voiceId: inworldVoices[0]?.voiceId || "Alex" })}
             className={`flex-1 text-xs font-medium py-1.5 rounded transition-colors focus-ring ${
               config.ttsProvider === "inworld"
                 ? "bg-background text-foreground shadow-sm"
@@ -273,10 +301,49 @@ export function VoiceSettings({ config, onChange, isGenerating = false, generate
       {/* Voice */}
       <fieldset className="flex flex-col gap-2">
         <legend className="text-xs text-muted font-medium">Voice</legend>
-        <div className="flex flex-col gap-0.5">
-          {config.ttsProvider === "elevenlabs" ? (
-            // ElevenLabs voices
-            VOICE_IDS.map((vid) => {
+        <div className="relative">
+          <svg className="absolute left-2.5 top-1/2 -translate-y-1/2 text-muted-foreground/50" width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" aria-hidden="true">
+            <circle cx="11" cy="11" r="8" />
+            <path d="m21 21-4.3-4.3" />
+          </svg>
+          <input
+            type="text"
+            value={voiceSearch}
+            onChange={(e) => setVoiceSearch(e.target.value)}
+            placeholder="Filter voices..."
+            className="w-full h-7 bg-background border border-border rounded-md pl-7 pr-7 text-xs text-foreground placeholder:text-muted-foreground/40 focus-ring"
+          />
+          {voiceSearch && (
+            <button
+              onClick={() => setVoiceSearch("")}
+              className="absolute right-2 top-1/2 -translate-y-1/2 text-muted-foreground/50 hover:text-foreground transition-colors"
+              aria-label="Clear search"
+            >
+              <svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" aria-hidden="true">
+                <path d="M18 6L6 18M6 6l12 12" />
+              </svg>
+            </button>
+          )}
+        </div>
+        <div className="flex flex-col gap-0.5 max-h-[360px] overflow-y-auto">
+          {config.ttsProvider === "elevenlabs" ? (() => {
+            const q = voiceSearch.toLowerCase();
+            const filteredIds = VOICE_IDS.filter((vid) => {
+              if (!q) return true;
+              const meta = voiceMeta[vid];
+              const searchable = [
+                meta?.name ?? vid,
+                meta?.desc ?? "",
+                meta?.gender ?? "",
+                meta?.accent ?? "",
+                meta?.useCase ?? "",
+                meta?.category ?? "",
+              ].join(" ").toLowerCase();
+              return searchable.includes(q);
+            });
+            return filteredIds.length === 0 ? (
+              <p className="text-[11px] text-muted py-2 text-center">No voices match &ldquo;{voiceSearch}&rdquo;</p>
+            ) : filteredIds.map((vid) => {
               const meta = voiceMeta[vid];
               const vName = meta?.name ?? vid.slice(0, 8);
               const vDesc = meta?.desc ?? "";
@@ -337,14 +404,24 @@ export function VoiceSettings({ config, onChange, isGenerating = false, generate
                   </button>
                 </div>
               );
-            })
-          ) : (
+            });
+          })() : (() => {
             // InWorld AI voices
-            inworldVoices.length === 0 ? (
+            if (inworldVoices.length === 0) return (
               <p className="text-[11px] text-muted py-2">Loading InWorld voices...</p>
-            ) : (
-              inworldVoices.map((v) => {
+            );
+            const q = voiceSearch.toLowerCase();
+            const filteredInworld = inworldVoices.filter((v) => {
+              if (!q) return true;
+              const searchable = [v.name, v.desc, v.gender, ...(v.tags || [])].join(" ").toLowerCase();
+              return searchable.includes(q);
+            });
+            return filteredInworld.length === 0 ? (
+              <p className="text-[11px] text-muted py-2 text-center">No voices match &ldquo;{voiceSearch}&rdquo;</p>
+            ) : filteredInworld.map((v) => {
                 const isSelected = config.voiceId === v.voiceId;
+                const isPlaying = playingVoiceId === v.voiceId;
+                const isLoading = loadingPreviewId === v.voiceId;
                 return (
                   <div
                     key={v.voiceId}
@@ -354,10 +431,40 @@ export function VoiceSettings({ config, onChange, isGenerating = false, generate
                         : "border-transparent hover:bg-surface-2"
                     }`}
                   >
+                    {/* Preview button */}
+                    <button
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        handlePreview(v.voiceId, "inworld");
+                      }}
+                      aria-label={isPlaying ? `Stop ${v.name} preview` : `Preview ${v.name}`}
+                      className={`flex items-center justify-center w-8 h-full flex-shrink-0 rounded-l-md transition-colors focus-ring ${
+                        isPlaying
+                          ? "text-accent"
+                          : "text-muted-foreground hover:text-foreground"
+                      }`}
+                    >
+                      {isLoading ? (
+                        <svg className="animate-spin" width="11" height="11" viewBox="0 0 24 24" fill="none" aria-hidden="true">
+                          <circle cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="2" strokeOpacity="0.2" />
+                          <path d="M12 2a10 10 0 0 1 10 10" stroke="currentColor" strokeWidth="2" strokeLinecap="round" />
+                        </svg>
+                      ) : isPlaying ? (
+                        <svg width="11" height="11" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true">
+                          <rect x="6" y="4" width="4" height="16" rx="1" />
+                          <rect x="14" y="4" width="4" height="16" rx="1" />
+                        </svg>
+                      ) : (
+                        <svg width="11" height="11" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true">
+                          <polygon points="5 3 19 12 5 21 5 3" />
+                        </svg>
+                      )}
+                    </button>
+                    {/* Voice select button */}
                     <button
                       onClick={() => update({ voiceId: v.voiceId })}
                       aria-pressed={isSelected}
-                      className="flex-1 min-w-0 flex items-center gap-2 px-3 py-1.5 text-left focus-ring rounded-md h-full"
+                      className="flex-1 min-w-0 flex items-center gap-2 pr-3 py-1.5 text-left focus-ring rounded-r-md h-full"
                     >
                       <div className="flex flex-col min-w-0">
                         <span className={`text-xs font-medium leading-tight ${isSelected ? "text-accent" : "text-foreground"}`}>{v.name}</span>
@@ -367,9 +474,8 @@ export function VoiceSettings({ config, onChange, isGenerating = false, generate
                     </button>
                   </div>
                 );
-              })
-            )
-          )}
+              });
+          })()}
         </div>
       </fieldset>
 
@@ -398,6 +504,89 @@ export function VoiceSettings({ config, onChange, isGenerating = false, generate
           <span>Robust</span>
         </div>
       </fieldset>
+      )}
+
+      {/* InWorld settings */}
+      {config.ttsProvider === "inworld" && (
+        <>
+          {/* Model */}
+          <fieldset className="flex flex-col gap-1.5">
+            <legend className="text-xs text-muted font-medium">Model</legend>
+            <div className="flex flex-col gap-0.5">
+              {INWORLD_MODELS.map((m) => {
+                const isSelected = (config.inworldModel || "inworld-tts-1.5-max") === m.id;
+                return (
+                  <button
+                    key={m.id}
+                    onClick={() => update({ inworldModel: m.id })}
+                    aria-pressed={isSelected}
+                    className={`flex items-center gap-2 px-3 py-1.5 rounded-md text-left transition-colors border ${
+                      isSelected
+                        ? "bg-accent/15 border-accent/30"
+                        : "border-transparent hover:bg-surface-2"
+                    }`}
+                  >
+                    <div className="flex flex-col min-w-0">
+                      <span className={`text-xs font-medium leading-tight ${isSelected ? "text-accent" : "text-foreground"}`}>{m.name}</span>
+                      <span className="text-[10px] text-muted-foreground leading-tight">{m.desc}</span>
+                    </div>
+                  </button>
+                );
+              })}
+            </div>
+          </fieldset>
+
+          {/* Temperature */}
+          <fieldset className="flex flex-col gap-1.5">
+            <div className="flex items-center justify-between">
+              <legend className="text-xs text-muted font-medium">Temperature</legend>
+              <output className="text-xs text-foreground font-mono tabular-nums">
+                {(config.inworldTemperature ?? 1.1).toFixed(1)}
+              </output>
+            </div>
+            <div className="px-2">
+              <input
+                type="range"
+                min="0.1"
+                max="2.0"
+                step="0.1"
+                value={config.inworldTemperature ?? 1.1}
+                onChange={(e) => update({ inworldTemperature: parseFloat(e.target.value) })}
+                className="w-full focus-ring rounded"
+              />
+            </div>
+            <div className="flex justify-between text-[9px] text-muted-foreground -mt-0.5 px-2">
+              <span>Deterministic</span>
+              <span>Expressive</span>
+            </div>
+          </fieldset>
+
+          {/* Speaking Rate */}
+          <fieldset className="flex flex-col gap-1.5">
+            <div className="flex items-center justify-between">
+              <legend className="text-xs text-muted font-medium">Speaking Rate</legend>
+              <output className="text-xs text-foreground font-mono tabular-nums">
+                {(config.inworldSpeakingRate ?? 1.0).toFixed(1)}x
+              </output>
+            </div>
+            <div className="px-2">
+              <input
+                type="range"
+                min="0.5"
+                max="1.5"
+                step="0.1"
+                value={config.inworldSpeakingRate ?? 1.0}
+                onChange={(e) => update({ inworldSpeakingRate: parseFloat(e.target.value) })}
+                className="w-full focus-ring rounded"
+              />
+            </div>
+            <div className="flex justify-between text-[9px] text-muted-foreground -mt-0.5 px-2">
+              <span>0.5x Slow</span>
+              <span>1.0x Normal</span>
+              <span>1.5x Fast</span>
+            </div>
+          </fieldset>
+        </>
       )}
 
       {/* Generation progress */}
