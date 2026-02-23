@@ -40,6 +40,7 @@ interface PostsListProps {
   onSelect: (url: string, title: string) => void;
   onPlay: (entry: BlogAudio) => void;
   onDelete: (entry: BlogAudio) => void;
+  onPreview?: (url: string, title: string) => void;
 }
 
 
@@ -54,7 +55,7 @@ function slugFromUrl(url: string): string {
   }
 }
 
-export function PostsList({ entries, selectedUrl, activeId, onSelect, onPlay, onDelete }: PostsListProps) {
+export function PostsList({ entries, selectedUrl, activeId, onSelect, onPlay, onDelete, onPreview }: PostsListProps) {
   const [search, setSearch] = useState("");
   const [sortKey, setSortKey] = useState<SortKey>("date");
   const [sortDir, setSortDir] = useState<SortDir>("desc");
@@ -262,6 +263,19 @@ export function PostsList({ entries, selectedUrl, activeId, onSelect, onPlay, on
                         return null;
                     }
                   })}
+                  {/* Preview button */}
+                  {onPreview && (
+                    <button
+                      onClick={(e) => { e.stopPropagation(); onPreview(group.url, group.title); }}
+                      aria-label="Preview original blog text"
+                      className="w-6 flex-shrink-0 flex items-center justify-center text-muted hover:text-foreground transition-colors"
+                    >
+                      <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" aria-hidden="true">
+                        <path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z" />
+                        <circle cx="12" cy="12" r="3" />
+                      </svg>
+                    </button>
+                  )}
                 </div>
 
 

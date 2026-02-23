@@ -126,6 +126,36 @@ function concatMp3Buffers(buffers: Buffer[]): Buffer {
   return Buffer.concat(parts);
 }
 
+/**
+ * Synthesize speech via InWorld AI TTS API.
+ * Returns an MP3 buffer.
+ */
+async function inworldSynthesize(text: string, voiceId: string): Promise<Buffer> {
+  const credential = process.env.INWORLD_RUNTIME_BASE64_CREDENTIAL;
+  if (!credential) throw new Error("INWORLD_RUNTIME_BASE64_CREDENTIAL is not configured");
+
+  const res = await fetch("https://api.inworld.ai/tts/v1/synthesize", {
+    method: "POST",
+    headers: {
+      "Content-Type": "application/json",
+      Authorization: `Basic ${credential}`,
+    },
+    body: JSON.stringify({
+      text,
+      voiceId,
+      outputFormat: "mp3",
+    }),
+  });
+
+  if (!res.ok) {
+    const errText = await res.text().catch(() => "Unknown error");
+    throw new Error(`InWorld TTS API error (${res.status}): ${errText}`);
+  }
+
+  const arrayBuf = await res.arrayBuffer();
+  return Buffer.from(arrayBuf);
+}
+
 export async function POST(request: Request) {
   const body = await request.json();
   const {
@@ -134,6 +164,7 @@ export async function POST(request: Request) {
     summary,
     voiceId = "PIGsltMj3gFMR34aFDI3",
     stability,
+    ttsProvider = "elevenlabs",
   } = body;
 
   if (!url || !summary) {
@@ -193,24 +224,31 @@ export async function POST(request: Request) {
         // Append [short pause] to every chunk for natural breathing room between segments
         const chunksWithPause = chunks.map(c => c.trimEnd().endsWith("[short pause]") ? c : `${c.trimEnd()} [short pause]`);
 
+        const providerLabel = ttsProvider === "inworld" ? "InWorld AI" : "ElevenLabs v3";
+
         for (let i = 0; i < chunks.length; i++) {
           const chunkChars = chunks[i].length;
           send({
             type: "status",
             step: "generating",
             message: chunks.length === 1
-              ? `Generating speech with ElevenLabs v3...`
+              ? `Generating speech with ${providerLabel}...`
               : `Generating chunk ${i + 1}/${chunks.length} (${chunkChars.toLocaleString()} chars)...`,
             progress: { current: i + 1, total: chunks.length },
           });
 
-          const { audio } = await generateSpeech({
-            model: elevenlabs.speech(MODEL),
-            text: chunksWithPause[i],
-            voice: voiceId,
-            ...providerOpts,
-          });
-          const buf = Buffer.from(audio.uint8Array);
+          let buf: Buffer;
+          if (ttsProvider === "inworld") {
+            buf = await inworldSynthesize(chunksWithPause[i], voiceId);
+          } else {
+            const { audio } = await generateSpeech({
+              model: elevenlabs.speech(MODEL),
+              text: chunksWithPause[i],
+              voice: voiceId,
+              ...providerOpts,
+            });
+            buf = Buffer.from(audio.uint8Array);
+          }
           audioBuffers.push(buf);
           chunkDurations.push(estimateMp3DurationMs(buf));
         }
@@ -281,7 +319,7 @@ export async function POST(request: Request) {
             summary,
             audio_url: blob.url,
             voice_id: voiceId,
-            model_id: MODEL,
+            model_id: ttsProvider === "inworld" ? "inworld" : MODEL,
             stability,
             label: versionLabel,
             chunk_map: chunkMap,
@@ -294,8 +332,8 @@ export async function POST(request: Request) {
 
         await updateGenerationJob(job.id, { status: "done", message: "Complete", result_entry_id: entry.id });
 
-        // Refresh credits from ElevenLabs and save to DB
-        try {
+        // Refresh credits from ElevenLabs and save to DB (skip for InWorld)
+        if (ttsProvider === "elevenlabs") try {
           const apiKey = process.env.ELEVENLABS_API_KEY;
           if (apiKey) {
             const creditsRes = await fetch("https://api.elevenlabs.io/v1/user/subscription", {
