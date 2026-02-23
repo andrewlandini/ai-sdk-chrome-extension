@@ -1,6 +1,6 @@
 import { streamText } from "ai";
 import { scrapeBlogPost } from "@/lib/scraper";
-import { getActivePromptPreset, getPromptNodeBySlug, sql } from "@/lib/db";
+import { getActivePromptPreset, getPromptNodeBySlug, getPronunciationDict, sql } from "@/lib/db";
 
 export const maxDuration = 60;
 
@@ -58,6 +58,17 @@ export async function POST(request: Request) {
       "",
       scraped.text,
     ].filter(Boolean).join("\n");
+
+    // Inject pronunciation dictionary into system prompt
+    try {
+      const dictEntries = await getPronunciationDict();
+      if (dictEntries.length > 0) {
+        const dictLines = dictEntries.map(e => `- "${e.original}" → "${e.pronunciation}"`).join("\n");
+        systemPrompt += `\n\n## Pronunciation Dictionary\nWhenever these words/phrases appear, use the pronunciation spelling instead:\n${dictLines}`;
+      }
+    } catch (err) {
+      console.error("Failed to load pronunciation dictionary:", err);
+    }
 
     // Inject {{BLOG_CONTENT}} placeholder if present, otherwise pass as user prompt
     let finalSystem: string;

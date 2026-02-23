@@ -2,6 +2,7 @@
 
 import { useState, useRef, useCallback } from "react";
 import useSWR from "swr";
+import { PronunciationDictPopup } from "./pronunciation-dict";
 
 export type TtsProvider = "elevenlabs" | "inworld";
 
@@ -91,6 +92,7 @@ export function VoiceSettings({ config, onChange, isGenerating = false, generate
   const audioRef = useRef<HTMLAudioElement | null>(null);
   const [playingVoiceId, setPlayingVoiceId] = useState<string | null>(null);
   const [voiceSearch, setVoiceSearch] = useState("");
+  const [dictOpen, setDictOpen] = useState(false);
 
   const [loadingPreviewId, setLoadingPreviewId] = useState<string | null>(null);
 
@@ -298,6 +300,24 @@ export function VoiceSettings({ config, onChange, isGenerating = false, generate
           className="h-8 bg-background border border-border rounded-md px-2.5 text-xs text-foreground font-mono placeholder:text-muted-foreground/40 transition-colors focus-ring"
         />
       </fieldset>
+
+      {/* Training Words */}
+      <button
+        onClick={() => setDictOpen(true)}
+        className="flex items-center gap-2 w-full px-3 py-2 rounded-md border border-border hover:border-border-hover bg-surface-2/30 hover:bg-surface-2 transition-colors text-left focus-ring"
+      >
+        <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" className="text-accent flex-shrink-0" aria-hidden="true">
+          <path d="M12 6.253v13m0-13C10.832 5.477 9.246 5 7.5 5S4.168 5.477 3 6.253v13C4.168 18.477 5.754 18 7.5 18s3.332.477 4.5 1.253m0-13C13.168 5.477 14.754 5 16.5 5c1.747 0 3.332.477 4.5 1.253v13C19.832 18.477 18.247 18 16.5 18c-1.746 0-3.332.477-4.5 1.253" />
+        </svg>
+        <div className="flex-1 min-w-0">
+          <span className="text-xs font-medium text-foreground">Training Words</span>
+          <span className="text-[10px] text-muted-foreground ml-1.5">Pronunciation dictionary</span>
+        </div>
+        <svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" className="text-muted-foreground/50" aria-hidden="true">
+          <path d="M9 18l6-6-6-6" />
+        </svg>
+      </button>
+      <PronunciationDictPopup open={dictOpen} onClose={() => setDictOpen(false)} />
 
       {/* Voice */}
       <fieldset className="flex flex-col gap-2">
