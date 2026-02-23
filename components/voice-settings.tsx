@@ -90,10 +90,10 @@ export function VoiceSettings({ config, onChange, isGenerating = false, generate
   const audioRef = useRef<HTMLAudioElement | null>(null);
   const [playingVoiceId, setPlayingVoiceId] = useState<string | null>(null);
 
-  const handlePreview = useCallback((voiceId: string) => {
-    const url = previewUrls[voiceId];
-    if (!url) return;
+  const [loadingPreviewId, setLoadingPreviewId] = useState<string | null>(null);
 
+  const handlePreview = useCallback((voiceId: string, provider?: TtsProvider) => {
+    // If already playing this voice, stop it
     if (playingVoiceId === voiceId && audioRef.current) {
       audioRef.current.pause();
       audioRef.current.currentTime = 0;
@@ -101,20 +101,34 @@ export function VoiceSettings({ config, onChange, isGenerating = false, generate
       return;
     }
 
+    // Stop any current playback
     if (audioRef.current) {
       audioRef.current.pause();
       audioRef.current.currentTime = 0;
+    }
+
+    // Determine the preview URL
+    const activeProvider = provider || config.ttsProvider;
+    let url: string;
+    if (activeProvider === "inworld") {
+      url = `/api/inworld-preview?voiceId=${encodeURIComponent(voiceId)}`;
+    } else {
+      url = previewUrls[voiceId];
+      if (!url) return;
     }
 
     const audio = new Audio(url);
     audio.crossOrigin = "anonymous";
     audioRef.current = audio;
     setPlayingVoiceId(voiceId);
+    setLoadingPreviewId(voiceId);
 
-    audio.play().catch(() => setPlayingVoiceId(null));
+    audio.play()
+      .then(() => setLoadingPreviewId(null))
+      .catch(() => { setPlayingVoiceId(null); setLoadingPreviewId(null); });
     audio.addEventListener("ended", () => setPlayingVoiceId(null), { once: true });
-    audio.addEventListener("error", () => setPlayingVoiceId(null), { once: true });
-  }, [previewUrls, playingVoiceId]);
+    audio.addEventListener("error", () => { setPlayingVoiceId(null); setLoadingPreviewId(null); }, { once: true });
+  }, [previewUrls, playingVoiceId, config.ttsProvider]);
 
   const handleSavePreset = async () => {
     if (!presetName.trim()) return;
@@ -356,6 +370,8 @@ export function VoiceSettings({ config, onChange, isGenerating = false, generate
             ) : (
               inworldVoices.map((v) => {
                 const isSelected = config.voiceId === v.voiceId;
+                const isPlaying = playingVoiceId === v.voiceId;
+                const isLoading = loadingPreviewId === v.voiceId;
                 return (
                   <div
                     key={v.voiceId}
@@ -365,10 +381,40 @@ export function VoiceSettings({ config, onChange, isGenerating = false, generate
                         : "border-transparent hover:bg-surface-2"
                     }`}
                   >
+                    {/* Preview button */}
+                    <button
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        handlePreview(v.voiceId, "inworld");
+                      }}
+                      aria-label={isPlaying ? `Stop ${v.name} preview` : `Preview ${v.name}`}
+                      className={`flex items-center justify-center w-8 h-full flex-shrink-0 rounded-l-md transition-colors focus-ring ${
+                        isPlaying
+                          ? "text-accent"
+                          : "text-muted-foreground hover:text-foreground"
+                      }`}
+                    >
+                      {isLoading ? (
+                        <svg className="animate-spin" width="11" height="11" viewBox="0 0 24 24" fill="none" aria-hidden="true">
+                          <circle cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="2" strokeOpacity="0.2" />
+                          <path d="M12 2a10 10 0 0 1 10 10" stroke="currentColor" strokeWidth="2" strokeLinecap="round" />
+                        </svg>
+                      ) : isPlaying ? (
+                        <svg width="11" height="11" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true">
+                          <rect x="6" y="4" width="4" height="16" rx="1" />
+                          <rect x="14" y="4" width="4" height="16" rx="1" />
+                        </svg>
+                      ) : (
+                        <svg width="11" height="11" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true">
+                          <polygon points="5 3 19 12 5 21 5 3" />
+                        </svg>
+                      )}
+                    </button>
+                    {/* Voice select button */}
                     <button
                       onClick={() => update({ voiceId: v.voiceId })}
                       aria-pressed={isSelected}
-                      className="flex-1 min-w-0 flex items-center gap-2 px-3 py-1.5 text-left focus-ring rounded-md h-full"
+                      className="flex-1 min-w-0 flex items-center gap-2 pr-3 py-1.5 text-left focus-ring rounded-r-md h-full"
                     >
                       <div className="flex flex-col min-w-0">
                         <span className={`text-xs font-medium leading-tight ${isSelected ? "text-accent" : "text-foreground"}`}>{v.name}</span>
