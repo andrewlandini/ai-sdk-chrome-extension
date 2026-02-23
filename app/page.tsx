@@ -1701,6 +1701,7 @@ function HomePage() {
                   onHistoryChange={setStyleHistory}
                   externalScript={selectedHistoryScript}
                   styleVibe={voiceConfig.styleVibe}
+                  ttsProvider={voiceConfig.ttsProvider}
                   dimmed={contentFocused}
                   chunkMap={activeChunkMap}
                   currentPlaybackTime={playbackTime}
