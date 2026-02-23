@@ -89,6 +89,7 @@ export function VoiceSettings({ config, onChange, isGenerating = false, generate
 
   const audioRef = useRef<HTMLAudioElement | null>(null);
   const [playingVoiceId, setPlayingVoiceId] = useState<string | null>(null);
+  const [voiceSearch, setVoiceSearch] = useState("");
 
   const [loadingPreviewId, setLoadingPreviewId] = useState<string | null>(null);
 
@@ -298,10 +299,49 @@ export function VoiceSettings({ config, onChange, isGenerating = false, generate
       {/* Voice */}
       <fieldset className="flex flex-col gap-2">
         <legend className="text-xs text-muted font-medium">Voice</legend>
+        <div className="relative">
+          <svg className="absolute left-2.5 top-1/2 -translate-y-1/2 text-muted-foreground/50" width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" aria-hidden="true">
+            <circle cx="11" cy="11" r="8" />
+            <path d="m21 21-4.3-4.3" />
+          </svg>
+          <input
+            type="text"
+            value={voiceSearch}
+            onChange={(e) => setVoiceSearch(e.target.value)}
+            placeholder="Filter voices..."
+            className="w-full h-7 bg-background border border-border rounded-md pl-7 pr-7 text-xs text-foreground placeholder:text-muted-foreground/40 focus-ring"
+          />
+          {voiceSearch && (
+            <button
+              onClick={() => setVoiceSearch("")}
+              className="absolute right-2 top-1/2 -translate-y-1/2 text-muted-foreground/50 hover:text-foreground transition-colors"
+              aria-label="Clear search"
+            >
+              <svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" aria-hidden="true">
+                <path d="M18 6L6 18M6 6l12 12" />
+              </svg>
+            </button>
+          )}
+        </div>
         <div className="flex flex-col gap-0.5 max-h-[360px] overflow-y-auto">
-          {config.ttsProvider === "elevenlabs" ? (
-            // ElevenLabs voices
-            VOICE_IDS.map((vid) => {
+          {config.ttsProvider === "elevenlabs" ? (() => {
+            const q = voiceSearch.toLowerCase();
+            const filteredIds = VOICE_IDS.filter((vid) => {
+              if (!q) return true;
+              const meta = voiceMeta[vid];
+              const searchable = [
+                meta?.name ?? vid,
+                meta?.desc ?? "",
+                meta?.gender ?? "",
+                meta?.accent ?? "",
+                meta?.useCase ?? "",
+                meta?.category ?? "",
+              ].join(" ").toLowerCase();
+              return searchable.includes(q);
+            });
+            return filteredIds.length === 0 ? (
+              <p className="text-[11px] text-muted py-2 text-center">No voices match &ldquo;{voiceSearch}&rdquo;</p>
+            ) : filteredIds.map((vid) => {
               const meta = voiceMeta[vid];
               const vName = meta?.name ?? vid.slice(0, 8);
               const vDesc = meta?.desc ?? "";
@@ -362,13 +402,21 @@ export function VoiceSettings({ config, onChange, isGenerating = false, generate
                   </button>
                 </div>
               );
-            })
-          ) : (
+            });
+          })() : (() => {
             // InWorld AI voices
-            inworldVoices.length === 0 ? (
+            if (inworldVoices.length === 0) return (
               <p className="text-[11px] text-muted py-2">Loading InWorld voices...</p>
-            ) : (
-              inworldVoices.map((v) => {
+            );
+            const q = voiceSearch.toLowerCase();
+            const filteredInworld = inworldVoices.filter((v) => {
+              if (!q) return true;
+              const searchable = [v.name, v.desc, v.gender, ...(v.tags || [])].join(" ").toLowerCase();
+              return searchable.includes(q);
+            });
+            return filteredInworld.length === 0 ? (
+              <p className="text-[11px] text-muted py-2 text-center">No voices match &ldquo;{voiceSearch}&rdquo;</p>
+            ) : filteredInworld.map((v) => {
                 const isSelected = config.voiceId === v.voiceId;
                 const isPlaying = playingVoiceId === v.voiceId;
                 const isLoading = loadingPreviewId === v.voiceId;
@@ -424,9 +472,8 @@ export function VoiceSettings({ config, onChange, isGenerating = false, generate
                     </button>
                   </div>
                 );
-              })
-            )
-          )}
+              });
+          })()}
         </div>
       </fieldset>
 
