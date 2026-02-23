@@ -589,9 +589,8 @@ function HomePage() {
         url: scriptUrl,
         title: scriptTitle,
         summary: styledScript,
-  voiceId: voiceConfig.voiceId,
-  stability: voiceConfig.stability,
-  ttsProvider: voiceConfig.ttsProvider,
+        voiceId: voiceConfig.voiceId,
+        stability: voiceConfig.stability,
         ttsProvider: voiceConfig.ttsProvider,
       };
       const response = await fetch("/api/generate", {

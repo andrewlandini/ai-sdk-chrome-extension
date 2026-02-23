@@ -20,6 +20,7 @@ const DEFAULT_VOICE_CONFIG: VoiceConfig = {
   stability: 0,
   label: "",
   styleVibe: "Confident and genuinely excited about the content, but grounded and conversational -- not over the top",
+  ttsProvider: "elevenlabs",
 };
 
 interface GeneratorViewProps {
