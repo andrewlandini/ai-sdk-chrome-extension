@@ -284,7 +284,7 @@ export function VoiceSettings({ config, onChange, isGenerating = false, generate
       {/* Voice */}
       <fieldset className="flex flex-col gap-2">
         <legend className="text-xs text-muted font-medium">Voice</legend>
-        <div className="flex flex-col gap-0.5">
+        <div className="flex flex-col gap-0.5 max-h-[360px] overflow-y-auto">
           {config.ttsProvider === "elevenlabs" ? (
             // ElevenLabs voices
             VOICE_IDS.map((vid) => {
