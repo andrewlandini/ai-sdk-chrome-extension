@@ -23,16 +23,14 @@ async function segmentWithAI(text: string, maxChars = MAX_CHARS_ELEVENLABS): Pro
   // For shorter texts that fit in a single chunk, skip segmentation
   if (text.length <= maxChars) return [text.trim()];
 
-  try {
-    const isSmallLimit = maxChars <= MAX_CHARS_INWORLD;
-    const segmentGuidance = isSmallLimit
-      ? `- CRITICAL: Pack each segment as close to ${maxChars} characters as possible. Fewer, larger segments are essential -- voice consistency degrades with more chunks.
-- Merge short paragraphs aggressively. Only split when adding another paragraph would exceed ${maxChars} chars.
-- Split ONLY at paragraph boundaries (\n\n). Never split mid-paragraph or mid-sentence.
-- The goal is the MINIMUM number of segments needed to stay under the ${maxChars}-char limit per segment.`
-      : `- Aim for 3-8 segments depending on script length. Fewer, longer segments are better than many tiny ones.
-- Each segment must be under ${maxChars} characters. If a logical section is longer, split at a natural paragraph or topic boundary -- never mid-sentence.`;
+  // For InWorld (small char limit), use deterministic greedy packing.
+  // AI segmentation tends to over-split -- the greedy fallback produces
+  // the MINIMUM number of chunks by packing paragraphs up to the limit.
+  if (maxChars <= MAX_CHARS_INWORLD) {
+    return fallbackChunk(text, maxChars);
+  }
 
+  try {
     const { object } = await generateObject({
       model: "openai/gpt-4o-mini" as any,
       schema: z.object({
@@ -46,7 +44,8 @@ Rules:
 - If a line introduces a list (e.g. "Key components include:"), keep ALL list items WITH the intro as ONE segment.
 - If a paragraph is short (1-2 sentences), merge it with the next related paragraph into one segment.
 - Voice direction tags like [confident], [calm], [pause], etc. are part of the text -- keep them in place.
-${segmentGuidance}
+- Aim for 3-8 segments depending on script length. Fewer, longer segments are better than many tiny ones.
+- Each segment must be under ${maxChars} characters. If a logical section is longer, split at a natural paragraph or topic boundary -- never mid-sentence.
 - Preserve the EXACT text -- do not rephrase, reorder, add, or remove any words or tags.
 - The concatenation of all segments must exactly equal the original text (with whitespace trimming allowed between segments).`,
       prompt: text,

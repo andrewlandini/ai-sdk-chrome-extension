@@ -1,5 +1,5 @@
 import { generateText } from "ai";
-import { getPromptNodeBySlug } from "@/lib/db";
+import { getPromptNodeBySlug, getPronunciationDict } from "@/lib/db";
 
 export const maxDuration = 120;
 
@@ -41,6 +41,24 @@ You are styling a script for InWorld AI TTS. Apply these techniques to produce n
 - Keep the script's meaning and content intact while applying these performance techniques.
 `;
 
+const VERBATIM_RULE = `
+## CRITICAL: Verbatim Script Rule
+
+You MUST keep the sentence structure, word order, and phrasing **exactly** as the original script. Do NOT rephrase, reorder, add new sentences, or restructure paragraphs.
+
+Your ONLY allowed modifications are:
+1. **Numbers** → spell them out for speech ("2025" → "twenty twenty-five", "42%" → "forty-two percent")
+2. **Dates** → spoken form ("5/6/2025" → "May sixth, twenty twenty-five")
+3. **Abbreviations/Acronyms** → expand or spell out ("API" → "A P I", "Edu" → "Education", "CEO" → "C E O")
+4. **Symbols & math** → spoken equivalents ("$5,342" → "five thousand three hundred forty-two dollars", "+" → "plus")
+5. **URLs/emails** → spoken form ("example.com" → "example dot com")
+6. **Code blocks/diagrams** → replace with a brief spoken summary describing what it shows
+7. **Pronunciation dictionary** → apply exact replacements from the dictionary below (if provided)
+8. **Performance tags** → you may add voice direction tags like [pause], [confident], etc. but NEVER change the actual words
+
+Everything else stays EXACTLY as written. The listener should hear the same content in the same order.
+`;
+
 export async function POST(request: Request) {
   try {
     const { script, styleInstructions, ttsProvider = "elevenlabs" } = await request.json();
@@ -62,9 +80,24 @@ export async function POST(request: Request) {
         ? `${rawPrompt}\n\n**STYLE CUE FROM USER:**\n"${styleCue}"`
         : rawPrompt;
 
+    // Always inject the verbatim rule
+    let finalSystemPrompt = systemPrompt + `\n\n${VERBATIM_RULE}`;
+
     // Append InWorld-specific TTS tips when using InWorld provider
-    const providerTips = ttsProvider === "inworld" ? `\n\n${INWORLD_TTS_TIPS}` : "";
-    const finalSystemPrompt = systemPrompt + providerTips;
+    if (ttsProvider === "inworld") {
+      finalSystemPrompt += `\n\n${INWORLD_TTS_TIPS}`;
+    }
+
+    // Fetch and inject pronunciation dictionary
+    try {
+      const dictEntries = await getPronunciationDict();
+      if (dictEntries.length > 0) {
+        const dictLines = dictEntries.map(e => `- "${e.original}" → "${e.pronunciation}"`).join("\n");
+        finalSystemPrompt += `\n\n## Pronunciation Dictionary\nApply these EXACT replacements whenever the original word/phrase appears in the script:\n${dictLines}`;
+      }
+    } catch (err) {
+      console.error("Failed to load pronunciation dictionary:", err);
+    }
 
     const userPrompt = `Here is the script to style:\n\n${script}`;
 

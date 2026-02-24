@@ -521,6 +521,50 @@ export async function deleteScriptHistory(id: number): Promise<void> {
   await sql`DELETE FROM script_history WHERE id = ${id}`;
 }
 
+// ── Pronunciation Dictionary ──
+
+export interface PronunciationEntry {
+  id: number;
+  original: string;
+  pronunciation: string;
+  category: string;
+  created_at: string;
+}
+
+export async function getPronunciationDict(): Promise<PronunciationEntry[]> {
+  const rows = await sql`SELECT * FROM pronunciation_dict ORDER BY original ASC`;
+  return rows as PronunciationEntry[];
+}
+
+export async function insertPronunciationEntry(data: {
+  original: string;
+  pronunciation: string;
+  category?: string;
+}): Promise<PronunciationEntry> {
+  const rows = await sql`
+    INSERT INTO pronunciation_dict (original, pronunciation, category)
+    VALUES (${data.original}, ${data.pronunciation}, ${data.category ?? 'general'})
+    RETURNING *
+  `;
+  return rows[0] as PronunciationEntry;
+}
+
+export async function updatePronunciationEntry(id: number, data: {
+  original: string;
+  pronunciation: string;
+  category?: string;
+}): Promise<PronunciationEntry> {
+  const rows = await sql`
+    UPDATE pronunciation_dict SET original = ${data.original}, pronunciation = ${data.pronunciation}, category = ${data.category ?? 'general'}
+    WHERE id = ${id} RETURNING *
+  `;
+  return rows[0] as PronunciationEntry;
+}
+
+export async function deletePronunciationEntry(id: number): Promise<void> {
+  await sql`DELETE FROM pronunciation_dict WHERE id = ${id}`;
+}
+
 // ── Credits Cache ──
 
 export interface CachedCredits {
